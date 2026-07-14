@@ -2763,6 +2763,13 @@ static void skeleton_note_expand_template(const char* tpl,
                 p += 5;
                 continue;
             }
+            if (strncmp(p, "{MITHRIL}", 9) == 0)
+            {
+                if (p_ptr && p_ptr->depth >= MITHRIL_VEIN_MIN_DEPTH)
+                    w += strnfmt(out + w, out_sz - w, " or mithril");
+                p += 9;
+                continue;
+            }
         }
         out[w++] = *p++;
     }

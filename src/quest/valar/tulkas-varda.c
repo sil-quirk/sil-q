@@ -184,6 +184,7 @@ void tulkas_quest_interaction(void)
             /* Fallback to simple message if text extraction fails */
             msg_print("Tulkas the Strong speaks of a great quest, but the words are lost in thunder.");
         }
+        sdl_popup_notification_show("New quest added");
     }
     else if (p_ptr->tulkas_quest == TULKAS_QUEST_COMPLETE)
     {
@@ -866,6 +867,7 @@ void varda_quest_interaction(void)
         }
 
         do_cmd_note("Varda sent me to destroy Duruin and cleanse his bastion.", p_ptr->depth);
+        sdl_popup_notification_show("New quest added");
         return;
     }
 

@@ -1395,6 +1395,9 @@
 #define SV_METAL_MITHRIL 0 /*  */
 #define SV_METAL_STAR_IRON 1 /*  */
 
+/* Earliest depth at which cave quartz can yield mithril. */
+#define MITHRIL_VEIN_MIN_DEPTH 12
+
 /* The "sval" codes for TV_ARROW */
 #define SV_NORMAL_ARROW 1 /*  */
 

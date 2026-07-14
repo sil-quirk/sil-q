@@ -3219,6 +3219,22 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
             log_debug("Loaded diceRollOverlayMs: %d",
                 config->dice_roll_overlay_ms);
         }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl,
+            "popupNotificationMs");
+        if (cJSON_IsNumber(item)) {
+            config->popup_notification_ms = item->valueint;
+            if (config->popup_notification_ms < 0)
+                config->popup_notification_ms = 0;
+            if (config->popup_notification_ms
+                > SDL_POPUP_NOTIFICATION_MAX_MS)
+            {
+                config->popup_notification_ms =
+                    SDL_POPUP_NOTIFICATION_MAX_MS;
+            }
+            log_debug("Loaded popupNotificationMs: %d",
+                config->popup_notification_ms);
+        }
         
         // Window position and size for windowed mode
         item = cJSON_GetObjectItemCaseSensitive(sdl, "windowX");
@@ -4180,6 +4196,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddNumberToObject(sdl, "diceRollLockMs", config->dice_roll_lock_ms);
     cJSON_AddNumberToObject(sdl, "diceRollOverlayMs",
         config->dice_roll_overlay_ms);
+    cJSON_AddNumberToObject(sdl, "popupNotificationMs",
+        config->popup_notification_ms);
     
     // Save window position and size for windowed mode
     cJSON_AddNumberToObject(sdl, "windowX", config->window_x);
@@ -4759,6 +4777,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->log_pane_display_filter = LOG_HISTORY_FILTER_ALL;
     config->dice_roll_lock_ms = SDL_DICE_ROLL_LOCK_DEFAULT_MS;
     config->dice_roll_overlay_ms = SDL_DICE_ROLL_OVERLAY_DEFAULT_MS;
+    config->popup_notification_ms = SDL_POPUP_NOTIFICATION_DEFAULT_MS;
     
     // Default window position and size (will be overridden by actual screen size)
     config->window_x = -1;  // -1 means centered

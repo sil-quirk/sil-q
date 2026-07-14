@@ -529,8 +529,16 @@ void verify_panel(void)
 
     if (panel_changed)
     {
-        /* Optional disturb on "panel change" */
-        if (!center_player)
+        /* A panel adjustment normally interrupts automatic actions.  When it
+         * is only following active movement, however, stopping here truncates
+         * both a distant SDL path and a normal run at the next camera shift.
+         * Each movement mode already stops itself for monsters, objects,
+         * terrain, and other real disturbances, so let it survive camera
+         * maintenance. */
+        if (!center_player && !p_ptr->running
+            && !sdl_mouse_path_is_following())
+        {
             disturb(0, 0);
+        }
     }
 }

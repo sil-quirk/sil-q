@@ -103,7 +103,7 @@ struct settings_value_choice
 #define SOUND_OPTION_ROW_BASE 2048
 #define SOUND_OPTION_ROW(index) (SOUND_OPTION_ROW_BASE + (index))
 #define IFACE_PANE_ROW_BASE 4096
-#define IFACE_PANE_ROW_MAX 32
+#define IFACE_PANE_ROW_MAX 33
 #define IFACE_DICE_ROLL_MS_STEP 500
 
 static const struct settings_value_choice running_delay_choices[] = {
@@ -1594,7 +1594,8 @@ enum iface_pane_field {
     IFACE_PANE_FIELD_LP_LAUNCH,
     IFACE_PANE_FIELD_LP_COMPACT,
     IFACE_PANE_FIELD_DICE_LOCK,
-    IFACE_PANE_FIELD_DICE_OVERLAY
+    IFACE_PANE_FIELD_DICE_OVERLAY,
+    IFACE_PANE_FIELD_POPUP_NOTIFICATION
 };
 
 struct iface_pane_row {
@@ -2949,6 +2950,14 @@ extern void do_cmd_options_aux(int page, cptr info)
                 {
                     set_sdl_dice_roll_overlay_ms(
                         SDL_DICE_ROLL_OVERLAY_DEFAULT_MS);
+                    app_settings_dirty = true;
+                }
+                else if (prow->field == IFACE_PANE_FIELD_POPUP_NOTIFICATION
+                    && get_sdl_popup_notification_ms()
+                        != SDL_POPUP_NOTIFICATION_DEFAULT_MS)
+                {
+                    set_sdl_popup_notification_ms(
+                        SDL_POPUP_NOTIFICATION_DEFAULT_MS);
                     app_settings_dirty = true;
                 }
             }
@@ -4566,6 +4575,17 @@ static int build_interface_pane_rows(struct iface_pane_row* rows, int max_rows,
         row_count++;
     }
 
+    if (row_count + 1 <= max_rows)
+    {
+        rows[row_count].pane_cfg_index = -1;
+        rows[row_count].type = PANE_MAX;
+        rows[row_count].field = IFACE_PANE_FIELD_POPUP_NOTIFICATION;
+        markers[mark_count].setting_id = IFACE_PANE_ROW_BASE + row_count;
+        markers[mark_count].label = "Popup Notifications";
+        mark_count++;
+        row_count++;
+    }
+
     if (marker_count)
         *marker_count = mark_count;
     return row_count;
@@ -4599,6 +4619,7 @@ static cptr iface_pane_row_label(const struct iface_pane_row* row)
     case IFACE_PANE_FIELD_LP_COMPACT: return "Compact Mode";
     case IFACE_PANE_FIELD_DICE_LOCK: return "Lock Time";
     case IFACE_PANE_FIELD_DICE_OVERLAY: return "Result Time";
+    case IFACE_PANE_FIELD_POPUP_NOTIFICATION: return "Display Time";
     default: return "?";
     }
 }
@@ -4655,6 +4676,9 @@ static void iface_pane_row_value(const struct iface_pane_row* row, char* buf,
     case IFACE_PANE_FIELD_DICE_OVERLAY:
         iface_format_ms_value(buf, buflen, get_sdl_dice_roll_overlay_ms());
         break;
+    case IFACE_PANE_FIELD_POPUP_NOTIFICATION:
+        iface_format_ms_value(buf, buflen, get_sdl_popup_notification_ms());
+        break;
     default:
         SDL_strlcpy(buf, "", buflen);
         break;
@@ -4671,6 +4695,7 @@ static void iface_pane_row_apply_change(const struct iface_pane_row* row)
         break;
     case IFACE_PANE_FIELD_DICE_LOCK:
     case IFACE_PANE_FIELD_DICE_OVERLAY:
+    case IFACE_PANE_FIELD_POPUP_NOTIFICATION:
     case IFACE_PANE_FIELD_BUTTONS:
         break;
     default:
@@ -4684,8 +4709,10 @@ static bool iface_pane_pick_from_choices(const struct iface_pane_row* row,
     int* out_value, bool* handled)
 {
     char title[96];
-    cptr group = (row->type == PANE_MAX) ? "Dice Roll Overlay"
-                                         : pane_type_display_name(row->type);
+    cptr group = (row->field == IFACE_PANE_FIELD_POPUP_NOTIFICATION)
+        ? "Popup Notifications"
+        : ((row->type == PANE_MAX) ? "Dice Roll Overlay"
+                                   : pane_type_display_name(row->type));
 
     if (handled)
         *handled = true;
@@ -4888,6 +4915,7 @@ static bool iface_pane_row_pick_value(const struct iface_pane_row* row,
 
     case IFACE_PANE_FIELD_DICE_LOCK:
     case IFACE_PANE_FIELD_DICE_OVERLAY:
+    case IFACE_PANE_FIELD_POPUP_NOTIFICATION:
     {
         struct settings_value_choice choices[
             SDL_DICE_ROLL_TIMING_MAX_MS / IFACE_DICE_ROLL_MS_STEP + 1];
@@ -4896,7 +4924,9 @@ static bool iface_pane_row_pick_value(const struct iface_pane_row* row,
         int count = 0;
         int current = (row->field == IFACE_PANE_FIELD_DICE_LOCK)
             ? get_sdl_dice_roll_lock_ms()
-            : get_sdl_dice_roll_overlay_ms();
+            : ((row->field == IFACE_PANE_FIELD_DICE_OVERLAY)
+                ? get_sdl_dice_roll_overlay_ms()
+                : get_sdl_popup_notification_ms());
 
         current = ((current + IFACE_DICE_ROLL_MS_STEP / 2)
             / IFACE_DICE_ROLL_MS_STEP) * IFACE_DICE_ROLL_MS_STEP;
@@ -4915,12 +4945,16 @@ static bool iface_pane_row_pick_value(const struct iface_pane_row* row,
         {
             int old_value = (row->field == IFACE_PANE_FIELD_DICE_LOCK)
                 ? get_sdl_dice_roll_lock_ms()
-                : get_sdl_dice_roll_overlay_ms();
+                : ((row->field == IFACE_PANE_FIELD_DICE_OVERLAY)
+                    ? get_sdl_dice_roll_overlay_ms()
+                    : get_sdl_popup_notification_ms());
 
             if (row->field == IFACE_PANE_FIELD_DICE_LOCK)
                 set_sdl_dice_roll_lock_ms(value);
-            else
+            else if (row->field == IFACE_PANE_FIELD_DICE_OVERLAY)
                 set_sdl_dice_roll_overlay_ms(value);
+            else
+                set_sdl_popup_notification_ms(value);
             changed = (value != old_value);
         }
         break;
@@ -5049,6 +5083,15 @@ static bool iface_pane_row_adjust(const struct iface_pane_row* row, int delta)
         changed = (get_sdl_dice_roll_overlay_ms() != value);
         break;
     }
+    case IFACE_PANE_FIELD_POPUP_NOTIFICATION:
+    {
+        int value = get_sdl_popup_notification_ms();
+        int next = value + ((delta < 0) ? -IFACE_DICE_ROLL_MS_STEP
+                                        : IFACE_DICE_ROLL_MS_STEP);
+        set_sdl_popup_notification_ms(next);
+        changed = (get_sdl_popup_notification_ms() != value);
+        break;
+    }
     default:
         break;
     }
@@ -5173,6 +5216,13 @@ static bool iface_pane_row_reset_to_default(const struct iface_pane_row* row)
         if (get_sdl_dice_roll_overlay_ms() != def.dice_roll_overlay_ms)
         {
             set_sdl_dice_roll_overlay_ms(def.dice_roll_overlay_ms);
+            changed = true;
+        }
+        break;
+    case IFACE_PANE_FIELD_POPUP_NOTIFICATION:
+        if (get_sdl_popup_notification_ms() != def.popup_notification_ms)
+        {
+            set_sdl_popup_notification_ms(def.popup_notification_ms);
             changed = true;
         }
         break;

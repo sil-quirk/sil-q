@@ -3,6 +3,7 @@
 
 #define SDL_TOUCH_ROUND_INNER_RADIUS_FRAC 0.45f
 #define SDL_TOUCH_ROUND_DRAG_THRESHOLD_FRAC 0.62f
+#define SDL_TOUCH_ROUND_RUN_BUTTON_DISTANCE_MULT 1.3f
 /* The whole inner disc (up to the drag threshold) repeats the last direction,
  * so the centre reads as a single "repeat" button with no dead band. */
 #define SDL_TOUCH_ROUND_CENTER_REPEAT_FRAC 0.62f
@@ -1779,13 +1780,28 @@ int sdl_touch_round_dir_for_delta(float dx, float dy)
     return (dx < 0.0f) ? 1 : 3;
 }
 
-void sdl_touch_round_send_dir(int dir, bool ctrl)
+static bool sdl_touch_round_drag_is_run(float dist, float inner_radius,
+    float radius)
+{
+    float button_distance;
+
+    if (inner_radius <= 0.0f || radius <= inner_radius)
+        return false;
+
+    /* Direction buttons are drawn halfway through the outer ring.  Require a
+     * drag 1.3 times as far from the wheel centre as that button centre. */
+    button_distance = (inner_radius + radius) * 0.5f;
+    return dist >= button_distance
+        * SDL_TOUCH_ROUND_RUN_BUTTON_DISTANCE_MULT;
+}
+
+void sdl_touch_round_send_dir(int dir, bool ctrl, bool run)
 {
     if (dir < 1 || dir > 9 || dir == 5)
         return;
 
     g_touch_round_last_dir = dir;
-    sdl_gamepad_send_direction_mods(dir, false, ctrl, false);
+    sdl_gamepad_send_direction_mods(dir, run, ctrl, false);
 }
 
 void sdl_touch_round_cancel_press(void)
@@ -1916,6 +1932,7 @@ bool sdl_touch_round_handle_pointer_up(float x, float y,
     Uint64 press_time;
     int dir = 0;
     bool ctrl = false;
+    bool run = false;
 
     if (!g_touch_round_press.active
         || g_touch_round_press.finger_id != finger_id)
@@ -1952,13 +1969,15 @@ bool sdl_touch_round_handle_pointer_up(float x, float y,
     } else if (dist >= g_touch_round_press.inner_radius
             * SDL_TOUCH_ROUND_DRAG_THRESHOLD_FRAC) {
         dir = sdl_touch_round_dir_for_delta(dx, dy);
+        run = sdl_touch_round_drag_is_run(dist,
+            g_touch_round_press.inner_radius, radius);
     } else if (g_touch_round_press.selected_dir) {
         dir = g_touch_round_press.selected_dir;
     }
 
     sdl_touch_round_cancel_press();
     if (dir)
-        sdl_touch_round_send_dir(dir, ctrl);
+        sdl_touch_round_send_dir(dir, ctrl, run);
     return true;
 }
 
@@ -2098,7 +2117,7 @@ bool sdl_touch_round_dir_to_map_rect(int dir, SDL_FRect* out_rect)
     return sdl_main_cell_rect(term_col, term_row, tile_cols, 1, out_rect);
 }
 
-void sdl_touch_round_render_target_square(int dir, bool ctrl)
+void sdl_touch_round_render_target_square(int dir, bool ctrl, bool run)
 {
     SDL_FRect rect;
     int map_y;
@@ -2111,6 +2130,8 @@ void sdl_touch_round_render_target_square(int dir, bool ctrl)
 
     if (ctrl) {
         accent = g_state.palette[TERM_L_RED];
+    } else if (run) {
+        accent = g_state.palette[TERM_L_GREEN];
     } else {
         map_y = p_ptr->py + ddy[dir];
         map_x = p_ptr->px + ddx[dir];
@@ -2220,24 +2241,18 @@ void sdl_touch_round_ctrl_action_label(int dir, char* buf, size_t buflen)
     strnfmt(buf, buflen, "Ctrl+%s: %s", dir_label, action);
 }
 
-void sdl_touch_round_render_ctrl_action_label(int dir, float radius,
-    const SDL_Rect* clip)
+static void sdl_touch_round_render_action_label(const char* label,
+    SDL_Color text, float radius, const SDL_Rect* clip)
 {
-    SDL_Color text = g_state.palette[TERM_L_RED];
     SDL_Color border = text;
     SDL_FRect rect;
-    char label[48];
     float label_w;
     float label_h;
     float margin;
     float min_y;
     float max_y;
 
-    if (!clip || dir <= 0)
-        return;
-
-    sdl_touch_round_ctrl_action_label(dir, label, sizeof(label));
-    if (!label[0])
+    if (!clip || !label || !label[0])
         return;
 
     margin = 8.0f;
@@ -2284,12 +2299,41 @@ void sdl_touch_round_render_ctrl_action_label(int dir, float radius,
         0.76f);
 }
 
+void sdl_touch_round_render_ctrl_action_label(int dir, float radius,
+    const SDL_Rect* clip)
+{
+    char label[48];
+
+    sdl_touch_round_ctrl_action_label(dir, label, sizeof(label));
+    sdl_touch_round_render_action_label(label,
+        g_state.palette[TERM_L_RED], radius, clip);
+}
+
+static void sdl_touch_round_render_run_action_label(int dir, float radius,
+    const SDL_Rect* clip)
+{
+    const char* dir_label;
+    char label[48];
+
+    if (!clip || dir <= 0)
+        return;
+
+    dir_label = sdl_touch_round_dir_label(dir);
+    if (!dir_label[0])
+        return;
+    strnfmt(label, sizeof(label), "Run %s", dir_label);
+    sdl_touch_round_render_action_label(label,
+        g_state.palette[TERM_L_GREEN], radius, clip);
+}
+
 static void sdl_touch_round_render_button_arrows(float cx, float cy,
-    float inner_radius, float radius, int target_dir, bool active)
+    float inner_radius, float radius, int target_dir, bool active,
+    bool run_preview)
 {
     static const int dirs[] = { 7, 8, 9, 4, 6, 1, 2, 3 };
     SDL_Color arrow = g_state.palette[TERM_WHITE];
-    SDL_Color chosen = g_state.palette[TERM_YELLOW];
+    SDL_Color chosen = g_state.palette[
+        run_preview ? TERM_L_GREEN : TERM_YELLOW];
     float mid = (inner_radius + radius) * 0.5f;
     float ring_w = radius - inner_radius;
     float button_size = ring_w * 1.14f;
@@ -2349,6 +2393,7 @@ void sdl_touch_round_render(void)
     Uint64 press_time;
     bool center_repeat;
     bool ctrl_preview;
+    bool run_preview;
     int target_dir;
     int dir;
 
@@ -2405,22 +2450,27 @@ void sdl_touch_round_render(void)
         : 0;
 
     /* A direct button press held past the long-press threshold previews the
-     * Ctrl+direction action (released as Ctrl+dir).  The inner-disc drag is
-     * plain movement, so it never previews Ctrl. */
+     * Ctrl+direction action (released as Ctrl+dir).  Inner-disc drags choose
+     * between step and run by distance, so they never preview Ctrl. */
     ctrl_preview = active
         && g_touch_round_press.button_press
         && target_dir != 0
         && press_time >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL;
+    run_preview = active
+        && !g_touch_round_press.button_press
+        && target_dir != 0
+        && sdl_touch_round_drag_is_run(dist, inner_radius, radius);
 
     if (target_dir)
-        sdl_touch_round_render_target_square(target_dir, ctrl_preview);
+        sdl_touch_round_render_target_square(target_dir, ctrl_preview,
+            run_preview);
 
     sdl_touch_round_draw_circle(cx, cy, radius, frame);
     sdl_touch_round_draw_circle(cx, cy, radius - 2.0f, frame);
     sdl_touch_round_draw_circle(cx, cy, inner_radius, accent);
     sdl_touch_round_draw_sector_lines(cx, cy, inner_radius, radius, frame);
     sdl_touch_round_render_button_arrows(cx, cy, inner_radius, radius,
-        target_dir, active);
+        target_dir, active, run_preview);
 
     if (active && !g_touch_round_press.button_press) {
         end_x = g_touch_round_press.current_x;
@@ -2430,7 +2480,9 @@ void sdl_touch_round_render(void)
             end_y = cy + dy * inner_radius / dist;
         }
 
-        line_color = accent;
+        line_color = run_preview
+            ? g_state.palette[TERM_L_GREEN]
+            : accent;
         SDL_SetRenderDrawColor(g_state.renderer, line_color.r, line_color.g,
             line_color.b, line_color.a);
         SDL_RenderLine(g_state.renderer, cx, cy, end_x, end_y);
@@ -2440,7 +2492,7 @@ void sdl_touch_round_render(void)
     if (dir) {
         SDL_Color arrow_color = ctrl_preview
             ? g_state.palette[TERM_L_RED]
-            : selected;
+            : (run_preview ? g_state.palette[TERM_L_GREEN] : selected);
 
         center_arrow = (SDL_FRect){
             .x = cx - inner_radius,
@@ -2453,6 +2505,8 @@ void sdl_touch_round_render(void)
 
     if (ctrl_preview)
         sdl_touch_round_render_ctrl_action_label(target_dir, radius, &clip);
+    else if (run_preview)
+        sdl_touch_round_render_run_action_label(target_dir, radius, &clip);
 
     SDL_SetRenderClipRect(g_state.renderer, NULL);
 }

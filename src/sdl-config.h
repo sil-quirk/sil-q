@@ -121,6 +121,8 @@
 #define SDL_DICE_ROLL_LOCK_DEFAULT_MS 2000
 #define SDL_DICE_ROLL_OVERLAY_DEFAULT_MS 2500
 #define SDL_DICE_ROLL_TIMING_MAX_MS 10000
+#define SDL_POPUP_NOTIFICATION_DEFAULT_MS 2000
+#define SDL_POPUP_NOTIFICATION_MAX_MS 10000
 
 enum sdl_min_terminal_mode {
     SDL_MIN_TERMINAL_NORMAL = 0,
@@ -173,6 +175,7 @@ struct sdl_config {
     int log_pane_display_filter;
     int dice_roll_lock_ms;
     int dice_roll_overlay_ms;
+    int popup_notification_ms;
     
     // Window position and size for windowed mode
     int window_x;

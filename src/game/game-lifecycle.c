@@ -265,6 +265,9 @@ void do_cmd_save_game(void)
 #if defined(__ANDROID__) || defined(SIL_IOS)
         upsert_live_score_on_save();
 #endif
+
+        if (!save_game_quietly && p_ptr->playing && !p_ptr->leaving)
+            sdl_popup_notification_show("Saved");
     }
 
     /* Save failed (oops) */

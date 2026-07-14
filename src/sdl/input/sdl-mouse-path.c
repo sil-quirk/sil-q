@@ -853,6 +853,11 @@ bool sdl_mouse_path_start_follow_grid(int map_y, int map_x)
     return true;
 }
 
+bool sdl_mouse_path_is_following(void)
+{
+    return g_mouse_path.follow_active;
+}
+
 void sdl_mouse_path_cancel(void)
 {
     if (!g_mouse_path.hover_visible && !g_mouse_path.follow_active

@@ -2,6 +2,152 @@
 #include "blitz.h"
 #include "sdl/main-sdl-private.h"
 
+enum {
+    SDL_POPUP_NOTIFICATION_TEXT_LEN = 96,
+    SDL_POPUP_NOTIFICATION_PHASE_FADE_IN = 0,
+    SDL_POPUP_NOTIFICATION_PHASE_HOLD,
+    SDL_POPUP_NOTIFICATION_PHASE_FADE_OUT,
+    SDL_POPUP_NOTIFICATION_PHASE_DONE,
+};
+
+typedef struct sdl_popup_notification_state {
+    bool active;
+    int phase;
+    char text[SDL_POPUP_NOTIFICATION_TEXT_LEN];
+    Uint64 fade_in_end_ns;
+    Uint64 hold_end_ns;
+    Uint64 end_ns;
+    Uint64 next_frame_ns;
+} sdl_popup_notification_state;
+
+static sdl_popup_notification_state g_popup_notification;
+
+static int sdl_popup_notification_phase(Uint64 now_ns)
+{
+    if (now_ns < g_popup_notification.fade_in_end_ns)
+        return SDL_POPUP_NOTIFICATION_PHASE_FADE_IN;
+    if (now_ns < g_popup_notification.hold_end_ns)
+        return SDL_POPUP_NOTIFICATION_PHASE_HOLD;
+    if (now_ns < g_popup_notification.end_ns)
+        return SDL_POPUP_NOTIFICATION_PHASE_FADE_OUT;
+    return SDL_POPUP_NOTIFICATION_PHASE_DONE;
+}
+
+static int sdl_popup_notification_timeout_until(Uint64 now_ns,
+    Uint64 target_ns)
+{
+    Uint64 remaining_ns;
+    Uint64 remaining_ms;
+
+    if (target_ns <= now_ns)
+        return 0;
+
+    remaining_ns = target_ns - now_ns;
+    remaining_ms = (remaining_ns + 999999ULL) / 1000000ULL;
+    if (remaining_ms > (Uint64)INT_MAX)
+        return INT_MAX;
+    return (int)remaining_ms;
+}
+
+void sdl_popup_notification_show(cptr text)
+{
+    Uint64 now_ns;
+    Uint64 fade_ns;
+    Uint64 hold_ns;
+    int hold_ms;
+
+    if (!text || !text[0])
+        return;
+
+    hold_ms = get_sdl_popup_notification_ms();
+    if (hold_ms < 0)
+        hold_ms = 0;
+    if (hold_ms > SDL_POPUP_NOTIFICATION_MAX_MS)
+        hold_ms = SDL_POPUP_NOTIFICATION_MAX_MS;
+    if (hold_ms == 0)
+        return;
+
+    now_ns = SDL_GetTicksNS();
+    fade_ns = (Uint64)SDL_NARRATIVE_BANNER_FADE_MS * 1000000ULL;
+    hold_ns = (Uint64)hold_ms * 1000000ULL;
+
+    memset(&g_popup_notification, 0, sizeof(g_popup_notification));
+    g_popup_notification.active = true;
+    g_popup_notification.phase = SDL_POPUP_NOTIFICATION_PHASE_FADE_IN;
+    SDL_strlcpy(g_popup_notification.text, text,
+        sizeof(g_popup_notification.text));
+    g_popup_notification.fade_in_end_ns = now_ns + fade_ns;
+    g_popup_notification.hold_end_ns =
+        g_popup_notification.fade_in_end_ns + hold_ns;
+    g_popup_notification.end_ns = g_popup_notification.hold_end_ns + fade_ns;
+    g_popup_notification.next_frame_ns = now_ns
+        + (Uint64)SDL_NARRATIVE_BANNER_FADE_FRAME_MS * 1000000ULL;
+    g_state.need_present = true;
+}
+
+int sdl_popup_notification_pending_timeout_ms(Uint64 now_ns)
+{
+    int phase;
+    Uint64 target_ns;
+
+    if (!g_popup_notification.active)
+        return -1;
+
+    phase = sdl_popup_notification_phase(now_ns);
+    if (phase == SDL_POPUP_NOTIFICATION_PHASE_DONE)
+        return 0;
+    if (phase == SDL_POPUP_NOTIFICATION_PHASE_HOLD)
+        return sdl_popup_notification_timeout_until(now_ns,
+            g_popup_notification.hold_end_ns);
+
+    target_ns = g_popup_notification.next_frame_ns;
+    if (phase == SDL_POPUP_NOTIFICATION_PHASE_FADE_IN
+        && g_popup_notification.fade_in_end_ns < target_ns)
+    {
+        target_ns = g_popup_notification.fade_in_end_ns;
+    }
+    if (phase == SDL_POPUP_NOTIFICATION_PHASE_FADE_OUT
+        && g_popup_notification.end_ns < target_ns)
+    {
+        target_ns = g_popup_notification.end_ns;
+    }
+    return sdl_popup_notification_timeout_until(now_ns, target_ns);
+}
+
+bool sdl_popup_notification_flush_expired(Uint64 now_ns)
+{
+    int phase;
+    bool changed = false;
+
+    if (!g_popup_notification.active)
+        return false;
+
+    phase = sdl_popup_notification_phase(now_ns);
+    if (phase == SDL_POPUP_NOTIFICATION_PHASE_DONE) {
+        memset(&g_popup_notification, 0, sizeof(g_popup_notification));
+        changed = true;
+    } else if (phase != g_popup_notification.phase) {
+        g_popup_notification.phase = phase;
+        if (phase == SDL_POPUP_NOTIFICATION_PHASE_HOLD)
+            g_popup_notification.next_frame_ns =
+                g_popup_notification.hold_end_ns;
+        else
+            g_popup_notification.next_frame_ns = now_ns
+                + (Uint64)SDL_NARRATIVE_BANNER_FADE_FRAME_MS * 1000000ULL;
+        changed = true;
+    } else if (phase != SDL_POPUP_NOTIFICATION_PHASE_HOLD
+        && now_ns >= g_popup_notification.next_frame_ns)
+    {
+        g_popup_notification.next_frame_ns = now_ns
+            + (Uint64)SDL_NARRATIVE_BANNER_FADE_FRAME_MS * 1000000ULL;
+        changed = true;
+    }
+
+    if (changed)
+        g_state.need_present = true;
+    return changed;
+}
+
 static bool sdl_main_menu_overlay_should_hide_supporting_panes(void)
 {
 #if SIL_SDL_MOBILE_BUILD
@@ -131,11 +277,14 @@ float sdl_main_menu_draw_text(TTF_Font* font, cptr text, float x,
     SDL_FRect dst;
     float scale = 1.0f;
     float max_h;
+    SDL_Color render_color;
 
     if (!font || !text || !text[0] || max_w <= 0.0f || row_h <= 0.0f)
         return 0.0f;
 
-    surface = TTF_RenderText_Blended(font, text, 0, color);
+    render_color = color;
+    render_color.a = SDL_ALPHA_OPAQUE;
+    surface = TTF_RenderText_Blended(font, text, 0, render_color);
     if (!surface)
         return 0.0f;
 
@@ -164,6 +313,7 @@ float sdl_main_menu_draw_text(TTF_Font* font, cptr text, float x,
     dst.y = y + (row_h - dst.h) * 0.5f;
 
     SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureAlphaMod(texture, color.a);
     SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
 
     SDL_DestroyTexture(texture);
@@ -789,6 +939,151 @@ bool sdl_main_menu_overlay_handle_gamepad_axis(
     }
 
     return true;
+}
+
+static Uint8 sdl_popup_notification_alpha(Uint64 now_ns)
+{
+    Uint64 fade_ns =
+        (Uint64)SDL_NARRATIVE_BANNER_FADE_MS * 1000000ULL;
+    Uint64 amount_ns;
+
+    if (!g_popup_notification.active || fade_ns == 0)
+        return 0;
+
+    if (now_ns < g_popup_notification.fade_in_end_ns) {
+        Uint64 start_ns = g_popup_notification.fade_in_end_ns - fade_ns;
+
+        amount_ns = (now_ns > start_ns) ? now_ns - start_ns : 0;
+    } else if (now_ns < g_popup_notification.hold_end_ns) {
+        return SDL_ALPHA_OPAQUE;
+    } else if (now_ns < g_popup_notification.end_ns) {
+        amount_ns = g_popup_notification.end_ns - now_ns;
+    } else {
+        return 0;
+    }
+
+    return (Uint8)((amount_ns * SDL_ALPHA_OPAQUE + fade_ns / 2) / fade_ns);
+}
+
+static Uint8 sdl_popup_notification_scaled_alpha(Uint8 alpha,
+    Uint8 scale)
+{
+    if (!alpha || !scale)
+        return 0;
+    return (Uint8)(((int)alpha * (int)scale + SDL_ALPHA_OPAQUE / 2)
+        / SDL_ALPHA_OPAQUE);
+}
+
+static bool sdl_popup_notification_layout(SDL_FRect* out_panel,
+    TTF_Font** out_font)
+{
+    SDL_FRect menu_rect;
+    SDL_Rect screen;
+    TTF_Font* font;
+    int font_px;
+    int text_w;
+    float pad_x;
+    float pad_y;
+    float gap;
+    float panel_w;
+    float panel_h;
+    float max_panel_w;
+    SDL_FRect panel;
+
+    if (!g_popup_notification.active || g_main_menu_overlay_active
+        || !sdl_main_menu_pane_context_visible())
+    {
+        return false;
+    }
+    if (!sdl_main_menu_pane_button_rect(&menu_rect))
+        return false;
+
+    screen = sdl_get_layout_screen_rect();
+    font_px = sdl_main_menu_pane_font_px();
+    font = sdl_story_font_for_height_slot(font_px, SDL_STORY_FONT_SLOT_MENU);
+    if (!font)
+        return false;
+
+    text_w = sdl_touch_pane_story_text_width(font,
+        g_popup_notification.text);
+    if (text_w < 1)
+        return false;
+
+    pad_x = sdl_touch_pane_clampf((float)font_px * 0.72f, 9.0f, 24.0f);
+    pad_y = sdl_touch_pane_clampf((float)font_px * 0.28f, 4.0f, 12.0f);
+    gap = sdl_touch_pane_clampf((float)font_px * 0.22f, 3.0f, 9.0f);
+    panel_w = (float)text_w + pad_x * 2.0f;
+    if (panel_w < menu_rect.w)
+        panel_w = menu_rect.w;
+
+    max_panel_w = (float)screen.w - (float)sdl_overlay_margin_px() * 2.0f;
+    if (max_panel_w < 1.0f)
+        max_panel_w = (float)screen.w;
+    if (panel_w > max_panel_w)
+        panel_w = max_panel_w;
+
+    panel_h = (float)font_px * 1.10f + pad_y * 2.0f;
+    panel = (SDL_FRect){
+        .x = menu_rect.x + (menu_rect.w - panel_w) * 0.5f,
+        .y = menu_rect.y + menu_rect.h + gap,
+        .w = panel_w,
+        .h = panel_h,
+    };
+
+    if (panel.x < (float)screen.x + (float)sdl_overlay_margin_px())
+        panel.x = (float)screen.x + (float)sdl_overlay_margin_px();
+    if (panel.x + panel.w
+        > (float)(screen.x + screen.w - sdl_overlay_margin_px()))
+    {
+        panel.x = (float)(screen.x + screen.w - sdl_overlay_margin_px())
+            - panel.w;
+    }
+    if (panel.y + panel.h
+        > (float)(screen.y + screen.h - sdl_overlay_margin_px()))
+    {
+        panel.y = (float)(screen.y + screen.h - sdl_overlay_margin_px())
+            - panel.h;
+    }
+
+    if (out_panel)
+        *out_panel = panel;
+    if (out_font)
+        *out_font = font;
+    return true;
+}
+
+void sdl_popup_notification_render(void)
+{
+    SDL_FRect panel;
+    SDL_FRect shadow;
+    TTF_Font* font;
+    SDL_Color text;
+    Uint8 alpha;
+
+    alpha = sdl_popup_notification_alpha(SDL_GetTicksNS());
+    if (!alpha || !sdl_popup_notification_layout(&panel, &font))
+        return;
+
+    shadow = panel;
+    shadow.x += 2.0f;
+    shadow.y += 2.0f;
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0,
+        sdl_popup_notification_scaled_alpha(alpha, 126));
+    SDL_RenderFillRect(g_state.renderer, &shadow);
+    SDL_SetRenderDrawColor(g_state.renderer, 8, 10, 12,
+        sdl_popup_notification_scaled_alpha(alpha, 226));
+    SDL_RenderFillRect(g_state.renderer, &panel);
+    SDL_SetRenderDrawColor(g_state.renderer, 255, 184, 94,
+        sdl_popup_notification_scaled_alpha(alpha, 154));
+    SDL_RenderRect(g_state.renderer, &panel);
+
+    text = g_state.palette[TERM_L_WHITE];
+    text.a = alpha;
+    (void)sdl_main_menu_draw_text(font, g_popup_notification.text,
+        panel.x + panel.w * 0.07f, panel.y, panel.w * 0.86f, panel.h,
+        text, MAIN_MENU_TEXT_CENTER);
 }
 
 void sdl_main_menu_pane_render(void)

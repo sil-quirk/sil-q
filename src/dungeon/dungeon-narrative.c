@@ -216,6 +216,12 @@ static void display_narrative_text(cptr text, int narrative_mode,
         && !banner_with_delay)
         return;
 
+    /* Crossing into a narrated partition is a meaningful interruption, not
+     * camera maintenance.  Stop normal running and SDL auto-walk before the
+     * banner is presented so the player cannot continue through it. */
+    if (command_transition)
+        disturb(0, 0);
+
     g_active_partition_banner_text[0] = '\0';
     SDL_strlcpy(g_active_partition_banner_text, text,
         sizeof(g_active_partition_banner_text));

@@ -1,9 +1,7 @@
 #include "angband.h"
 #include "sdl/main-sdl-private.h"
 
-#define SDL_NARRATIVE_BANNER_FADE_MS 1000
 #define SDL_NARRATIVE_BANNER_TRANSITION_FADE_MS 500
-#define SDL_NARRATIVE_BANNER_FADE_FRAME_MS 16
 
 static Uint8 g_sdl_narrative_banner_alpha = SDL_ALPHA_OPAQUE;
 

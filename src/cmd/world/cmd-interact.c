@@ -1699,7 +1699,8 @@ static bool twall(int y, int x)
             
             log_debug("twall: PASSED chance check! Attempting drop at depth=%d", depth);
             
-            bool try_mithril = allow_mithril && (depth >= 12) && (rand_int(100) < 45);
+            bool try_mithril = allow_mithril
+                && (depth >= MITHRIL_VEIN_MIN_DEPTH) && (rand_int(100) < 45);
 
             log_debug("twall: try_star_iron=%d try_mithril=%d", allow_star_iron, try_mithril);
 

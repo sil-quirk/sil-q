@@ -2092,8 +2092,11 @@ bool handle_thrall_interaction(monster_type* m_ptr)
 
         /* If multiple matching items are carried or equipped, let the player
          * decide which one the thrall receives. */
-        if (!choose_thrall_quest_item(m_ptr, &item_slot))
+        if (!choose_thrall_quest_item(m_ptr, &item_slot)) {
+            if (showed_request)
+                sdl_popup_notification_show("New thrall quest added");
             return true;
+        }
 
         identify_thrall_quest_item_before_offer(
             m_ptr->thrall_quest_item, item_slot);
@@ -2119,6 +2122,9 @@ bool handle_thrall_interaction(monster_type* m_ptr)
             msg_format("%^s waits for %s.", m_name,
                 get_thrall_quest_item_name(m_ptr->thrall_quest_item));
     }
-    
+
+    if (showed_request)
+        sdl_popup_notification_show("New thrall quest added");
+
     return true;
 }

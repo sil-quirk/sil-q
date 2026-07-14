@@ -100,6 +100,10 @@ enum {
  * with the panel background. */
 #define SDL_OVERLAY_LOG_VMARGIN_CELLS 0.4f
 
+/* Shared by the game-start narrative banner and transient notifications. */
+#define SDL_NARRATIVE_BANNER_FADE_MS 1000
+#define SDL_NARRATIVE_BANNER_FADE_FRAME_MS 16
+
 #define TOUCH_MOUSE_FALLBACK_FINGER_ID ((SDL_FingerID)~(SDL_FingerID)0)
 #if SIL_SDL_MOBILE_BUILD
 #define SIDE_PANE_MENU_SCALE 1.6f
@@ -2005,6 +2009,9 @@ void sdl_main_menu_overlay_flash_touch_slot(int slot);
 bool sdl_main_menu_overlay_handle_touch_pane_point(float x, float y, bool activate);
 bool sdl_main_menu_overlay_handle_gamepad_axis( const SDL_GamepadAxisEvent* ev);
 void sdl_main_menu_pane_render(void);
+void sdl_popup_notification_render(void);
+int sdl_popup_notification_pending_timeout_ms(Uint64 now_ns);
+bool sdl_popup_notification_flush_expired(Uint64 now_ns);
 bool sdl_main_menu_pane_hit(float x, float y, SDL_FRect* out_rect);
 bool sdl_main_menu_pane_handle_hover_pointer(float x, float y);
 bool sdl_main_menu_pane_handle_pointer(float x, float y);
@@ -2675,7 +2682,7 @@ bool sdl_touch_round_compute_clip_rect(SDL_Rect* out_clip);
 bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
     float* out_radius, float* out_inner_radius, SDL_Rect* out_clip);
 int sdl_touch_round_dir_for_delta(float dx, float dy);
-void sdl_touch_round_send_dir(int dir, bool ctrl);
+void sdl_touch_round_send_dir(int dir, bool ctrl, bool run);
 void sdl_touch_round_cancel_press(void);
 bool sdl_touch_round_handle_pointer_down(float x, float y, SDL_FingerID finger_id);
 bool sdl_touch_round_handle_pointer_motion(float x, float y, SDL_FingerID finger_id);
@@ -2685,7 +2692,7 @@ void sdl_touch_round_flush_pending_highlight(Uint64 now_ns);
 void sdl_touch_round_draw_circle(float cx, float cy, float radius, SDL_Color color);
 void sdl_touch_round_draw_sector_lines(float cx, float cy, float inner_radius, float outer_radius, SDL_Color color);
 bool sdl_touch_round_dir_to_map_rect(int dir, SDL_FRect* out_rect);
-void sdl_touch_round_render_target_square(int dir, bool ctrl);
+void sdl_touch_round_render_target_square(int dir, bool ctrl, bool run);
 const char* sdl_touch_round_dir_label(int dir);
 const char* sdl_touch_round_ctrl_action_for_dir(int dir);
 void sdl_touch_round_ctrl_action_label(int dir, char* buf, size_t buflen);
@@ -3810,7 +3817,7 @@ void sdl_touch_round_cancel_press(void);
 void sdl_touch_round_render(void);
 bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
     float* out_radius, float* out_inner_radius, SDL_Rect* out_clip);
-void sdl_touch_round_render_target_square(int dir, bool ctrl);
+void sdl_touch_round_render_target_square(int dir, bool ctrl, bool run);
 int sdl_touch_profile_normalized(int profile);
 void sdl_touch_hidden_indicator_render(void);
 bool sdl_touch_hidden_indicator_handle_pointer_down(float x, float y, bool touch);

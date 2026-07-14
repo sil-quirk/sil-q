@@ -56,6 +56,8 @@ errr callback_sdl_xtra(int n, int v)
                 sdl_select_page_turn_timeout_ms(now_ns);
             int question_menu_timeout_ms =
                 sdl_question_menu_pending_timeout_ms(now_ns);
+            int popup_notification_timeout_ms =
+                sdl_popup_notification_pending_timeout_ms(now_ns);
             int round_wheel_timeout_ms =
                 sdl_touch_round_pending_timeout_ms(now_ns);
             int thumb_touch_timeout_ms =
@@ -119,6 +121,11 @@ errr callback_sdl_xtra(int n, int v)
             {
                 timeout_ms = question_menu_timeout_ms;
             }
+            if (timeout_ms < 0 || (popup_notification_timeout_ms >= 0
+                    && popup_notification_timeout_ms < timeout_ms))
+            {
+                timeout_ms = popup_notification_timeout_ms;
+            }
             if (timeout_ms < 0 || (round_wheel_timeout_ms >= 0
                     && round_wheel_timeout_ms < timeout_ms))
             {
@@ -174,6 +181,7 @@ errr callback_sdl_xtra(int n, int v)
             sdl_map_touch_flush_pending_press(flush_ns);
             sdl_object_tooltip_flush_expired(flush_ns);
             sdl_question_menu_flush_expired(flush_ns);
+            sdl_popup_notification_flush_expired(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
             sdl_touch_top_panel_flush_pending_press(flush_ns);
             sdl_touch_thumb_flush_pending_press(flush_ns);
@@ -205,6 +213,7 @@ errr callback_sdl_xtra(int n, int v)
             sdl_map_touch_flush_pending_press(flush_ns);
             sdl_object_tooltip_flush_expired(flush_ns);
             sdl_question_menu_flush_expired(flush_ns);
+            sdl_popup_notification_flush_expired(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
             sdl_touch_top_panel_flush_pending_press(flush_ns);
             sdl_touch_thumb_flush_pending_press(flush_ns);
@@ -242,6 +251,7 @@ errr callback_sdl_xtra(int n, int v)
             sdl_map_touch_flush_pending_press(flush_ns);
             sdl_object_tooltip_flush_expired(flush_ns);
             sdl_question_menu_flush_expired(flush_ns);
+            sdl_popup_notification_flush_expired(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
             sdl_touch_top_panel_flush_pending_press(flush_ns);
             sdl_touch_thumb_flush_pending_press(flush_ns);
@@ -296,6 +306,7 @@ errr callback_sdl_xtra(int n, int v)
                 sdl_map_touch_flush_pending_press(flush_ns);
                 sdl_object_tooltip_flush_expired(flush_ns);
                 sdl_question_menu_flush_expired(flush_ns);
+                sdl_popup_notification_flush_expired(flush_ns);
                 sdl_touch_zone_flush_pending_press(flush_ns);
                 sdl_touch_top_panel_flush_pending_press(flush_ns);
                 sdl_touch_thumb_flush_pending_press(flush_ns);

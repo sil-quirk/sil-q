@@ -8,6 +8,7 @@
 #   SVAL: ELF | HUMAN | ORC | ANY
 #   HINT: GREAT_VAULT | VAULT_ARTIFACT | STAIRS | FORGE | UNIQUE | TIP | SIZE | QUEST | LABYRINTH | CHASM | CAVE | CAVE_ICE | CAVE_FIRE | CAVE_POIS | ROOMY | RUINED | CAVEY
 # Tokens: {PART} {PART_HAZARD} {SIZEWORD} {UNIQUE_TYPE} {DIR} {DIST} {SITE}
+#         {MITHRIL} (" or mithril" at depths where cave veins can yield it)
 
 V:0.9.7
 
@@ -223,12 +224,12 @@ M:ORC:RUINED:100:Snaga hide in ruins {DIST} {DIR}. Snaga drop stuff.
 
 # Elf
 M:ELF:CAVEY:100:If you hunger for gems, seek the {PART} {DIST} {DIR}; stone sometimes yields what halls do not.
-M:ELF:CAVEY:100:The {PART} lie {DIST} {DIR}. Common spoils are few there, but you may find gem or mithril in the rock.
+M:ELF:CAVEY:100:The {PART} lie {DIST} {DIR}. Common spoils are few there, but you may find gem{MITHRIL} in the rock.
 M:ELF:CAVEY:100:In the {PART} {DIST} {DIR}, look to the stone itself; treasure comes not as gifts, but as veins.
 
 # Human
 M:HUMAN:CAVEY:100:The {PART} are {DIST} {DIR}. Don't expect much gear... but I've seen gems there.
-M:HUMAN:CAVEY:100:If you want gems or mithril, try the {PART} {DIST} {DIR}. The rock sometimes gives up glittering things.
+M:HUMAN:CAVEY:100:If you want gems{MITHRIL}, try the {PART} {DIST} {DIR}. The rock sometimes gives up glittering things.
 M:HUMAN:CAVEY:100:Natural caves {DIST} {DIR}. Less stuff on the floor, more in the stone.
 
 # Orc

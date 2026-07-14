@@ -163,6 +163,7 @@ void aule_quest_interaction(void)
 
         /* Mark in the notes */
         do_cmd_note("Aulë has challenged me to use his forge to create an item.", p_ptr->depth);
+        sdl_popup_notification_show("New quest added");
         return;
     }
 
@@ -307,6 +308,7 @@ void mandos_quest_interaction(void)
         }
 
         log_trace("Mandos quest activated - player must slay Brodda");
+        sdl_popup_notification_show("New quest added");
     }
     else if (p_ptr->mandos_quest == MANDOS_QUEST_ACTIVE)
     {
@@ -610,6 +612,7 @@ void niena_quest_interaction(void)
 
         log_trace("Nienna quest started - all stairs revealed, monsters_seen=%d, monsters_killed=%d",
                  p_ptr->niena_monsters_seen, p_ptr->niena_monsters_killed);
+        sdl_popup_notification_show("New quest added");
     }
     else if (p_ptr->niena_quest == NIENA_QUEST_SUCCESS)
     {
@@ -841,6 +844,7 @@ void orome_quest_interaction(void)
 
         log_trace("Oromë quest started - hunt %d %s at depth %d",
                  target_count, target_name, depth);
+        sdl_popup_notification_show("New quest added");
     }
     else if (p_ptr->orome_quest == OROME_QUEST_SUCCESS)
     {
