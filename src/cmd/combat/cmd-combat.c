@@ -138,6 +138,47 @@ extern int success_chance(int sides, int skill, int difficulty)
     return ways;
 }
 
+/* Exact percentage shown for a player-vs-difficulty skill check.  Unlike the
+ * older success_chance() helper, this supports different die sizes and the
+ * player's curse, which keeps the lower of two skill-side throws. */
+int player_skill_check_success_percent(int skill, int difficulty,
+    int skill_sides, int difficulty_sides)
+{
+    int successes = 0;
+    int outcomes = 0;
+    int alternate_throws = (p_ptr && p_ptr->cursed) ? skill_sides : 1;
+
+    if (skill_sides < 1)
+        skill_sides = 1;
+    if (difficulty_sides < 1)
+        difficulty_sides = 1;
+    if (alternate_throws < 1)
+        alternate_throws = 1;
+
+    for (int skill_die = 1; skill_die <= skill_sides; skill_die++)
+    {
+        for (int skill_alt = 1; skill_alt <= alternate_throws; skill_alt++)
+        {
+            int kept_skill_die = (p_ptr && p_ptr->cursed)
+                ? MIN(skill_die, skill_alt) : skill_die;
+
+            for (int difficulty_die = 1;
+                 difficulty_die <= difficulty_sides; difficulty_die++)
+            {
+                outcomes++;
+                if (skill + kept_skill_die
+                    > difficulty + difficulty_die)
+                    successes++;
+            }
+        }
+    }
+
+    if (!outcomes)
+        return 0;
+
+    return (successes * 100 + outcomes / 2) / outcomes;
+}
+
 /*
  * Determine the result of a skill check.
  * (1d10 + skill) - (1d10 + difficulty)
@@ -148,8 +189,9 @@ extern int success_chance(int sides, int skill, int difficulty)
  * once for all monsters) so if something changes here, remember to change it
  * there.
  */
-int skill_check_details(monster_type* m_ptr1, int skill, int difficulty,
-    monster_type* m_ptr2, skill_roll_details* details)
+int skill_check_details_sided(monster_type* m_ptr1, int skill, int difficulty,
+    monster_type* m_ptr2, int skill_sides, int difficulty_sides,
+    skill_roll_details* details)
 {
     int skill_total;
     int difficulty_total;
@@ -163,6 +205,11 @@ int skill_check_details(monster_type* m_ptr1, int skill, int difficulty,
     bool difficulty_curse_active = false;
     bool skill_alt_used = false;
     bool difficulty_alt_used = false;
+
+    if (skill_sides < 1)
+        skill_sides = 1;
+    if (difficulty_sides < 1)
+        difficulty_sides = 1;
 
     // bonuses against your enemy of choice
     if ((m_ptr1 == PLAYER) && (m_ptr2 != NULL))
@@ -179,12 +226,12 @@ int skill_check_details(monster_type* m_ptr1, int skill, int difficulty,
             + edain_bane_bonus(m_ptr1);
 
     // the basic rolls
-    skill_total = dieroll(10) + skill;
-    difficulty_total = dieroll(10) + difficulty;
+    skill_total = dieroll(skill_sides) + skill;
+    difficulty_total = dieroll(difficulty_sides) + difficulty;
 
     // alternate rolls for dealing with the curse
-    skill_total_alt = dieroll(10) + skill;
-    difficulty_total_alt = dieroll(10) + difficulty;
+    skill_total_alt = dieroll(skill_sides) + skill;
+    difficulty_total_alt = dieroll(difficulty_sides) + difficulty;
 
     skill_die = skill_total - skill;
     difficulty_die = difficulty_total - difficulty;
@@ -213,6 +260,8 @@ int skill_check_details(monster_type* m_ptr1, int skill, int difficulty,
         memset(details, 0, sizeof(*details));
         details->skill = skill;
         details->difficulty = difficulty;
+        details->skill_sides = skill_sides;
+        details->difficulty_sides = difficulty_sides;
         details->skill_die = skill_total - skill;
         details->difficulty_die = difficulty_total - difficulty;
         details->skill_die_primary = skill_die;
@@ -237,6 +286,13 @@ int skill_check_details(monster_type* m_ptr1, int skill, int difficulty,
     }
 
     return (skill_total - difficulty_total);
+}
+
+int skill_check_details(monster_type* m_ptr1, int skill, int difficulty,
+    monster_type* m_ptr2, skill_roll_details* details)
+{
+    return skill_check_details_sided(
+        m_ptr1, skill, difficulty, m_ptr2, 10, 10, details);
 }
 
 int skill_check(

@@ -1943,9 +1943,12 @@
     0x00010000 /* Dropped by a unique; used for skeleton-note hoard text */
 #define IDENT_CHASM_SANCTUM_DROP                                              \
     0x00020000 /* Generated in a chasm sanctum; persists after ambush trigger */
-#define IDENT_UNUSED_XXX4XXXX 0x00040000 /* Unused */
-#define IDENT_UNUSED_XXX8XXXX 0x00080000 /* Unused */
-#define IDENT_UNUSED_XX1XXXXX 0x00100000 /* Unused */
+#define IDENT_CHEST_LOOKED                                                   \
+    0x00040000 /* Chest trap inspection attempted at the stored Perception base */
+#define IDENT_CHEST_TRAP_PRESENT                                            \
+    0x00080000 /* Inspection established that a chest trap is present */
+#define IDENT_CHEST_TRAP_FULL                                               \
+    0x00100000 /* Inspection revealed the exact chest trap mechanism */
 #define IDENT_UNUSED_XX2XXXXX 0x00200000 /* Unused */
 #define IDENT_UNUSED_XX4XXXXX 0x00400000 /* Unused */
 #define IDENT_UNUSED_XX8XXXXX 0x00800000 /* Unused */
@@ -2898,6 +2901,8 @@
 #define OPT_styled_monster_health_bars 121
 #define OPT_styled_monster_tile_health_bars 122
 #define OPT_pixel_monster_status_icons 123
+#define OPT_lockpick_minigame 124
+#define OPT_chest_trap_minigame 125
 
 #define MONSTER_TILE_HEALTH_BARS_SHOW 0
 #define MONSTER_TILE_HEALTH_BARS_DAMAGED_ONLY 1
@@ -3017,6 +3022,8 @@
 #define assassination_over_charge op_ptr->opt[OPT_assassination_over_charge]
 #define pacifist_attack_warning op_ptr->opt[OPT_pacifist_attack_warning]
 #define active_weapon_switch_confirm op_ptr->opt[OPT_active_weapon_switch_confirm]
+#define lockpick_minigame op_ptr->opt[OPT_lockpick_minigame]
+#define chest_trap_minigame op_ptr->opt[OPT_chest_trap_minigame]
 #define load_blitz_by_default op_ptr->opt[OPT_load_blitz_by_default]
 #define depth_in_feet op_ptr->opt[OPT_depth_in_feet]
 // reserved legacy slot: stack_force_notes

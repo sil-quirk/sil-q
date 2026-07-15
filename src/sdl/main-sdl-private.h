@@ -161,6 +161,7 @@ typedef struct story_font_entry {
     int pixel_height;
     int slot;
     TTF_Font* font;
+    Uint64 last_used;
 } story_font_entry;
 
 typedef struct story_font_slot_cache {
@@ -186,6 +187,7 @@ typedef struct mono_font_atlas_entry {
     int hinting;
     bool kerning;
     int outline;
+    Uint64 generation;
     SDL_Texture* atlas;
 } mono_font_atlas_entry;
 
@@ -608,15 +610,23 @@ typedef struct sdl_character_sheet_screen_state {
     bool narrative_pending_highlight; /* next added paragraph is highlighted */
     int narrative_para_count;
     int narrative_page_start[SDL_BOOK_MAX_PAGES + 1]; /* [page]..[page+1) paras */
+    int narrative_para_lines[SDL_BOOK_MAX_PARAS]; /* cached final-layout wrap count */
     int narrative_page_count;
     int narrative_target_page_count; /* 0 = content-driven pagination */
     int narrative_body_px;         /* one body size shared by every page of the book */
     int narrative_paginated_for_h; /* canvas.h the page breaks were built for */
     int narrative_paginated_for_w; /* content width the page breaks were built for */
+    int narrative_paginated_for_top;
+    int narrative_paginated_for_bottom;
+    int narrative_paginated_for_title_px;
+    Uint64 narrative_paginated_font_generation;
+    Uint64 narrative_layout_generation;
+    Uint64 narrative_paginated_layout_generation;
     char narrative_contents_label[SDL_BOOK_MAX_CONTENTS][48];
     int narrative_contents_choice[SDL_BOOK_MAX_CONTENTS];
     int narrative_contents_page[SDL_BOOK_MAX_CONTENTS];
     int narrative_contents_count;
+    int narrative_contents_body_px; /* cached contents-column font size */
     bool narrative_lamp_enabled;
     u32b narrative_lamp_current;
     u32b narrative_lamp_maximum;
@@ -1354,6 +1364,8 @@ typedef struct mouse_path_search_state {
     int heap_size;
     int* cost;
     int* heap_pos;
+    u16b* visit_generation;
+    u16b current_generation;
     u16b* parent_grid;
     byte* parent_state;
     int* heap_priority;
@@ -1419,6 +1431,8 @@ extern mono_font_prewarm_request g_mono_font_prewarm_queue[SDL_MONO_FONT_PREWARM
 extern int g_mono_font_prewarm_count;
 extern mono_font_prewarm_job g_mono_font_prewarm_job;
 extern Uint64 g_mono_font_atlas_generation;
+extern Uint64 g_story_font_generation;
+extern Uint64 g_sdl_present_generation;
 extern SDL_Rect g_pane_rects[PANE_MAX];
 extern SDL_Texture* g_left_panel_canvas;
 extern int g_left_panel_canvas_w;
@@ -2297,7 +2311,6 @@ bool sdl_object_tooltip_show_text_at_rect(const SDL_FRect* rect, cptr text, bool
 bool sdl_hover_tooltip_show_text(int col, int row, int cols, cptr text, bool touch);
 void sdl_hover_tooltip_clear(void);
 int sdl_object_tooltip_font_px(void);
-SDL_Surface* sdl_object_tooltip_render_text_surface(TTF_Font* font, cptr text, SDL_Color color, float max_text_w);
 bool sdl_object_tooltip_pointer_hits_term_cell(float x, float y);
 void sdl_object_tooltip_handle_mouse_motion(float x, float y);
 int sdl_object_tooltip_pending_timeout_ms(Uint64 now_ns);
@@ -2754,7 +2767,8 @@ void sdl_touch_top_panel_render(void);
 void sdl_touch_top_panel_send_slot(int slot, bool long_press);
 void sdl_touch_top_panel_cancel_press(void);
 bool sdl_touch_top_panel_handle_pointer_down(float x, float y, SDL_FingerID finger_id);
-bool sdl_touch_top_panel_handle_pointer_motion(float x, float y, SDL_FingerID finger_id);
+bool sdl_touch_top_panel_handle_pointer_motion(float x, float y, bool mouse,
+    SDL_FingerID finger_id);
 bool sdl_touch_top_panel_handle_pointer_up(float x, float y, SDL_FingerID finger_id);
 int sdl_touch_top_panel_pending_timeout_ms(Uint64 now_ns);
 bool sdl_touch_top_panel_flush_pending_press(Uint64 now_ns);
@@ -2970,6 +2984,9 @@ void sdl_minimap_draw_hint_sources(const SDL_FRect* map_dst, int min_y, int min_
 void sdl_minimap_draw_focus_tip(sdl_view* d, int canvas_w, int canvas_h, const SDL_FRect* map_dst, int min_y, int min_x, int max_y, int max_x);
 bool sdl_minimap_known_bounds(int* min_y, int* min_x, int* max_y, int* max_x);
 void sdl_side_map_pane_note_level(void);
+void sdl_side_map_pane_forget_level(void);
+void sdl_side_map_pane_invalidate_cell(int y, int x);
+void sdl_side_map_pane_texture_cache_clear(void);
 void sdl_side_map_pane_redraw(void);
 bool sdl_side_map_pane_content_rect(SDL_FRect* out_rect, SDL_Rect* out_clip);
 void sdl_side_map_pane_draw_player_marker(const SDL_FRect* map_dst, int min_y, int min_x, int max_y, int max_x);
@@ -3021,6 +3038,8 @@ bool sdl_mono_font_atlas_entry_matches_style( const mono_font_atlas_entry* entry
 bool sdl_mono_font_atlas_entry_matches( const mono_font_atlas_entry* entry, const char* font_path, int cell_width, int cell_height);
 mono_font_atlas_entry* sdl_find_mono_font_atlas_fallback_cells( const char* font_path, int cell_width, int cell_height);
 bool sdl_mono_font_atlas_cached_cells(const char* font_path, int cell_width, int cell_height);
+Uint64 sdl_mono_font_atlas_generation_for_cells(const char* font_path,
+    int cell_width, int cell_height);
 bool sdl_mono_font_atlas_cached_cells_style(const char* font_path, int cell_width, int cell_height, const mono_font_style_key* style);
 bool sdl_mono_font_atlas_cache_has_free_slot(void);
 bool sdl_store_mono_font_atlas_cells(const char* font_path, int cell_width, int cell_height, SDL_Texture* atlas, const mono_font_style_key* style);
@@ -3298,6 +3317,12 @@ void sdl_apply_story_grid_state(bool grid);
 void sdl_apply_story_slot_state(int slot);
 void sdl_story_font_reset_state(void);
 void sdl_render_mono_text(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col);
+SDL_Texture* sdl_ui_text_texture(TTF_Font* font, cptr text, SDL_Color color,
+    int* out_width, int* out_height);
+SDL_Texture* sdl_ui_wrapped_text_texture(TTF_Font* font, cptr text,
+    int wrap_width, SDL_Color color, int* out_width, int* out_height);
+void sdl_ui_text_cache_clear(void);
+void sdl_ui_text_cache_clear_font(TTF_Font* font);
 void sdl_render_mono_utf8_glyph(TTF_Font* font, float cell_w, float cell_h, float origin_x, float origin_y, int x, int y, int cell_offset, int cell_span, const char* s, int len, SDL_Color col);
 void sdl_render_mono_utf8_text_cells(SDL_Texture* atlas, int atlas_cell_w, int atlas_cell_h, TTF_Font* font, float cell_w, float cell_h, float origin_x, int x, int y, int n, const char* s, SDL_Color col);
 void sdl_render_mono_utf8_text_cells_at(SDL_Texture* atlas, int atlas_cell_w, int atlas_cell_h, TTF_Font* font, float cell_w, float cell_h, float origin_x, float origin_y, int x, int y, int n, const char* s, SDL_Color col);
@@ -3845,7 +3870,7 @@ void sdl_touch_top_panel_render(void);
 bool sdl_touch_top_panel_handle_pointer_down(float x, float y,
     SDL_FingerID finger_id);
 bool sdl_touch_top_panel_handle_pointer_motion(float x, float y,
-    SDL_FingerID finger_id);
+    bool mouse, SDL_FingerID finger_id);
 bool sdl_touch_top_panel_handle_pointer_up(float x, float y,
     SDL_FingerID finger_id);
 void sdl_touch_top_panel_cancel_press(void);

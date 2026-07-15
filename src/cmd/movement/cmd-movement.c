@@ -1,5 +1,6 @@
 #include "angband.h"
 #include "externs.h"
+#include "cmd/world/cmd-interact-chest.h"
 #include "item_set.h"
 #include "log/log.h"
 #include "player/killer.h"
@@ -896,6 +897,23 @@ void do_cmd_hold(void)
  */
 void do_cmd_pickup(void)
 {
+    s16b chest_o_idx;
+
+    /* A deliberate pickup attempt is also an interaction with a closed
+     * chest.  Route it through the same minigame instead of allowing pickup
+     * to bypass the first trap decision.  Passive/automatic pickup remains
+     * unchanged so merely stepping onto the tile does not open an overlay. */
+    chest_o_idx = chest_trap_minigame
+        ? chest_check(p_ptr->py, p_ptr->px) : 0;
+    if (chest_o_idx && o_list[chest_o_idx].pval != 0)
+    {
+        p_ptr->energy_use = 100;
+        p_ptr->previous_action[0] = ACTION_MISC;
+        (void)do_cmd_open_chest(
+            p_ptr->py, p_ptr->px, chest_o_idx);
+        return;
+    }
+
     // Usually pickup if there is an object here
     if (cave_o_idx[p_ptr->py][p_ptr->px])
     {

@@ -335,7 +335,9 @@ static Uint64 sdl_left_panel_source_hash(const term* source_term,
     hash = sdl_left_panel_hash_mix(hash, (Uint64)metrics->compact_segment_count);
     hash = sdl_left_panel_hash_mix(hash, (Uint64)use_bigtile);
     hash = sdl_left_panel_hash_mix(hash, (Uint64)g_state.use_tiles);
-    hash = sdl_left_panel_hash_mix(hash, g_mono_font_atlas_generation);
+    hash = sdl_left_panel_hash_mix(hash,
+        sdl_mono_font_atlas_generation_for_cells(sdl_monospace_font_path(),
+            metrics->cell_w, metrics->cell_h));
     hash = sdl_left_panel_hash_mix(hash,
         (Uint64)(op_ptr && styled_player_health_bar));
     hash = sdl_left_panel_hash_mix(hash,
@@ -1456,6 +1458,10 @@ bool sdl_render_current_window_frame(void)
     SDL_FRect left_panel_rect;
     int visible_views = 0;
 
+    g_sdl_present_generation++;
+    if (g_sdl_present_generation == 0)
+        g_sdl_present_generation = 1;
+
     if (g_suppress_layout_refresh_present)
         return false;
 
@@ -1818,25 +1824,17 @@ void sdl_present_if_needed(sdl_view* d)
     if (!g_state.need_present)
         return;
 
-    /* Diagnostic (temporary): flag slow frames.  A frequently-slow frame here
-     * means the per-frame render (e.g. the left-panel pane rebuild) is the
-     * cost behind the "overlay moving"/sluggish feel. */
-    Uint64 _fr0 = SDL_GetTicksNS();
-
-    if (!sdl_render_current_window_frame())
+    /* Renderers for animated UI may request the following frame.  Consume the
+     * current request before rendering so that request is not cleared after
+     * the page-curl/notification render has re-armed it. */
+    g_state.need_present = false;
+    if (!sdl_render_current_window_frame()) {
+        g_state.need_present = true;
         return;
+    }
 
     SDL_RenderPresent(g_state.renderer);
     sdl_restore_render_target(d);
-
-    g_state.need_present = false;
-
-    {
-        Uint64 _fr_ms = (SDL_GetTicksNS() - _fr0) / 1000000ULL;
-        if (_fr_ms >= 100)
-            log_warn("[SLOWPRESENT] frame render+present %llu ms",
-                (unsigned long long)_fr_ms);
-    }
 }
 
 

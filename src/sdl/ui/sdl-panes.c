@@ -1057,41 +1057,47 @@ void sdl_status_pane_draw_text(TTF_Font* font, cptr text,
     SDL_Color color, float x, float y, float max_w, float row_h,
     bool right_align)
 {
-    SDL_Surface* surface;
     SDL_Texture* texture;
     SDL_FRect dst;
     float scale = 1.0f;
+    int text_w = 0;
+    int text_h = 0;
 
     if (!font || !text || !text[0] || max_w <= 0.0f || row_h <= 0.0f)
         return;
 
-    surface = TTF_RenderText_Blended(font, text, 0, color);
-    if (!surface)
+    texture = sdl_ui_text_texture(font, text, color, &text_w, &text_h);
+    if (!texture)
         return;
 
-    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
-    if (!texture) {
-        SDL_DestroySurface(surface);
-        return;
-    }
+    if (text_w > 0 && (float)text_w > max_w)
+        scale = max_w / (float)text_w;
 
-    if (surface->w > 0 && (float)surface->w > max_w)
-        scale = max_w / (float)surface->w;
-
-    dst.w = (float)surface->w * scale;
-    dst.h = (float)surface->h * scale;
+    dst.w = (float)text_w * scale;
+    dst.h = (float)text_h * scale;
     dst.x = right_align ? x + max_w - dst.w : x;
     dst.y = y + (row_h - dst.h) * 0.5f;
 
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
     SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
-
-    SDL_DestroyTexture(texture);
-    SDL_DestroySurface(surface);
 }
 
-bool sdl_status_pane_layout(status_pane_layout* out)
+static Uint64 sdl_status_pane_hash_bytes(Uint64 hash, const void* data,
+    size_t len)
 {
+    const byte* bytes = (const byte*)data;
+
+    for (size_t i = 0; i < len; i++) {
+        hash ^= bytes[i];
+        hash *= 1099511628211ULL;
+    }
+    return hash;
+}
+
+static bool sdl_status_pane_layout_compute(status_pane_layout* out)
+{
+    static bool stable_cache_valid;
+    static Uint64 stable_cache_hash;
+    static status_pane_layout stable_cache_layout;
     status_pane_entry entries[SDL_STATUS_PANE_MAX_ENTRIES];
     SDL_Rect anchor;
     SDL_Rect screen;
@@ -1116,6 +1122,7 @@ bool sdl_status_pane_layout(status_pane_layout* out)
     int row_count = 0;
     int panel_w;
     int panel_h;
+    Uint64 layout_hash = 1469598103934665603ULL;
 
     if (!out)
         return false;
@@ -1131,6 +1138,34 @@ bool sdl_status_pane_layout(status_pane_layout* out)
     font_px = sdl_effective_pane_cell_height_for_type(PANE_STATUS);
     if (font_px < 8)
         font_px = 8;
+    screen = sdl_get_layout_screen_rect();
+    layout_hash = sdl_status_pane_hash_bytes(layout_hash, &anchor,
+        sizeof(anchor));
+    layout_hash = sdl_status_pane_hash_bytes(layout_hash, &screen,
+        sizeof(screen));
+    layout_hash = sdl_status_pane_hash_bytes(layout_hash, &where,
+        sizeof(where));
+    layout_hash = sdl_status_pane_hash_bytes(layout_hash, &font_px,
+        sizeof(font_px));
+    layout_hash = sdl_status_pane_hash_bytes(layout_hash,
+        &g_state.system_scale, sizeof(g_state.system_scale));
+    layout_hash = sdl_status_pane_hash_bytes(layout_hash,
+        &g_story_font_generation, sizeof(g_story_font_generation));
+    layout_hash = sdl_status_pane_hash_bytes(layout_hash, &count,
+        sizeof(count));
+    for (int i = 0; i < count; i++) {
+        layout_hash = sdl_status_pane_hash_bytes(layout_hash,
+            entries[i].label, strlen(entries[i].label) + 1);
+        layout_hash = sdl_status_pane_hash_bytes(layout_hash,
+            entries[i].detail, strlen(entries[i].detail) + 1);
+        layout_hash = sdl_status_pane_hash_bytes(layout_hash,
+            &entries[i].attr, sizeof(entries[i].attr));
+    }
+    if (stable_cache_valid && stable_cache_hash == layout_hash) {
+        *out = stable_cache_layout;
+        return true;
+    }
+
     font = sdl_story_font_for_height(font_px);
     if (!font)
         return false;
@@ -1150,7 +1185,6 @@ bool sdl_status_pane_layout(status_pane_layout* out)
     gap_x = item_pad_x;
     min_item_w = font_px * 3;
 
-    screen = sdl_get_layout_screen_rect();
     max_panel_w = screen.w - pad_x * 2;
     max_panel_h = screen.h - pad_y * 2;
     if (max_panel_w <= 0 || max_panel_h <= 0)
@@ -1163,7 +1197,15 @@ bool sdl_status_pane_layout(status_pane_layout* out)
     if (max_rows <= 0)
         return false;
 
+    /* At most two ordinary entries fit on a row.  Reserve one cell for the
+     * "More" item when truncating, instead of starting at all 48 entries and
+     * reformatting/remeasuring them once for every failed row count. */
     visible_count = count;
+    if (visible_count > max_rows * SDL_STATUS_PANE_COLUMNS) {
+        visible_count = max_rows * SDL_STATUS_PANE_COLUMNS - 1;
+        if (visible_count < 0)
+            visible_count = 0;
+    }
     for (;;) {
         more_count = count - visible_count;
         layout_count = sdl_status_pane_layout_entries(font, entries,
@@ -1198,7 +1240,30 @@ bool sdl_status_pane_layout(status_pane_layout* out)
     out->pad_y = pad_y;
     out->item_pad_x = item_pad_x;
 
+    stable_cache_layout = *out;
+    stable_cache_hash = layout_hash;
+    stable_cache_valid = true;
+
     return true;
+}
+
+bool sdl_status_pane_layout(status_pane_layout* out)
+{
+    static Uint64 cached_generation;
+    static status_pane_layout cached_layout;
+    static bool cached_result;
+
+    if (!out)
+        return false;
+    if (cached_generation == g_sdl_present_generation) {
+        *out = cached_layout;
+        return cached_result;
+    }
+
+    cached_result = sdl_status_pane_layout_compute(&cached_layout);
+    cached_generation = g_sdl_present_generation;
+    *out = cached_layout;
+    return cached_result;
 }
 
 void sdl_status_pane_render(void)

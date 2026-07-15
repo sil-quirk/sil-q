@@ -269,6 +269,13 @@ void lite_spot(int y, int x)
     int vy, vx;
     int cell_w;
 
+#ifdef USE_SDL
+    /* The retained side minimap includes grids outside the main viewport.
+     * Notify it before the viewport checks below so off-screen monsters,
+     * objects, and terrain do not leave stale cached cells. */
+    sdl_side_map_pane_invalidate_cell(y, x);
+#endif
+
     /* Location relative to panel */
     ky = y - p_ptr->wy;
 

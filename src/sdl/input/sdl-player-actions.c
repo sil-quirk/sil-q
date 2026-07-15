@@ -2376,7 +2376,6 @@ static void sdl_player_action_menu_render_tooltip(
 {
     SDL_Rect screen;
     TTF_Font* font;
-    SDL_Surface* surface;
     SDL_Texture* texture;
     SDL_FRect box;
     SDL_FRect text_dst;
@@ -2388,6 +2387,8 @@ static void sdl_player_action_menu_render_tooltip(
     float max_box_w;
     float max_text_w;
     int font_px;
+    int text_w = 0;
+    int text_h = 0;
 
     if (!entry || !entry->description || !entry->description[0])
         return;
@@ -2411,27 +2412,21 @@ static void sdl_player_action_menu_render_tooltip(
         return;
 
     max_text_w = max_box_w - pad * 2.0f;
-    surface = sdl_object_tooltip_render_text_surface(font,
-        entry->description, text_color, max_text_w);
-    if (!surface)
+    texture = sdl_ui_wrapped_text_texture(font, entry->description,
+        MAX(1, (int)(max_text_w + 0.5f)), text_color, &text_w, &text_h);
+    if (!texture)
         return;
 
-    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
-    if (!texture) {
-        SDL_DestroySurface(surface);
-        return;
-    }
-
-    box.w = (float)surface->w + pad * 2.0f;
-    box.h = (float)surface->h + pad * 2.0f;
+    box.w = (float)text_w + pad * 2.0f;
+    box.h = (float)text_h + pad * 2.0f;
     sdl_player_action_menu_place_tooltip(&box, entry, avoid_radius, &screen,
         screen_margin, gap);
 
     text_dst = (SDL_FRect){
         .x = box.x + pad,
         .y = box.y + pad,
-        .w = (float)surface->w,
-        .h = (float)surface->h,
+        .w = (float)text_w,
+        .h = (float)text_h,
     };
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
@@ -2441,11 +2436,7 @@ static void sdl_player_action_menu_render_tooltip(
         166);
     SDL_RenderRect(g_state.renderer, &box);
 
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
     SDL_RenderTexture(g_state.renderer, texture, NULL, &text_dst);
-
-    SDL_DestroyTexture(texture);
-    SDL_DestroySurface(surface);
 }
 
 void sdl_player_action_menu_render(void)

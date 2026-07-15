@@ -138,20 +138,10 @@ errr callback_sdl_xtra(int n, int v)
             }
             g_sdl_blocking_key_wait = true;
             {
-                /* Diagnostic (temporary): measure how long we actually BLOCK
-                 * here waiting for input.  If a slow request_command turn has a
-                 * matching long [IDLEWAIT], the game was idle (think-time, no
-                 * bug); if it is slow with no long [IDLEWAIT], it was busy
-                 * (a real stall). */
-                Uint64 _wb0 = SDL_GetTicksNS();
-                bool _wb_got = (timeout_ms >= 0)
+                bool got_event = (timeout_ms >= 0)
                     ? SDL_WaitEventTimeout(&ev, timeout_ms)
                     : SDL_WaitEvent(&ev);
-                Uint64 _wb_ms = (SDL_GetTicksNS() - _wb0) / 1000000ULL;
-                if (_wb_ms >= 300)
-                    log_warn("[IDLEWAIT] blocked %llu ms waiting for input",
-                        (unsigned long long)_wb_ms);
-                if (_wb_got) {
+                if (got_event) {
                     sdl_handle_event(&g_state, &ev);
                     /*
                      * SDL_WaitEvent() removes one event only. Returning to
@@ -364,6 +354,27 @@ errr callback_sdl_bigcurs(int x, int y)
     return 0;
 }
 
+static void sdl_side_map_pane_invalidate_term_span(int x, int y, int n)
+{
+    if (!p_ptr || Term != term_screen || y < ROW_MAP || x + n <= COL_MAP)
+        return;
+
+    for (int i = 0; i < n; i++) {
+        int term_x = x + i;
+        int map_y;
+        int map_x;
+
+        if (term_x < COL_MAP)
+            continue;
+        map_y = p_ptr->wy + y - ROW_MAP;
+        map_x = term_x - COL_MAP;
+        if (use_bigtile)
+            map_x /= 2;
+        map_x += p_ptr->wx;
+        sdl_side_map_pane_invalidate_cell(map_y, map_x);
+    }
+}
+
 errr callback_sdl_wipe(int x, int y, int n)
 {
     sdl_view* d = sdl_view_from_term(Term);
@@ -375,6 +386,7 @@ errr callback_sdl_wipe(int x, int y, int n)
         n = Term->wid - x;
     if (n <= 0)
         return 0;
+    sdl_side_map_pane_invalidate_term_span(x, y, n);
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
     SDL_Rect clip = { x * d->cell_w, y * d->cell_h, n * d->cell_w, d->cell_h };
     SDL_SetRenderClipRect(g_state.renderer, &clip);
@@ -481,6 +493,7 @@ errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
         n = Term->wid - x;
     if (n <= 0)
         return 0;
+    sdl_side_map_pane_invalidate_term_span(x, y, n);
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
 
     if (sdl_render_term_health_bar(d, x, y))
@@ -2216,6 +2229,25 @@ void sdl_side_map_pane_note_level(void)
     g_side_map_pane.drag_active = false;
     g_side_map_pane.pinch_active = false;
     memset(g_side_map_pane.fingers, 0, sizeof(g_side_map_pane.fingers));
+    sdl_side_map_pane_texture_cache_clear();
+}
+
+void sdl_side_map_pane_forget_level(void)
+{
+    /* Depth and dimensions are not a unique level identity: a regenerated
+     * level can reuse all three.  Force the next render through the normal
+     * level-change path and discard pixels retained from the old cave. */
+    g_side_map_pane.last_depth = -1;
+    g_side_map_pane.last_map_hgt = 0;
+    g_side_map_pane.last_map_wid = 0;
+    g_side_map_pane.default_zoom_pending = true;
+    g_side_map_pane.pan_x = 0.0f;
+    g_side_map_pane.pan_y = 0.0f;
+    g_side_map_pane.press_active = false;
+    g_side_map_pane.drag_active = false;
+    g_side_map_pane.pinch_active = false;
+    memset(g_side_map_pane.fingers, 0, sizeof(g_side_map_pane.fingers));
+    sdl_side_map_pane_texture_cache_clear();
 }
 
 void sdl_side_map_pane_redraw(void)
@@ -2313,6 +2345,132 @@ void sdl_side_map_pane_render_empty(const SDL_FRect* content)
 static SDL_Texture* g_side_map_render_texture;
 static int g_side_map_render_texture_w;
 static int g_side_map_render_texture_h;
+static bool g_side_map_render_texture_valid;
+static bool g_side_map_bounds_valid;
+static bool g_side_map_bounds_dirty = true;
+static int g_side_map_cached_min_y;
+static int g_side_map_cached_min_x;
+static int g_side_map_cached_max_y;
+static int g_side_map_cached_max_x;
+static Uint64 g_side_map_bounds_aux_hash;
+static bool g_side_map_dirty_mark[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
+static u16b g_side_map_dirty_y[MAX_DUNGEON_HGT * MAX_DUNGEON_WID];
+static u16b g_side_map_dirty_x[MAX_DUNGEON_HGT * MAX_DUNGEON_WID];
+static int g_side_map_dirty_count;
+
+static void sdl_side_map_pane_clear_dirty_cells(void)
+{
+    for (int i = 0; i < g_side_map_dirty_count; i++) {
+        int y = g_side_map_dirty_y[i];
+        int x = g_side_map_dirty_x[i];
+
+        if (y >= 0 && y < MAX_DUNGEON_HGT
+            && x >= 0 && x < MAX_DUNGEON_WID)
+        {
+            g_side_map_dirty_mark[y][x] = false;
+        }
+    }
+    g_side_map_dirty_count = 0;
+}
+
+void sdl_side_map_pane_texture_cache_clear(void)
+{
+    if (g_side_map_render_texture)
+        SDL_DestroyTexture(g_side_map_render_texture);
+    g_side_map_render_texture = NULL;
+    g_side_map_render_texture_w = 0;
+    g_side_map_render_texture_h = 0;
+    g_side_map_render_texture_valid = false;
+    g_side_map_bounds_valid = false;
+    g_side_map_bounds_dirty = true;
+    g_side_map_bounds_aux_hash = 0;
+    sdl_side_map_pane_clear_dirty_cells();
+}
+
+static Uint64 sdl_side_map_pane_aux_bounds_hash(void)
+{
+    Uint64 hash = 1469598103934665603ULL;
+    int count = hint_messages_count_for_save();
+
+    hash ^= (Uint64)(unsigned int)count;
+    hash *= 1099511628211ULL;
+    for (int i = 0; i < count; i++) {
+        hint_message_meta meta;
+
+        hint_messages_message_meta(i, &meta);
+        if (!sdl_minimap_hint_source_valid(&meta))
+            continue;
+        hash ^= (Uint64)(u16b)meta.source_y;
+        hash *= 1099511628211ULL;
+        hash ^= (Uint64)(u16b)meta.source_x;
+        hash *= 1099511628211ULL;
+    }
+    hash ^= (Uint64)(g_minimap.focus_active ? 1 : 0);
+    hash *= 1099511628211ULL;
+    if (g_minimap.focus_active) {
+        hash ^= (Uint64)(u16b)g_minimap.focus_y;
+        hash *= 1099511628211ULL;
+        hash ^= (Uint64)(u16b)g_minimap.focus_x;
+        hash *= 1099511628211ULL;
+    }
+    return hash;
+}
+
+static bool sdl_side_map_pane_cell_keeps_bounds(int y, int x)
+{
+    int m_idx;
+
+    if (!p_ptr || y < 0 || y >= p_ptr->cur_map_hgt
+        || x < 0 || x >= p_ptr->cur_map_wid)
+    {
+        return false;
+    }
+    if (cave_info[y][x] & (CAVE_MARK | CAVE_SEEN))
+        return true;
+    if (p_ptr->py == y && p_ptr->px == x)
+        return true;
+    m_idx = cave_m_idx[y][x];
+    return m_idx > 0 && m_idx < mon_max && mon_list[m_idx].r_idx
+        && (mon_list[m_idx].ml || (mon_list[m_idx].mflag & MFLAG_MARK));
+}
+
+void sdl_side_map_pane_invalidate_cell(int y, int x)
+{
+    int capacity = MAX_DUNGEON_HGT * MAX_DUNGEON_WID;
+
+    if (y < 0 || y >= MAX_DUNGEON_HGT
+        || x < 0 || x >= MAX_DUNGEON_WID)
+    {
+        return;
+    }
+    if (g_side_map_bounds_valid) {
+        bool outside = y < g_side_map_cached_min_y
+            || y > g_side_map_cached_max_y
+            || x < g_side_map_cached_min_x
+            || x > g_side_map_cached_max_x;
+        bool on_edge = y == g_side_map_cached_min_y
+            || y == g_side_map_cached_max_y
+            || x == g_side_map_cached_min_x
+            || x == g_side_map_cached_max_x;
+        bool keeps_bounds = sdl_side_map_pane_cell_keeps_bounds(y, x);
+
+        if ((outside && keeps_bounds) || (on_edge && !keeps_bounds))
+            g_side_map_bounds_dirty = true;
+    }
+    if (!g_side_map_render_texture_valid || g_side_map_dirty_mark[y][x])
+        return;
+    if (g_side_map_dirty_count >= capacity) {
+        g_side_map_render_texture_valid = false;
+        g_side_map_bounds_dirty = true;
+        sdl_side_map_pane_clear_dirty_cells();
+        return;
+    }
+    g_side_map_dirty_mark[y][x] = true;
+    g_side_map_dirty_y[g_side_map_dirty_count] = (u16b)y;
+    g_side_map_dirty_x[g_side_map_dirty_count] = (u16b)x;
+    g_side_map_dirty_count++;
+    g_state.need_present = true;
+}
 
 static SDL_Texture* sdl_side_map_pane_acquire_texture(int width, int height)
 {
@@ -2339,6 +2497,7 @@ static SDL_Texture* sdl_side_map_pane_acquire_texture(int width, int height)
         SDL_SCALEMODE_NEAREST);
     g_side_map_render_texture_w = width;
     g_side_map_render_texture_h = height;
+    g_side_map_render_texture_valid = false;
     return g_side_map_render_texture;
 }
 
@@ -2367,8 +2526,39 @@ void sdl_side_map_pane_render(void)
     sdl_side_map_pane_note_level();
     sdl_side_map_pane_render_empty(&content);
 
-    if (!sdl_minimap_known_bounds(&min_y, &min_x, &max_y, &max_x))
-        return;
+    {
+        Uint64 aux_hash = sdl_side_map_pane_aux_bounds_hash();
+
+        if (aux_hash != g_side_map_bounds_aux_hash) {
+            g_side_map_bounds_aux_hash = aux_hash;
+            g_side_map_bounds_dirty = true;
+        }
+    }
+
+    if (!g_side_map_bounds_valid || g_side_map_bounds_dirty) {
+        bool bounds_changed;
+
+        if (!sdl_minimap_known_bounds(&min_y, &min_x, &max_y, &max_x))
+            return;
+        bounds_changed = !g_side_map_bounds_valid
+            || min_y != g_side_map_cached_min_y
+            || min_x != g_side_map_cached_min_x
+            || max_y != g_side_map_cached_max_y
+            || max_x != g_side_map_cached_max_x;
+        g_side_map_cached_min_y = min_y;
+        g_side_map_cached_min_x = min_x;
+        g_side_map_cached_max_y = max_y;
+        g_side_map_cached_max_x = max_x;
+        g_side_map_bounds_valid = true;
+        g_side_map_bounds_dirty = false;
+        if (bounds_changed)
+            g_side_map_render_texture_valid = false;
+    } else {
+        min_y = g_side_map_cached_min_y;
+        min_x = g_side_map_cached_min_x;
+        max_y = g_side_map_cached_max_y;
+        max_x = g_side_map_cached_max_x;
+    }
 
     map_rows = max_y - min_y + 1;
     map_cols = max_x - min_x + 1;
@@ -2442,18 +2632,30 @@ void sdl_side_map_pane_render(void)
         return;
     }
 
-    restore_target = SDL_GetRenderTarget(g_state.renderer);
-    SDL_SetRenderTarget(g_state.renderer, map_texture);
-    SDL_SetRenderClipRect(g_state.renderer, NULL);
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
-    SDL_RenderClear(g_state.renderer);
+    if (!g_side_map_render_texture_valid || g_side_map_dirty_count > 0) {
+        bool full_redraw = !g_side_map_render_texture_valid;
 
-    for (int y = min_y; y <= max_y; y++) {
-        for (int x = min_x; x <= max_x; x++) {
+        restore_target = SDL_GetRenderTarget(g_state.renderer);
+        if (!SDL_SetRenderTarget(g_state.renderer, map_texture)) {
+            g_side_map_render_texture_valid = false;
+            return;
+        }
+        SDL_SetRenderClipRect(g_state.renderer, NULL);
+        if (full_redraw) {
+            SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+            SDL_RenderClear(g_state.renderer);
+        }
+
+        for (int i = 0; i < (full_redraw ? map_rows * map_cols
+                                         : g_side_map_dirty_count); i++) {
             byte a = TERM_DARK;
             byte ta = TERM_DARK;
             char c = ' ';
             char tc = ' ';
+            int y = full_redraw ? min_y + i / map_cols
+                                : (int)g_side_map_dirty_y[i];
+            int x = full_redraw ? min_x + i % map_cols
+                                : (int)g_side_map_dirty_x[i];
             SDL_FRect cell_dst = {
                 .x = (float)((x - min_x) * TILE_SIZE),
                 .y = (float)((y - min_y) * TILE_SIZE),
@@ -2461,12 +2663,31 @@ void sdl_side_map_pane_render(void)
                 .h = TILE_SIZE,
             };
 
+            if (y < min_y || y > max_y || x < min_x || x > max_x)
+                continue;
+            if (!full_redraw) {
+                SDL_SetRenderDrawBlendMode(g_state.renderer,
+                    SDL_BLENDMODE_NONE);
+                SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+                SDL_RenderFillRect(g_state.renderer, &cell_dst);
+                SDL_SetRenderDrawBlendMode(g_state.renderer,
+                    SDL_BLENDMODE_BLEND);
+            }
             map_info(y, x, &a, &c, &ta, &tc);
             sdl_draw_map_tile_layers_at(y, x, a, c, ta, tc, &cell_dst);
         }
+        g_side_map_render_texture_valid = true;
+        sdl_side_map_pane_clear_dirty_cells();
+        if (!SDL_SetRenderTarget(g_state.renderer, restore_target)) {
+            g_side_map_render_texture_valid = false;
+            /* Never leave the retained minimap bound after a failed restore.
+             * A device-reset event will rebuild the ordinary view targets. */
+            (void)SDL_SetRenderTarget(g_state.renderer, NULL);
+            SDL_SetRenderClipRect(g_state.renderer, NULL);
+            g_state.need_present = true;
+            return;
+        }
     }
-
-    SDL_SetRenderTarget(g_state.renderer, restore_target);
     SDL_SetRenderClipRect(g_state.renderer, &clip);
     SDL_RenderTexture(g_state.renderer, map_texture, NULL, &map_dst);
 
@@ -3011,6 +3232,7 @@ void sdl_minimap_map_texture_cache_clear(void)
     g_minimap_map_texture_max_y = 0;
     g_minimap_map_texture_max_x = 0;
     g_minimap_map_texture_health_hash = 0;
+    sdl_side_map_pane_texture_cache_clear();
 }
 
 static bool sdl_minimap_map_texture_cache_matches(int min_y, int min_x,
@@ -3287,8 +3509,11 @@ errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* cp,
         int dy = -1;
         int dx = -1;
 
-        if (sdl_render_term_health_bar(d, x + i, y))
+        if (sdl_render_term_health_bar(d, x + i, y)) {
+            sdl_side_map_pane_invalidate_term_span(
+                x + i * (use_bigtile + 1), y, 1);
             continue;
+        }
 
         /*
          * Combat-roll tiles are drawn inline by the pixel-packed row renderer
@@ -3320,6 +3545,8 @@ errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* cp,
             }
         }
 
+        if (dy >= 0 && dx >= 0)
+            sdl_side_map_pane_invalidate_cell(dy, dx);
         sdl_draw_map_tile_layers_at(dy, dx, a, c, tap[i], tcp[i], &dst);
     }
 
@@ -3414,6 +3641,7 @@ bool sdl_set_tiles_runtime(bool value)
 
 void sdl_finish_tiles_mode_change(void)
 {
+    sdl_minimap_map_texture_cache_clear();
     sdl_mark_tiles_mode_game_redraw();
 
     if (character_dungeon && p_ptr && p_ptr->playing && character_icky == 0) {

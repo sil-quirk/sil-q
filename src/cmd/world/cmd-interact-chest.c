@@ -5,6 +5,7 @@
 #include "player/killer.h"
 #include "metarun.h"
 #include "cmd/world/cmd-interact-chest.h"
+#include "ui/question.h"
 
 s16b chest_check(int y, int x)
 {
@@ -4475,14 +4476,484 @@ void do_cmd_search_skeleton(int y, int x, s16b o_idx)
     }
 }
 
+typedef struct chest_minigame_retry_state
+{
+    bool active;
+    bool pause_before_prompt;
+    int y;
+    int x;
+    char previous[240];
+} chest_minigame_retry_state;
+
+static chest_minigame_retry_state chest_retry;
+
+#define CHEST_LOOK_DIE_SIDES 5
+#define CHEST_FULL_DETECTION_DISARM_BONUS 5
+#define CHEST_MINIGAME_RETRY_DELAY_MS 1000
+
+static bool chest_was_inspected(const object_type* o_ptr)
+{
+    return o_ptr && ((o_ptr->ident & IDENT_CHEST_LOOKED) != 0);
+}
+
+bool chest_trap_fully_known(const object_type* o_ptr)
+{
+    return o_ptr && (object_known_p(o_ptr)
+        || ((o_ptr->ident & IDENT_CHEST_TRAP_FULL) != 0));
+}
+
+bool chest_trap_presence_known(const object_type* o_ptr)
+{
+    if (!o_ptr || !object_chest_trap_flags(o_ptr))
+        return false;
+
+    return chest_trap_fully_known(o_ptr)
+        || ((o_ptr->ident & IDENT_CHEST_TRAP_PRESENT) != 0);
+}
+
+bool chest_minigame_retry_target(int* y, int* x)
+{
+    if (!chest_retry.active)
+        return false;
+
+    if (y)
+        *y = chest_retry.y;
+    if (x)
+        *x = chest_retry.x;
+    return true;
+}
+
+void chest_minigame_clear_retry(void)
+{
+    memset(&chest_retry, 0, sizeof(chest_retry));
+}
+
+static void chest_minigame_schedule_retry(int y, int x, cptr previous,
+    bool pause_before_prompt)
+{
+    chest_retry.active = true;
+    chest_retry.pause_before_prompt = pause_before_prompt;
+    chest_retry.y = y;
+    chest_retry.x = x;
+    SDL_strlcpy(chest_retry.previous, previous ? previous : "",
+        sizeof(chest_retry.previous));
+    p_ptr->command_new = 'o';
+}
+
+static void chest_desc_append(char* desc, size_t desc_size, cptr text)
+{
+    if (!desc || !desc_size || !text || !text[0])
+        return;
+
+    if (desc[0])
+        SDL_strlcat(desc, " ", desc_size);
+    SDL_strlcat(desc, text, desc_size);
+}
+
+static int chest_condition_penalty(void)
+{
+    int penalty = 0;
+
+    if (p_ptr->blind || no_light() || p_ptr->image)
+        penalty += 5;
+    if (p_ptr->confused)
+        penalty += 5;
+    return penalty;
+}
+
+static int chest_lock_difficulty(const object_type* o_ptr)
+{
+    int level = o_ptr ? ABS(o_ptr->pval) : 0;
+    int power = 1 + (level / 4);
+
+    return power + 5 + chest_condition_penalty();
+}
+
+static int chest_look_difficulty(const object_type* o_ptr)
+{
+    int level = o_ptr ? ABS(o_ptr->pval) : 0;
+
+    /* A deliberate close inspection is substantially easier than noticing a
+     * chest trap in passing.  The d5 opposed throw keeps its variance low. */
+    return (level / 2) + 5 + chest_condition_penalty();
+}
+
+static int chest_disarm_difficulty(const object_type* o_ptr)
+{
+    int level = o_ptr ? ABS(o_ptr->pval) : 0;
+    int power = 1 + (level / 4);
+
+    return power + (level / 4) + 3 + chest_condition_penalty();
+}
+
+static void chest_trap_effect_desc(char* buf, size_t buf_size,
+    const object_type* o_ptr)
+{
+    byte trap = object_chest_trap_flags(o_ptr);
+    int level = ABS(o_ptr->pval);
+    int bonus = level / 6;
+    int needle_skill = 2 + level / 4;
+    char part[192];
+
+    buf[0] = '\0';
+
+#define CHEST_EFFECT_ADD(text_) chest_desc_append(buf, buf_size, (text_))
+    if (trap & CHEST_GAS_CONF)
+        CHEST_EFFECT_ADD("Confusion gas: 4d4 turns of confusion.");
+    if (trap & CHEST_GAS_STUN)
+    {
+        strnfmt(part, sizeof(part),
+            "Acrid smoke: %dd4 damage and 30d4 turns of stun.", 3 + bonus);
+        CHEST_EFFECT_ADD(part);
+    }
+    if (trap & CHEST_GAS_POISON)
+    {
+        strnfmt(part, sizeof(part),
+            "Poison gas: %dd4 pure poison damage.", 10 + bonus * 2);
+        CHEST_EFFECT_ADD(part);
+    }
+    if (trap & CHEST_NEEDLE_HALLU)
+    {
+        strnfmt(part, sizeof(part),
+            "Hallucinatory needle: attack %d vs Dexterity; 80d4 turns of "
+            "hallucination.",
+            needle_skill);
+        CHEST_EFFECT_ADD(part);
+    }
+    if (trap & CHEST_NEEDLE_ENTRANCE)
+    {
+        strnfmt(part, sizeof(part),
+            "Entrancing needle: attack %d vs Dexterity; 10d4 turns of "
+            "entrancement.",
+            needle_skill);
+        CHEST_EFFECT_ADD(part);
+    }
+    if (trap & CHEST_NEEDLE_LOSE_STR)
+    {
+        strnfmt(part, sizeof(part),
+            "Weakening needle: attack %d vs Dexterity; drains Strength.",
+            needle_skill);
+        CHEST_EFFECT_ADD(part);
+    }
+    if (trap & CHEST_FLAME)
+    {
+        strnfmt(part, sizeof(part),
+            "Flame trap: %dd4 pure fire damage.", 10 + bonus * 2);
+        CHEST_EFFECT_ADD(part);
+    }
+#undef CHEST_EFFECT_ADD
+}
+
+static bool chest_can_look(const object_type* o_ptr)
+{
+    if (!o_ptr || chest_trap_fully_known(o_ptr))
+        return false;
+
+    return !chest_was_inspected(o_ptr)
+        || (p_ptr->skill_base[S_PER] > object_runtime_payload(o_ptr));
+}
+
+static void chest_mark_looked(object_type* o_ptr, bool full)
+{
+    byte trap;
+
+    if (!o_ptr)
+        return;
+
+    trap = object_chest_trap_flags(o_ptr);
+    o_ptr->ident |= IDENT_CHEST_LOOKED;
+    if (trap)
+        o_ptr->ident |= IDENT_CHEST_TRAP_PRESENT;
+    else
+        o_ptr->ident &= ~IDENT_CHEST_TRAP_PRESENT;
+    object_set_runtime_payload(o_ptr, p_ptr->skill_base[S_PER]);
+
+    if (full)
+    {
+        o_ptr->ident |= IDENT_CHEST_TRAP_FULL;
+        object_known(o_ptr);
+    }
+}
+
+static bool do_cmd_chest_minigame(int y, int x, s16b o_idx)
+{
+    enum
+    {
+        CHEST_ACTION_LOOK,
+        CHEST_ACTION_DISARM,
+        CHEST_ACTION_OPEN
+    };
+    ui_question_option options[3];
+    int actions[3];
+    int count = 0;
+    int choice;
+    int action;
+    int result;
+    int score;
+    int difficulty;
+    bool fully_known;
+    bool trap_known;
+    bool looked;
+    bool pause_before_prompt = false;
+    byte trap;
+    char title[96];
+    char desc[768];
+    char line[240];
+    char effects[480];
+    char previous[240];
+    char look_label[64];
+    char disarm_label[64];
+    char open_label[64];
+    object_type* o_ptr;
+    skill_roll_details roll;
+
+    if (o_idx <= 0 || o_idx >= o_max)
+    {
+        chest_minigame_clear_retry();
+        return false;
+    }
+
+    o_ptr = &o_list[o_idx];
+    if (!o_ptr->k_idx || o_ptr->tval != TV_CHEST || o_ptr->pval == 0)
+    {
+        chest_minigame_clear_retry();
+        return false;
+    }
+
+    previous[0] = '\0';
+    if (chest_retry.active && chest_retry.y == y && chest_retry.x == x)
+    {
+        /* Command repetition may consume the retry before request_command()
+         * sees its queued open command.  Avoid leaving that command stale if
+         * this attempt finishes the interaction. */
+        if (p_ptr->command_new == 'o')
+            p_ptr->command_new = 0;
+        pause_before_prompt = chest_retry.pause_before_prompt;
+        SDL_strlcpy(previous, chest_retry.previous, sizeof(previous));
+    }
+    chest_minigame_clear_retry();
+
+    trap = object_chest_trap_flags(o_ptr);
+    fully_known = chest_trap_fully_known(o_ptr);
+    trap_known = chest_trap_presence_known(o_ptr);
+    looked = chest_was_inspected(o_ptr);
+
+    object_desc(title, sizeof(title), o_ptr, true, 3);
+    desc[0] = '\0';
+    if (previous[0])
+        chest_desc_append(desc, sizeof(desc), previous);
+
+    if (o_ptr->pval < 0)
+    {
+        chest_desc_append(desc, sizeof(desc),
+            "The trap and lock are disabled.");
+    }
+    else if (fully_known && trap)
+    {
+        chest_desc_append(desc, sizeof(desc),
+            "You know how this trap works, making it easier to disarm.");
+        chest_trap_effect_desc(effects, sizeof(effects), o_ptr);
+        chest_desc_append(desc, sizeof(desc), effects);
+    }
+    else if (trap_known)
+    {
+        chest_desc_append(desc, sizeof(desc),
+            "The chest is trapped, but you do not know how the trap works.");
+    }
+    else if (fully_known)
+    {
+        chest_desc_append(desc, sizeof(desc),
+            "This chest is not trapped.");
+    }
+    else if (looked && !trap)
+    {
+        chest_desc_append(desc, sizeof(desc),
+            "This chest is not trapped.");
+    }
+    else
+    {
+        chest_desc_append(desc, sizeof(desc),
+            "This chest may be trapped. You can inspect it before opening.");
+    }
+
+    if (!fully_known && looked && !chest_can_look(o_ptr))
+    {
+        chest_desc_append(desc, sizeof(desc),
+            "You need higher base Perception to inspect it again.");
+    }
+
+    strnfmt(look_label, sizeof(look_label), "Look for trap: %d%%",
+        player_skill_check_success_percent(p_ptr->skill_use[S_PER],
+            chest_look_difficulty(o_ptr), CHEST_LOOK_DIE_SIDES,
+            CHEST_LOOK_DIE_SIDES));
+
+    score = p_ptr->skill_use[S_PER];
+    if (p_ptr->active_ability[S_PER][PER_REWIRE_TRAPS])
+        score += 5;
+    if (fully_known)
+        score += CHEST_FULL_DETECTION_DISARM_BONUS;
+    strnfmt(disarm_label, sizeof(disarm_label), "Disarm: %d%%",
+        player_skill_check_success_percent(
+            score, chest_disarm_difficulty(o_ptr), 10, 10));
+
+    if (o_ptr->pval > 0)
+    {
+        strnfmt(open_label, sizeof(open_label),
+            trap_known ? "Open anyway: %d%%" : "Open: %d%%",
+            player_skill_check_success_percent(p_ptr->skill_use[S_PER],
+                chest_lock_difficulty(o_ptr), 10, 10));
+    }
+    else
+    {
+        SDL_strlcpy(open_label, "Open: 100%", sizeof(open_label));
+    }
+
+#define CHEST_MENU_ADD(action_, key_, label_, attr_)                          \
+    do                                                                        \
+    {                                                                         \
+        options[count] = (ui_question_option){ (key_), (label_), (attr_) };    \
+        actions[count] = (action_);                                            \
+        count++;                                                              \
+    } while (0)
+
+    if (o_ptr->pval > 0 && chest_can_look(o_ptr))
+        CHEST_MENU_ADD(CHEST_ACTION_LOOK, 'l', look_label, TERM_L_BLUE);
+    if (o_ptr->pval > 0 && trap_known)
+        CHEST_MENU_ADD(CHEST_ACTION_DISARM, 'd', disarm_label, TERM_L_GREEN);
+    CHEST_MENU_ADD(CHEST_ACTION_OPEN, 'o', open_label, TERM_ORANGE);
+#undef CHEST_MENU_ADD
+
+    if (pause_before_prompt && Term && !character_icky)
+    {
+        Term_fresh();
+        Term_xtra(TERM_XTRA_DELAY, CHEST_MINIGAME_RETRY_DELAY_MS);
+    }
+
+    choice = ui_question_ask(title, desc, options, count, y, x, 0);
+    if (choice < 0 || choice >= count)
+    {
+        p_ptr->energy_use = 0;
+        return false;
+    }
+
+    action = actions[choice];
+    p_ptr->energy_use = 100;
+    p_ptr->previous_action[0] = ACTION_MISC;
+
+    if (action == CHEST_ACTION_LOOK)
+    {
+        score = p_ptr->skill_use[S_PER];
+        difficulty = chest_look_difficulty(o_ptr);
+        result = show_interaction_skill_roll_animation_sided(
+            "Inspecting the chest", "Looking for a trap", y, x, score,
+            difficulty, CHEST_LOOK_DIE_SIDES, CHEST_LOOK_DIE_SIDES, &roll);
+        chest_mark_looked(o_ptr, result > 0);
+
+        if (result > 0 && trap)
+        {
+            msg_print("You identify the chest's trap and understand its mechanism.");
+            SDL_strlcpy(line,
+                "Inspection succeeded. You identified the trap.",
+                sizeof(line));
+        }
+        else if (result > 0)
+        {
+            msg_print("You confirm that the chest has no trap.");
+            SDL_strlcpy(line,
+                "Inspection succeeded. The chest is not trapped.",
+                sizeof(line));
+        }
+        else if (trap)
+        {
+            msg_print("You find signs that the chest is trapped.");
+            SDL_strlcpy(line,
+                "Inspection failed. You only learned that a trap is present.",
+                sizeof(line));
+        }
+        else
+        {
+            msg_print("You find no trap on the chest.");
+            SDL_strlcpy(line,
+                "Inspection failed. You only learned that no trap is present.",
+                sizeof(line));
+        }
+
+        flush();
+        chest_minigame_schedule_retry(y, x, line, result <= 0);
+        return true;
+    }
+
+    if (action == CHEST_ACTION_DISARM)
+    {
+        score = p_ptr->skill_use[S_PER];
+        if (p_ptr->active_ability[S_PER][PER_REWIRE_TRAPS])
+            score += 5;
+        if (fully_known)
+            score += CHEST_FULL_DETECTION_DISARM_BONUS;
+        difficulty = chest_disarm_difficulty(o_ptr);
+        result = show_interaction_skill_roll_animation("Disarming the chest",
+            "Testing the trap mechanism", y, x, score, difficulty, &roll);
+
+        if (result > 0)
+        {
+            msg_print("You have disarmed the chest.");
+            o_ptr->pval = 0 - o_ptr->pval;
+            SDL_strlcpy(line,
+                "Disarm succeeded. The trap and lock are disabled.",
+                sizeof(line));
+        }
+        else if (result > -3)
+        {
+            msg_print("You failed to disarm the chest.");
+            SDL_strlcpy(line,
+                "Disarm failed. The trap remains armed.", sizeof(line));
+        }
+        else
+        {
+            msg_print("You set off the trap!");
+            chest_trap(y, x, o_idx);
+            SDL_strlcpy(line,
+                "Disarm failed. The trap was triggered.", sizeof(line));
+        }
+
+        flush();
+        if (!p_ptr->is_dead && o_ptr->pval != 0)
+            chest_minigame_schedule_retry(y, x, line, result <= 0);
+        return !p_ptr->is_dead && o_ptr->pval != 0;
+    }
+
+    /* Opening is always available.  Unlike the legacy flow, choosing it does
+     * not silently make a separate disarm attempt first. */
+    if (o_ptr->pval > 0)
+    {
+        score = p_ptr->skill_use[S_PER];
+        difficulty = chest_lock_difficulty(o_ptr);
+        result = show_interaction_skill_roll_animation("Picking the chest lock",
+            "Working the lockpick", y, x, score, difficulty, &roll);
+        if (result <= 0)
+        {
+            flush();
+            message(MSG_LOCKPICK_FAIL, 0, "You failed to pick the lock.");
+            SDL_strlcpy(line,
+                "Lockpick failed. The chest remains locked.", sizeof(line));
+            chest_minigame_schedule_retry(y, x, line, true);
+            return true;
+        }
+
+        message(MSG_LOCKPICK_FAIL, 0, "You have picked the lock.");
+    }
+
+    sound(MSG_CHEST_OPEN);
+    chest_trap(y, x, o_idx);
+    chest_death(y, x, o_idx);
+    chest_minigame_clear_retry();
+    return false;
+}
+
 /*
- * Attempt to open the given chest at the given location
- *
- * Assume there is no monster blocking the destination
- *
- * Returns true if repeated commands may continue
+ * Legacy chest opening used when the chest minigame is disabled.
  */
-bool do_cmd_open_chest(int y, int x, s16b o_idx)
+static bool do_cmd_open_chest_legacy(int y, int x, s16b o_idx)
 {
     int score, power, difficulty, result;
     skill_roll_details lock_roll;
@@ -4599,7 +5070,7 @@ bool do_cmd_open_chest(int y, int x, s16b o_idx)
  *
  * Returns true if repeated commands may continue
  */
-bool do_cmd_disarm_chest(int y, int x, s16b o_idx)
+static bool do_cmd_disarm_chest_legacy(int y, int x, s16b o_idx)
 {
     int score, power, difficulty, result;
     skill_roll_details roll;
@@ -4714,4 +5185,22 @@ bool do_cmd_disarm_chest(int y, int x, s16b o_idx)
 
     /* Result */
     return (more);
+}
+
+bool do_cmd_open_chest(int y, int x, s16b o_idx)
+{
+    if (chest_trap_minigame)
+        return do_cmd_chest_minigame(y, x, o_idx);
+
+    chest_minigame_clear_retry();
+    return do_cmd_open_chest_legacy(y, x, o_idx);
+}
+
+bool do_cmd_disarm_chest(int y, int x, s16b o_idx)
+{
+    if (chest_trap_minigame)
+        return do_cmd_chest_minigame(y, x, o_idx);
+
+    chest_minigame_clear_retry();
+    return do_cmd_disarm_chest_legacy(y, x, o_idx);
 }

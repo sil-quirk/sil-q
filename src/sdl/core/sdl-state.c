@@ -669,6 +669,8 @@ mono_font_prewarm_request
 int g_mono_font_prewarm_count = 0;
 mono_font_prewarm_job g_mono_font_prewarm_job;
 Uint64 g_mono_font_atlas_generation = 1;
+Uint64 g_story_font_generation = 1;
+Uint64 g_sdl_present_generation = 1;
 SDL_Rect g_pane_rects[PANE_MAX];
 SDL_Texture* g_left_panel_canvas = NULL;
 int g_left_panel_canvas_w = 0;

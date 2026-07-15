@@ -1171,7 +1171,8 @@ void search_square(int y, int x, int dist, int searching)
     // determine if a trap is present
     for (o_ptr = get_first_object(y, x); o_ptr; o_ptr = get_next_object(o_ptr))
     {
-        if ((o_ptr->tval == TV_CHEST) && (o_ptr->pval > 0)
+        if (!chest_trap_minigame && (o_ptr->tval == TV_CHEST)
+            && (o_ptr->pval > 0)
             && object_chest_trap_flags(o_ptr) && !object_known_p(o_ptr))
         {
             chest_trap_present = true;

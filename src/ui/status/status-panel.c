@@ -1266,11 +1266,17 @@ static int hidden_left_panel_start_col_for_width(int width)
 static bool current_light_status(bool* infinite, long* fuel, byte* fuel_attr,
                                  byte* icon_attr, char* icon)
 {
-    object_type* o_ptr = &inventory[INVEN_LITE];
+    object_type* o_ptr;
     bool light_is_infinite = false;
     long light_fuel = 0;
     byte attr = TERM_L_WHITE;
 
+    /* Window expose/resize events can redraw the terminal while the startup
+     * parsers are still allocating gameplay arrays. */
+    if (!inventory)
+        return false;
+
+    o_ptr = &inventory[INVEN_LITE];
     if (!o_ptr->k_idx)
         return false;
 
@@ -1655,8 +1661,11 @@ int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines)
     byte hp_color;
     byte voice_color;
 
-    if (!lines || !Term || !p_ptr || max_lines <= 0)
+    if (!lines || !Term || !p_ptr || !op_ptr || !inventory
+        || !character_generated || max_lines <= 0)
+    {
         return 0;
+    }
 
     hp_color = health_attr(p_ptr->chp, p_ptr->mhp);
     if (p_ptr->csp >= p_ptr->msp)
@@ -1700,7 +1709,7 @@ int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines)
             if (count > old_count)
                 lines[count - 1].click_action = SDL_PANEL_CLICK_SUPPLIES_LIGHTS;
         }
-        else if (!inventory[INVEN_LITE].k_idx)
+        else if (!inventory || !inventory[INVEN_LITE].k_idx)
         {
             int old_count = count;
             hidden_left_panel_add_line(lines, &count, max_lines, TERM_SLATE,

@@ -100,7 +100,6 @@ static bool sdl_keyboard_capture_handle_keydown(
 void resize(const SDL_Rect* screen)
 {
     Uint64 start_ns = SDL_GetTicksNS();
-    log_warn("resize enter");
     SDL_Rect panes[PANE_MAX] = {0};
     bool show_supporting_panes = sdl_should_show_supporting_panes();
     bool touch_pane_hidden = sdl_touch_pane_hidden_mode_active();
@@ -108,6 +107,10 @@ void resize(const SDL_Rect* screen)
     bool include_bottom = config.enable_bottom_panes;
     int main_view_scale = sdl_current_main_view_scale();
     int layout_main_view_scale = sdl_main_view_layout_scale();
+
+    g_sdl_present_generation++;
+    if (g_sdl_present_generation == 0)
+        g_sdl_present_generation = 1;
 
     if (!show_supporting_panes)
     {
@@ -154,13 +157,14 @@ void resize(const SDL_Rect* screen)
 
     g_inventory_pane_layout_rows = -1;
     g_supply_pane_layout_rows = -1;
-    if (show_supporting_panes && panes[PANE_INVENTORY].w > 0
-        && panes[PANE_INVENTORY].h > 0)
+    /* Record the dynamic size that this layout attempt used even when the
+     * pane was pruned for lack of room.  Otherwise the visibility matcher
+     * sees -1 forever and requests another full resize on every pane update. */
+    if (show_supporting_panes && sdl_inventory_pane_dynamic_configured())
     {
         g_inventory_pane_layout_rows = sdl_inventory_pane_desired_rows();
     }
-    if (show_supporting_panes && panes[PANE_SUPPLY].w > 0
-        && panes[PANE_SUPPLY].h > 0)
+    if (show_supporting_panes && sdl_supply_pane_dynamic_configured())
     {
         g_supply_pane_layout_rows = sdl_supply_pane_desired_rows();
     }
@@ -245,7 +249,9 @@ void sdl_handle_renderer_reset(void)
         ? config.monospace_font
         : "lib/xtra/font/VictorMono-Medium.ttf";
 
+    sdl_select_page_turn_free();
     sdl_left_panel_canvas_destroy();
+    sdl_minimap_map_texture_cache_clear();
     sdl_mono_font_cache_clear();
 
     // Recreate all view canvases
@@ -772,6 +778,33 @@ static bool sdl_event_targets_touch_top_panel(const SDL_Event* ev)
     return false;
 }
 
+static bool sdl_resize_event_is_duplicate(const SDL_Rect* screen,
+    Uint64 event_timestamp)
+{
+    static bool have_last;
+    static SDL_Rect last_screen;
+    static float last_scale;
+    static Uint64 last_timestamp;
+    Uint64 timestamp = event_timestamp ? event_timestamp : SDL_GetTicksNS();
+    bool same_geometry;
+    bool same_burst;
+
+    if (!screen)
+        return false;
+    same_geometry = have_last
+        && screen->x == last_screen.x && screen->y == last_screen.y
+        && screen->w == last_screen.w && screen->h == last_screen.h
+        && g_state.system_scale == last_scale;
+    same_burst = last_timestamp && timestamp >= last_timestamp
+        && timestamp - last_timestamp <= 100000000ULL;
+
+    last_screen = *screen;
+    last_scale = g_state.system_scale;
+    last_timestamp = timestamp;
+    have_last = true;
+    return same_geometry && same_burst;
+}
+
 /* A round-wheel gesture needs its finger-down event so release can emit the
  * chosen direction.  If a zero-turn narrative banner swallowed that down but
  * disappeared before release, the first apparent move after the banner would
@@ -1273,7 +1306,7 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             return;
         }
         if (sdl_touch_top_panel_handle_pointer_motion((float)ev->motion.x,
-            (float)ev->motion.y, 0))
+            (float)ev->motion.y, true, 0))
         {
             return;
         }
@@ -2021,7 +2054,7 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
                     ev->tfinger.fingerID);
                 return;
             }
-            if (sdl_touch_top_panel_handle_pointer_motion(x, y,
+            if (sdl_touch_top_panel_handle_pointer_motion(x, y, false,
                     ev->tfinger.fingerID))
             {
                 return;
@@ -2066,7 +2099,7 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
-        if (sdl_touch_top_panel_handle_pointer_motion(x, y,
+        if (sdl_touch_top_panel_handle_pointer_motion(x, y, false,
             ev->tfinger.fingerID))
         {
             return;
@@ -2353,19 +2386,6 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         }
     } else if (ev->type == SDL_EVENT_KEY_DOWN) {
         int key = ev->key.key;
-        if (ev->common.timestamp) {
-            Uint64 now_ns = SDL_GetTicksNS();
-
-            if (now_ns > ev->common.timestamp) {
-                Uint64 queued_ms =
-                    (now_ns - ev->common.timestamp) / 1000000ULL;
-
-                if (queued_ms >= 50) {
-                    log_warn("[SLOWINPUT] key waited %llu ms in SDL queue",
-                        (unsigned long long)queued_ms);
-                }
-            }
-        }
 
         if (sdl_keyboard_capture_handle_keydown(&ev->key))
             return;
@@ -2546,21 +2566,31 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         sdl_gamepad_handle_device(&ev->gdevice);
     } else if (ev->type == SDL_EVENT_WINDOW_RESIZED
         || ev->type == SDL_EVENT_WINDOW_SAFE_AREA_CHANGED) {
+        bool layout_state_changed;
+        int old_zoom;
+
         log_debug("window resized to %dx%d", ev->window.data1, ev->window.data2);
         sdl_refresh_safe_area();
         sdl_refresh_platform_max_main_view_scales_for_current_layout(
             "window resize");
-        (void)sdl_recover_layout_for_current_window("window resize", true, NULL);
+        layout_state_changed = sdl_recover_layout_for_current_window(
+            "window resize", true, NULL);
+        old_zoom = g_main_view_zoom_scale;
         sdl_clamp_main_view_zoom_to_current_layout();
+        layout_state_changed |= old_zoom != g_main_view_zoom_scale;
 #if SIL_SDL_HANDHELD_DEFAULTS_BUILD
-        (void)sdl_mobile_maybe_apply_first_start_auto_scale("window resize");
+        layout_state_changed |= sdl_mobile_maybe_apply_first_start_auto_scale(
+            "window resize");
 #endif
         {
             SDL_Rect screen = sdl_get_layout_screen_rect();
+            bool duplicate = sdl_resize_event_is_duplicate(&screen,
+                ev->common.timestamp);
 
             log_debug("new layout size %dx%d at (%d,%d)",
                 screen.w, screen.h, screen.x, screen.y);
-            resize(&screen);
+            if (layout_state_changed || !duplicate)
+                resize(&screen);
         }
     } else if (ev->type == SDL_EVENT_DISPLAY_CONTENT_SCALE_CHANGED ||
         ev->type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED ||
@@ -2568,6 +2598,8 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
 
         float scale = SDL_GetWindowDisplayScale(g_state.window);
         bool scale_changed = (scale != g_state.system_scale);
+        bool layout_state_changed = scale_changed;
+        int old_zoom;
 
         if (scale_changed) {
             log_info("new system scale is %g", scale);
@@ -2578,18 +2610,24 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         sdl_refresh_safe_area();
         sdl_refresh_platform_max_main_view_scales_for_current_layout(
             "display scale change");
-        (void)sdl_recover_layout_for_current_window("display scale change",
-            true, NULL);
+        layout_state_changed |= sdl_recover_layout_for_current_window(
+            "display scale change", true, NULL);
+        old_zoom = g_main_view_zoom_scale;
         sdl_clamp_main_view_zoom_to_current_layout();
+        layout_state_changed |= old_zoom != g_main_view_zoom_scale;
 #if SIL_SDL_HANDHELD_DEFAULTS_BUILD
-        (void)sdl_mobile_maybe_apply_first_start_auto_scale("display scale change");
+        layout_state_changed |= sdl_mobile_maybe_apply_first_start_auto_scale(
+            "display scale change");
 #endif
         {
             SDL_Rect screen = sdl_get_layout_screen_rect();
+            bool duplicate = sdl_resize_event_is_duplicate(&screen,
+                ev->common.timestamp);
 
             log_debug("window pixel/display update layout=%dx%d at (%d,%d) (scale_changed=%d)",
                 screen.w, screen.h, screen.x, screen.y, scale_changed ? 1 : 0);
-            resize(&screen);
+            if (layout_state_changed || !duplicate)
+                resize(&screen);
         }
     }
     // Handle GPU reset events (commonly triggered by NVIDIA drivers on mode switches,

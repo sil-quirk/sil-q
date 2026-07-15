@@ -26,6 +26,9 @@ bool greater_vault_xp_awarded = false;
 
 void reset_level_entry_tracking(void)
 {
+#ifdef USE_SDL
+    sdl_side_map_pane_forget_level();
+#endif
     g_labyrinth_view_active = false;
     g_banner_force_redraw_remaining = 0;
     g_active_partition_banner_text[0] = '\0';

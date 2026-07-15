@@ -241,6 +241,8 @@ cptr item_use_action_name(const object_type* o_ptr, int item)
 
     if (o_ptr->tval == TV_CHEST)
     {
+        if (chest_trap_minigame && o_ptr->pval != 0)
+            return "Handle";
         if (o_ptr->pval > 0 && object_chest_trap_flags(o_ptr)
             && object_known_p(o_ptr))
         {
@@ -331,7 +333,11 @@ static bool use_floor_interaction_by_index(int item)
         p_ptr->energy_use = 100;
         p_ptr->previous_action[0] = ACTION_MISC;
 
-        if (o_ptr->pval > 0 && object_chest_trap_flags(o_ptr)
+        if (chest_trap_minigame)
+        {
+            (void)do_cmd_open_chest(p_ptr->py, p_ptr->px, o_idx);
+        }
+        else if (o_ptr->pval > 0 && object_chest_trap_flags(o_ptr)
             && object_known_p(o_ptr))
         {
             (void)do_cmd_disarm_chest(p_ptr->py, p_ptr->px, o_idx);

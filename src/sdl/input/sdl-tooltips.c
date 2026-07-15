@@ -95,15 +95,7 @@ bool sdl_mouse_path_take_step_command(int* command, int* dir)
         return false;
     }
 
-    Uint64 _tsc0 = SDL_GetTicksNS();
-    bool _tsc_ok = sdl_mouse_path_compute(target_y, target_x);
-    {
-        Uint64 _tsc_ms = (SDL_GetTicksNS() - _tsc0) / 1000000ULL;
-        if (_tsc_ms >= 150)
-            log_warn("[INPUTLAG] take_step compute %llu ms (path_len=%d)",
-                (unsigned long long)_tsc_ms, g_mouse_path.path_len);
-    }
-    if (!_tsc_ok) {
+    if (!sdl_mouse_path_compute(target_y, target_x)) {
         sdl_mouse_path_cancel();
         bell("Mouse path blocked.");
         return false;
@@ -777,29 +769,6 @@ int sdl_object_tooltip_font_px(void)
     return (font_px > 0) ? font_px : SDL_OBJECT_TOOLTIP_FONT_SIZE;
 }
 
-SDL_Surface* sdl_object_tooltip_render_text_surface(TTF_Font* font,
-    cptr text, SDL_Color color, float max_text_w)
-{
-    SDL_Surface* surface;
-    int wrap_w;
-
-    if (!font || !text || !text[0])
-        return NULL;
-
-    surface = TTF_RenderText_Blended(font, text, 0, color);
-    if (!surface)
-        return NULL;
-    if (max_text_w <= 0.0f || (float)surface->w <= max_text_w)
-        return surface;
-
-    SDL_DestroySurface(surface);
-    wrap_w = (int)(max_text_w + 0.5f);
-    if (wrap_w < 1)
-        wrap_w = 1;
-
-    return TTF_RenderText_Blended_Wrapped(font, text, 0, color, wrap_w);
-}
-
 bool sdl_object_tooltip_pointer_hits_term_cell(float x, float y)
 {
     int col = 0;
@@ -1100,31 +1069,24 @@ static void sdl_object_tooltip_draw_health_bar(TTF_Font* font,
 
     if (status_len > 0)
     {
-        SDL_Surface* surface = TTF_RenderText_Blended(font, status, 0,
-            g_state.palette[TERM_WHITE]);
+        int text_w_px = 0;
+        int text_h_px = 0;
+        SDL_Texture* texture = sdl_ui_text_texture(font, status,
+            g_state.palette[TERM_WHITE], &text_w_px, &text_h_px);
 
-        if (surface)
+        if (texture)
         {
-            SDL_Texture* texture =
-                SDL_CreateTextureFromSurface(g_state.renderer, surface);
+            float scale = (text_h_px > 0)
+                ? (line_h / (float)text_h_px) : 1.0f;
+            float text_w = (float)text_w_px * scale;
+            SDL_FRect dst = {
+                .x = bar.x + MAX(0.0f, (bar.w - text_w) * 0.5f),
+                .y = y,
+                .w = MIN(text_w, bar.w),
+                .h = line_h,
+            };
 
-            if (texture)
-            {
-                float scale = (surface->h > 0)
-                    ? (line_h / (float)surface->h) : 1.0f;
-                float text_w = (float)surface->w * scale;
-                SDL_FRect dst = {
-                    .x = bar.x + MAX(0.0f, (bar.w - text_w) * 0.5f),
-                    .y = y,
-                    .w = MIN(text_w, bar.w),
-                    .h = line_h,
-                };
-
-                SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-                SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
-                SDL_DestroyTexture(texture);
-            }
-            SDL_DestroySurface(surface);
+            SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
         }
     }
 }
@@ -1309,10 +1271,11 @@ void sdl_object_tooltip_render(void)
     for (int i = 0; i < run_count; i++) {
         const object_tooltip_text_run* run = &runs[i];
         char run_text[sizeof(g_object_tooltip.text)];
-        SDL_Surface* surface;
         SDL_Texture* texture;
         SDL_FRect text_dst;
         int copy_len = run->len;
+        int run_w = 0;
+        int run_h = 0;
 
         if (tooltip_monster && run->start >= health_start
             && run->start + run->len <= health_end)
@@ -1333,28 +1296,18 @@ void sdl_object_tooltip_render(void)
             (size_t)copy_len);
         run_text[copy_len] = '\0';
 
-        surface = TTF_RenderText_Blended(font, run_text, 0,
-            g_state.palette[run->attr]);
-        if (!surface)
+        texture = sdl_ui_text_texture(font, run_text,
+            g_state.palette[run->attr], &run_w, &run_h);
+        if (!texture)
             continue;
-
-        texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
-        if (!texture) {
-            SDL_DestroySurface(surface);
-            continue;
-        }
 
         text_dst = (SDL_FRect){
             .x = box.x + pad + run->x,
             .y = box.y + pad + (float)(run->line * line_h),
-            .w = (float)surface->w,
-            .h = (float)surface->h,
+            .w = (float)run_w,
+            .h = (float)run_h,
         };
-        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
         SDL_RenderTexture(g_state.renderer, texture, NULL, &text_dst);
-
-        SDL_DestroyTexture(texture);
-        SDL_DestroySurface(surface);
     }
 }
 
@@ -2298,9 +2251,10 @@ static float sdl_description_overlay_render_story_run(TTF_Font* font,
     float scale;
     float advance_w;
     float render_w;
-    SDL_Surface* surface;
     SDL_Texture* texture;
     SDL_Color col;
+    int text_w = 0;
+    int text_h = 0;
 
     if (!font || !s || n <= 0)
         return 0.0f;
@@ -2317,13 +2271,13 @@ static float sdl_description_overlay_render_story_run(TTF_Font* font,
     text_buf[len] = '\0';
 
     col = sdl_description_overlay_attr_color(attr);
-    surface = TTF_RenderText_Blended(font, text_buf, 0, col);
-    if (!surface)
+    texture = sdl_ui_text_texture(font, text_buf, col, &text_w, &text_h);
+    if (!texture)
         return 0.0f;
 
     TTF_MeasureString(font, text_buf, len, 0, &adv_unscaled, NULL);
-    scale = (surface->h > 0) ? (cell_h / (float)surface->h) : 1.0f;
-    render_w = (float)surface->w * scale;
+    scale = (text_h > 0) ? (cell_h / (float)text_h) : 1.0f;
+    render_w = (float)text_w * scale;
 
     /* Advance must match sdl_description_overlay_story_text_width (which scales
      * by the font height) so wrapping and rendering agree on line width. */
@@ -2333,17 +2287,11 @@ static float sdl_description_overlay_render_story_run(TTF_Font* font,
         advance_w = (float)adv_unscaled * adv_scale;
     }
 
-    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
-    if (texture)
     {
         SDL_FRect dst = { x_px, y_px, render_w, cell_h };
 
-        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
         SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
-        SDL_DestroyTexture(texture);
     }
-
-    SDL_DestroySurface(surface);
     return advance_w;
 }
 

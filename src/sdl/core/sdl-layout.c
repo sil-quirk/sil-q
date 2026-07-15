@@ -8,6 +8,28 @@ static Uint64 g_left_panel_source_rendered_generation = 0;
 static int g_left_panel_source_w = 0;
 static int g_left_panel_source_h = 0;
 
+typedef struct sdl_left_panel_measurement_cache {
+    bool valid;
+    bool has_content;
+    Uint64 source_generation;
+    int term_w;
+    int term_h;
+    int scan_rows;
+    bool use_tiles;
+    bool use_bigtile;
+    SDL_Texture* tileset;
+    int cols;
+    int rows;
+} sdl_left_panel_measurement_cache;
+
+static sdl_left_panel_measurement_cache g_left_panel_measurement_cache;
+
+enum { SDL_LEFT_PANEL_VISIBILITY_ROWS = 64 };
+static bool g_left_panel_combat_hidden_rows[
+    SDL_LEFT_PANEL_VISIBILITY_ROWS];
+static Uint64 g_left_panel_combat_rows_source_generation;
+static Uint64 g_left_panel_combat_rows_present_generation;
+
 sdl_view* sdl_view_from_term(term* t)
 {
     if (!t)
@@ -1123,8 +1145,11 @@ bool sdl_left_panel_render_source_term(const sdl_view* view,
         *out_source_w = 0;
     if (out_source_h)
         *out_source_h = 0;
-    if (!view || !view->term_ready || !panel_term || source_rows <= 0)
+    if (!view || !view->term_ready || !panel_term || source_rows <= 0
+        || !character_generated || !inventory)
+    {
         return false;
+    }
 
     source_w = MAX(view->t.wid, LEFT_PANEL_WID);
     source_h = source_rows;
@@ -1186,8 +1211,11 @@ const term* sdl_left_panel_source_term_for_view(const sdl_view* view,
     int source_w;
     int source_h;
 
-    if (!view || !view->term_ready || source_rows <= 0)
+    if (!view || !view->term_ready || source_rows <= 0
+        || !character_generated || !inventory)
+    {
         return NULL;
+    }
 
     source_w = MAX(view->t.wid, LEFT_PANEL_WID);
     /*
@@ -1526,16 +1554,50 @@ bool sdl_left_panel_metrics_for_view(const sdl_view* view,
             natural_rows);
         int measured_cols = 0;
         int measured_rows = 0;
+        bool measured = false;
 
         /*
          * Size the black pane to its rendered status content.  The retained
          * source term keeps this measurement cheap while still allowing the
          * pane to grow when a transient status row actually appears.
          */
-        if (source_term
-            && sdl_left_panel_content_size_for_term(source_term, natural_rows,
-                &measured_cols, &measured_rows))
-        {
+        if (source_term) {
+            sdl_left_panel_measurement_cache* cache =
+                &g_left_panel_measurement_cache;
+            bool matches = cache->valid
+                && cache->source_generation
+                    == g_left_panel_source_rendered_generation
+                && cache->term_w == source_term->wid
+                && cache->term_h == source_term->hgt
+                && cache->scan_rows == natural_rows
+                && cache->use_tiles == g_state.use_tiles
+                && cache->use_bigtile == (use_bigtile != 0)
+                && cache->tileset == g_state.tileset;
+
+            if (matches) {
+                measured = cache->has_content;
+                measured_cols = cache->cols;
+                measured_rows = cache->rows;
+            } else {
+                measured = sdl_left_panel_content_size_for_term(source_term,
+                    natural_rows, &measured_cols, &measured_rows);
+                *cache = (sdl_left_panel_measurement_cache){
+                    .valid = true,
+                    .has_content = measured,
+                    .source_generation =
+                        g_left_panel_source_rendered_generation,
+                    .term_w = source_term->wid,
+                    .term_h = source_term->hgt,
+                    .scan_rows = natural_rows,
+                    .use_tiles = g_state.use_tiles,
+                    .use_bigtile = (use_bigtile != 0),
+                    .tileset = g_state.tileset,
+                    .cols = measured_cols,
+                    .rows = measured_rows,
+                };
+            }
+        }
+        if (measured) {
             content_cols = measured_cols;
             panel_rows = measured_rows;
         } else {
@@ -1805,37 +1867,46 @@ bool sdl_combat_overlay_visible_source_row_at_index(int index,
 
 bool sdl_combat_overlay_source_row_visible(int source_row)
 {
-    SDL_Rect pane;
-    int cell_h;
-    int panel_rows;
-    int visible_count;
-
-    if (source_row < 0)
-        return false;
-    if (!sdl_combat_overlay_pane_content_rect(&pane))
+    if (source_row < 0 || source_row >= SDL_LEFT_PANEL_VISIBILITY_ROWS)
         return false;
 
-    cell_h = sdl_effective_pane_cell_height_for_type(PANE_COMBAT);
-    if (cell_h < 1)
-        cell_h = 1;
-    panel_rows = pane.h / cell_h;
-    if (panel_rows <= 0)
-        return false;
+    if (g_left_panel_combat_rows_source_generation
+            != g_left_panel_source_generation
+        || g_left_panel_combat_rows_present_generation
+            != g_sdl_present_generation)
+    {
+        SDL_Rect pane;
+        int cell_h;
+        int panel_rows;
+        int visible_count;
 
-    visible_count = sdl_combat_overlay_visible_row_count(panel_rows);
-    for (int i = 0; i < visible_count; i++) {
-        int row_at_index = -1;
+        memset(g_left_panel_combat_hidden_rows, 0,
+            sizeof(g_left_panel_combat_hidden_rows));
+        if (sdl_combat_overlay_pane_content_rect(&pane)) {
+            cell_h = sdl_effective_pane_cell_height_for_type(PANE_COMBAT);
+            if (cell_h < 1)
+                cell_h = 1;
+            panel_rows = pane.h / cell_h;
+            visible_count = sdl_combat_overlay_visible_row_count(panel_rows);
+            for (int i = 0; i < visible_count; i++) {
+                int row_at_index = -1;
 
-        if (!sdl_combat_overlay_visible_source_row_at_index(i, panel_rows,
-                &row_at_index))
-        {
-            continue;
+                if (sdl_combat_overlay_visible_source_row_at_index(i,
+                        panel_rows, &row_at_index)
+                    && row_at_index >= 0
+                    && row_at_index < SDL_LEFT_PANEL_VISIBILITY_ROWS)
+                {
+                    g_left_panel_combat_hidden_rows[row_at_index] = true;
+                }
+            }
         }
-        if (row_at_index == source_row)
-            return true;
+        g_left_panel_combat_rows_source_generation =
+            g_left_panel_source_generation;
+        g_left_panel_combat_rows_present_generation =
+            g_sdl_present_generation;
     }
 
-    return false;
+    return g_left_panel_combat_hidden_rows[source_row];
 }
 
 bool sdl_left_panel_source_row_hidden_by_combat_overlay(int source_row)
@@ -4614,5 +4685,3 @@ sdl_startup_device_class sdl_prompt_desktop_startup_input_device(
     return SDL_STARTUP_DEVICE_DESKTOP;
 }
 #endif
-
-

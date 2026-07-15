@@ -168,6 +168,8 @@ static const struct option_group_marker gameplay_option_groups[] = {
     { OPT_active_weapon_switch_confirm, "Combat Behavior" },
     { OPT_forgo_attacking_unwary, "Combat Behavior" },
     { OPT_assassination_over_charge, "Combat Behavior" },
+    { OPT_lockpick_minigame, "Interaction" },
+    { OPT_chest_trap_minigame, "Interaction" },
     { OPT_stop_singing_on_rest, "Rest and Song" },
     { OPT_visual_recognition, "Information" },
     { OPT_know_monster_info, "Information" },
@@ -887,6 +889,8 @@ static cptr option_menu_label(int opt)
         case OPT_active_weapon_switch_confirm: return narrow ? "Weapon switch" : "Confirm weapon switch";
         case OPT_forgo_attacking_unwary: return narrow ? "Skip unwary hits" : "Forgo unwary attacks";
         case OPT_assassination_over_charge: return narrow ? "Stealth over charge" : "Assassination over Charge";
+        case OPT_lockpick_minigame: return narrow ? "Door minigame" : "Locked-door minigame";
+        case OPT_chest_trap_minigame: return narrow ? "Chest minigame" : "Chest trap minigame";
         case OPT_stop_singing_on_rest: return narrow ? "Stop song on rest" : "Stop singing on rest";
         case OPT_know_monster_info: return narrow ? "Know monsters" : "Know monster info";
         case OPT_visual_recognition: return narrow ? "Need light to spot" : "Need light to spot";

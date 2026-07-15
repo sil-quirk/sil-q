@@ -89,10 +89,11 @@ float sdl_touch_tutorial_draw_text_line(cptr text, float x, float y,
     float max_w, int font_px, SDL_Color color, bool centered)
 {
     TTF_Font* font;
-    SDL_Surface* surface;
     SDL_Texture* texture;
     SDL_FRect dst;
     float scale = 1.0f;
+    int text_w = 0;
+    int text_h = 0;
 
     if (!text || !text[0] || font_px <= 0)
         return 0.0f;
@@ -101,31 +102,21 @@ float sdl_touch_tutorial_draw_text_line(cptr text, float x, float y,
     if (!font)
         return 0.0f;
 
-    surface = TTF_RenderText_Blended(font, text, 0, color);
-    if (!surface)
+    texture = sdl_ui_text_texture(font, text, color, &text_w, &text_h);
+    if (!texture)
         return 0.0f;
 
-    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
-    if (!texture) {
-        SDL_DestroySurface(surface);
-        return 0.0f;
-    }
-
-    if (max_w > 0.0f && surface->w > 0 && (float)surface->w > max_w)
-        scale = max_w / (float)surface->w;
+    if (max_w > 0.0f && text_w > 0 && (float)text_w > max_w)
+        scale = max_w / (float)text_w;
 
     dst = (SDL_FRect){
-        .x = centered ? x - (float)surface->w * scale * 0.5f : x,
+        .x = centered ? x - (float)text_w * scale * 0.5f : x,
         .y = y,
-        .w = (float)surface->w * scale,
-        .h = (float)surface->h * scale,
+        .w = (float)text_w * scale,
+        .h = (float)text_h * scale,
     };
 
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
     SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
-
-    SDL_DestroyTexture(texture);
-    SDL_DestroySurface(surface);
     return dst.h;
 }
 
@@ -972,6 +963,7 @@ void sdl_touch_tutorial_draw_compact_zone_legend(
     int body_lines;
     int font_px;
     int title_px;
+    int min_font_px;
 
     if (!screen || !lines || line_count <= 0)
         return;
@@ -999,20 +991,45 @@ void sdl_touch_tutorial_draw_compact_zone_legend(
         return;
     text_w = w - pad * 2.0f;
 
-    for (;;) {
-        title_px = font_px + 2;
-        line_h = (float)font_px * 1.30f;
-        title_h = (float)title_px * 1.22f;
-        body_lines = 0;
-        for (int i = 0; i < line_count; ++i)
-            body_lines += MAX(1, sdl_touch_tutorial_rich_line_count(
-                lines[i], font_px, text_w));
-        h = pad * 2.0f + title_h + 4.0f
-            + line_h * (float)body_lines;
-        if (h <= available_h || font_px <= (mobile_section ? 20 : 14))
-            break;
-        font_px--;
+    min_font_px = mobile_section ? 20 : 14;
+    {
+        int low_px = min_font_px;
+        int high_px = MAX(font_px, min_font_px);
+        int chosen_px = min_font_px;
+
+        while (low_px <= high_px) {
+            int candidate_px = low_px + (high_px - low_px) / 2;
+            int candidate_title_px = candidate_px + 2;
+            float candidate_line_h = (float)candidate_px * 1.30f;
+            float candidate_title_h = (float)candidate_title_px * 1.22f;
+            int candidate_lines = 0;
+            float candidate_h;
+
+            for (int i = 0; i < line_count; ++i)
+                candidate_lines += MAX(1,
+                    sdl_touch_tutorial_rich_line_count(lines[i],
+                        candidate_px, text_w));
+            candidate_h = pad * 2.0f + candidate_title_h + 4.0f
+                + candidate_line_h * (float)candidate_lines;
+            if (candidate_h <= available_h) {
+                chosen_px = candidate_px;
+                low_px = candidate_px + 1;
+            } else {
+                high_px = candidate_px - 1;
+            }
+        }
+        font_px = chosen_px;
     }
+
+    title_px = font_px + 2;
+    line_h = (float)font_px * 1.30f;
+    title_h = (float)title_px * 1.22f;
+    body_lines = 0;
+    for (int i = 0; i < line_count; ++i)
+        body_lines += MAX(1, sdl_touch_tutorial_rich_line_count(lines[i],
+            font_px, text_w));
+    h = pad * 2.0f + title_h + 4.0f
+        + line_h * (float)body_lines;
 
     box = (SDL_FRect){
         .x = (float)screen->x + ((float)screen->w - w) * 0.5f,
@@ -2451,17 +2468,38 @@ static void birth_coach_draw_callout(const SDL_Rect* screen,
         avail_h = (float)screen->h * 0.82f;
 
     /* Shrink the body font until the wrapped text fits the vertical budget. */
-    for (;;) {
-        n = sdl_touch_tutorial_rich_line_count(body, detail_px, text_w);
-        line_h = (float)detail_px * 1.30f;
-        title_h = (float)title_px * 1.25f;
-        box_h = pad * 2.0f + title_h + 6.0f + (float)n * line_h;
-        if (box_h <= avail_h || detail_px <= 18)
-            break;
-        detail_px--;
-        if (title_px > detail_px + 8)
-            title_px--;
+    {
+        int initial_title_px = title_px;
+        int title_gap = MAX(initial_title_px - detail_px, 8);
+        int low_px = 18;
+        int high_px = MAX(detail_px, 18);
+        int chosen_px = 18;
+
+        while (low_px <= high_px) {
+            int candidate_px = low_px + (high_px - low_px) / 2;
+            int candidate_title_px = MIN(initial_title_px,
+                candidate_px + title_gap);
+            int candidate_lines = sdl_touch_tutorial_rich_line_count(body,
+                candidate_px, text_w);
+            float candidate_line_h = (float)candidate_px * 1.30f;
+            float candidate_title_h = (float)candidate_title_px * 1.25f;
+            float candidate_h = pad * 2.0f + candidate_title_h + 6.0f
+                + (float)candidate_lines * candidate_line_h;
+
+            if (candidate_h <= avail_h) {
+                chosen_px = candidate_px;
+                low_px = candidate_px + 1;
+            } else {
+                high_px = candidate_px - 1;
+            }
+        }
+        detail_px = chosen_px;
+        title_px = MIN(initial_title_px, detail_px + title_gap);
     }
+    n = sdl_touch_tutorial_rich_line_count(body, detail_px, text_w);
+    line_h = (float)detail_px * 1.30f;
+    title_h = (float)title_px * 1.25f;
+    box_h = pad * 2.0f + title_h + 6.0f + (float)n * line_h;
 
     /* Place beside the block: below it if there is room, else above, else at the
      * top of the free area; centred when no block is supplied. */

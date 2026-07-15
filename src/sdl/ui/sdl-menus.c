@@ -830,11 +830,11 @@ static bool sdl_narrative_banner_layout(SDL_FRect* out_panel,
 void sdl_narrative_banner_draw_line(TTF_Font* font, cptr text,
     SDL_Color color, float left_x, float y, float max_w, float line_h)
 {
-    SDL_Surface* surface;
     SDL_Texture* texture;
     SDL_FRect dst;
     float scale = 1.0f;
-    SDL_Color render_color;
+    int text_w = 0;
+    int text_h = 0;
 
     if (!font || !text || !text[0] || max_w <= 0.0f || line_h <= 0.0f
         || color.a == 0)
@@ -842,35 +842,21 @@ void sdl_narrative_banner_draw_line(TTF_Font* font, cptr text,
         return;
     }
 
-    render_color = color;
-    render_color.a = SDL_ALPHA_OPAQUE;
-
-    surface = TTF_RenderText_Blended(font, text, 0, render_color);
-    if (!surface)
+    texture = sdl_ui_text_texture(font, text, color, &text_w, &text_h);
+    if (!texture)
         return;
 
-    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
-    if (!texture) {
-        SDL_DestroySurface(surface);
-        return;
-    }
-
-    if (surface->w > 0 && (float)surface->w > max_w)
-        scale = max_w / (float)surface->w;
+    if (text_w > 0 && (float)text_w > max_w)
+        scale = max_w / (float)text_w;
 
     dst = (SDL_FRect){
-        .w = (float)surface->w * scale,
-        .h = (float)surface->h * scale,
+        .w = (float)text_w * scale,
+        .h = (float)text_h * scale,
     };
     dst.x = left_x;
     dst.y = y + (line_h - dst.h) * 0.5f;
 
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-    SDL_SetTextureAlphaMod(texture, color.a);
     SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
-
-    SDL_DestroyTexture(texture);
-    SDL_DestroySurface(surface);
 }
 
 static Uint8 sdl_narrative_banner_scaled_alpha(Uint8 alpha)
@@ -1476,8 +1462,6 @@ void sdl_touch_pane_draw_button_text_scaled(const SDL_FRect* rect, const char* n
     const char* symbol, SDL_Color color, float single_text_font_ratio,
     float single_text_height_ratio)
 {
-    SDL_Surface* name_surface = NULL;
-    SDL_Surface* symbol_surface = NULL;
     SDL_Texture* name_texture = NULL;
     SDL_Texture* symbol_texture = NULL;
     TTF_Font* name_font = NULL;
@@ -1493,6 +1477,10 @@ void sdl_touch_pane_draw_button_text_scaled(const SDL_FRect* rect, const char* n
     SDL_FRect symbol_dst;
     int name_font_px;
     int symbol_font_px;
+    int name_w = 0;
+    int name_h_px = 0;
+    int symbol_w = 0;
+    int symbol_h_px = 0;
 
     if (!rect)
         return;
@@ -1516,43 +1504,29 @@ void sdl_touch_pane_draw_button_text_scaled(const SDL_FRect* rect, const char* n
     if (symbol_font_px < 12)
         symbol_font_px = 12;
 
-    if (have_name) {
-        name_font = sdl_story_font_for_height_slot(name_font_px, SDL_STORY_FONT_SLOT_MENU);
-        if (name_font)
-            name_surface = TTF_RenderText_Blended(name_font, name, 0, color);
-    }
+    /* Resolve both fonts before borrowing either cached texture: loading the
+     * second font may evict an older story-font entry. */
+    if (have_name)
+        name_font = sdl_story_font_for_height_slot(name_font_px,
+            SDL_STORY_FONT_SLOT_MENU);
+    if (have_symbol)
+        symbol_font = sdl_story_font_for_height_slot(symbol_font_px,
+            SDL_STORY_FONT_SLOT_MENU);
+    if (name_font)
+        name_texture = sdl_ui_text_texture(name_font, name, color,
+            &name_w, &name_h_px);
+    if (symbol_font)
+        symbol_texture = sdl_ui_text_texture(symbol_font, symbol, color,
+            &symbol_w, &symbol_h_px);
 
-    if (have_symbol) {
-        symbol_font = sdl_story_font_for_height_slot(symbol_font_px, SDL_STORY_FONT_SLOT_MENU);
-        if (symbol_font)
-            symbol_surface = TTF_RenderText_Blended(symbol_font, symbol, 0, color);
-    }
-
-    if (!name_surface && !symbol_surface)
-        return;
-
-    if (name_surface)
-        name_texture = SDL_CreateTextureFromSurface(g_state.renderer, name_surface);
-    if (symbol_surface)
-        symbol_texture = SDL_CreateTextureFromSurface(g_state.renderer, symbol_surface);
-
-    if (name_surface && !name_texture) {
-        SDL_DestroySurface(name_surface);
-        name_surface = NULL;
-    }
-    if (symbol_surface && !symbol_texture) {
-        SDL_DestroySurface(symbol_surface);
-        symbol_surface = NULL;
-    }
-
-    if (!name_surface && !symbol_surface)
+    if (!name_texture && !symbol_texture)
         return;
 
     gap = rect->h * 0.03f;
     if (gap < 2.0f)
         gap = 2.0f;
 
-    if (name_surface && symbol_surface) {
+    if (name_texture && symbol_texture) {
         float total_h;
         float avail_h;
         float name_scale_w;
@@ -1572,78 +1546,68 @@ void sdl_touch_pane_draw_button_text_scaled(const SDL_FRect* rect, const char* n
         name_max_h = rect->h * 0.22f;
         symbol_max_h = rect->h * 0.30f;
 
-        name_scale_w = (name_surface->w > 0) ? (name_max_w / (float)name_surface->w) : 1.0f;
-        name_scale_h = (name_surface->h > 0) ? (name_max_h / (float)name_surface->h) : 1.0f;
+        name_scale_w = (name_w > 0) ? (name_max_w / (float)name_w) : 1.0f;
+        name_scale_h = (name_h_px > 0) ? (name_max_h / (float)name_h_px) : 1.0f;
         name_scale = (name_scale_w < name_scale_h) ? name_scale_w : name_scale_h;
         if (name_scale > 1.0f)
             name_scale = 1.0f;
 
-        symbol_scale_w = (symbol_surface->w > 0) ? (symbol_max_w / (float)symbol_surface->w) : 1.0f;
-        symbol_scale_h = (symbol_surface->h > 0) ? (symbol_max_h / (float)symbol_surface->h) : 1.0f;
+        symbol_scale_w = (symbol_w > 0) ? (symbol_max_w / (float)symbol_w) : 1.0f;
+        symbol_scale_h = (symbol_h_px > 0) ? (symbol_max_h / (float)symbol_h_px) : 1.0f;
         symbol_scale = (symbol_scale_w < symbol_scale_h) ? symbol_scale_w : symbol_scale_h;
         if (symbol_scale > 1.0f)
             symbol_scale = 1.0f;
 
-        total_h = (float)name_surface->h * name_scale + gap + (float)symbol_surface->h * symbol_scale;
+        total_h = (float)name_h_px * name_scale + gap
+            + (float)symbol_h_px * symbol_scale;
         scale = 1.0f;
         if (total_h > avail_h && total_h > 0.0f)
             scale = avail_h / total_h;
 
         name_scale *= scale;
         symbol_scale *= scale;
-        name_h = (float)name_surface->h * name_scale;
-        symbol_h = (float)symbol_surface->h * symbol_scale;
+        name_h = (float)name_h_px * name_scale;
+        symbol_h = (float)symbol_h_px * symbol_scale;
         start_y = rect->y + (rect->h - (name_h + gap + symbol_h)) * 0.5f;
 
         name_dst = (SDL_FRect){
-            .x = rect->x + (rect->w - (float)name_surface->w * name_scale) * 0.5f,
+            .x = rect->x + (rect->w - (float)name_w * name_scale) * 0.5f,
             .y = start_y,
-            .w = (float)name_surface->w * name_scale,
+            .w = (float)name_w * name_scale,
             .h = name_h,
         };
         symbol_dst = (SDL_FRect){
-            .x = rect->x + (rect->w - (float)symbol_surface->w * symbol_scale) * 0.5f,
+            .x = rect->x + (rect->w - (float)symbol_w * symbol_scale) * 0.5f,
             .y = start_y + name_h + gap,
-            .w = (float)symbol_surface->w * symbol_scale,
+            .w = (float)symbol_w * symbol_scale,
             .h = symbol_h,
         };
 
-        SDL_SetTextureBlendMode(name_texture, SDL_BLENDMODE_BLEND);
-        SDL_SetTextureBlendMode(symbol_texture, SDL_BLENDMODE_BLEND);
         SDL_RenderTexture(g_state.renderer, name_texture, NULL, &name_dst);
         SDL_RenderTexture(g_state.renderer, symbol_texture, NULL, &symbol_dst);
     } else {
-        SDL_Surface* only_surface = name_surface ? name_surface : symbol_surface;
-        SDL_Texture* only_texture = name_surface ? name_texture : symbol_texture;
+        SDL_Texture* only_texture = name_texture ? name_texture : symbol_texture;
+        int only_w = name_texture ? name_w : symbol_w;
+        int only_h = name_texture ? name_h_px : symbol_h_px;
         float max_w = rect->w * 0.82f;
         float max_h = rect->h
             * ((!have_name && have_symbol) ? single_text_height_ratio : 0.38f);
-        float scale_w = (only_surface->w > 0) ? (max_w / (float)only_surface->w) : 1.0f;
-        float scale_h = (only_surface->h > 0) ? (max_h / (float)only_surface->h) : 1.0f;
+        float scale_w = (only_w > 0) ? (max_w / (float)only_w) : 1.0f;
+        float scale_h = (only_h > 0) ? (max_h / (float)only_h) : 1.0f;
         float scale = (scale_w < scale_h) ? scale_w : scale_h;
 
         if (scale > 1.0f)
             scale = 1.0f;
 
         symbol_dst = (SDL_FRect){
-            .x = rect->x + (rect->w - (float)only_surface->w * scale) * 0.5f,
-            .y = rect->y + (rect->h - (float)only_surface->h * scale) * 0.5f,
-            .w = (float)only_surface->w * scale,
-            .h = (float)only_surface->h * scale,
+            .x = rect->x + (rect->w - (float)only_w * scale) * 0.5f,
+            .y = rect->y + (rect->h - (float)only_h * scale) * 0.5f,
+            .w = (float)only_w * scale,
+            .h = (float)only_h * scale,
         };
 
-        SDL_SetTextureBlendMode(only_texture, SDL_BLENDMODE_BLEND);
         SDL_RenderTexture(g_state.renderer, only_texture, NULL, &symbol_dst);
     }
-
-    if (name_texture)
-        SDL_DestroyTexture(name_texture);
-    if (symbol_texture)
-        SDL_DestroyTexture(symbol_texture);
-    if (name_surface)
-        SDL_DestroySurface(name_surface);
-    if (symbol_surface)
-        SDL_DestroySurface(symbol_surface);
 }
 
 void sdl_touch_pane_draw_button_text(const SDL_FRect* rect, const char* name, const char* symbol,
@@ -1656,8 +1620,6 @@ void sdl_touch_pane_draw_button_text_px(const SDL_FRect* rect,
     const char* name, const char* symbol, SDL_Color color, int name_px,
     int symbol_px)
 {
-    SDL_Surface* name_surface = NULL;
-    SDL_Surface* symbol_surface = NULL;
     SDL_Texture* name_texture = NULL;
     SDL_Texture* symbol_texture = NULL;
     TTF_Font* name_font = NULL;
@@ -1667,6 +1629,10 @@ void sdl_touch_pane_draw_button_text_px(const SDL_FRect* rect,
     float gap;
     SDL_FRect name_dst;
     SDL_FRect symbol_dst;
+    int name_w = 0;
+    int name_h_px = 0;
+    int symbol_w = 0;
+    int symbol_h_px = 0;
 
     if (!rect)
         return;
@@ -1681,46 +1647,27 @@ void sdl_touch_pane_draw_button_text_px(const SDL_FRect* rect,
     if (symbol_px < 8)
         symbol_px = 8;
 
-    if (have_name) {
+    if (have_name)
         name_font = sdl_story_font_for_height_slot(name_px,
             SDL_STORY_FONT_SLOT_MENU);
-        if (name_font)
-            name_surface = TTF_RenderText_Blended(name_font, name, 0, color);
-    }
-
-    if (have_symbol) {
+    if (have_symbol)
         symbol_font = sdl_story_font_for_height_slot(symbol_px,
             SDL_STORY_FONT_SLOT_MENU);
-        if (symbol_font)
-            symbol_surface = TTF_RenderText_Blended(symbol_font, symbol, 0,
-                color);
-    }
+    if (name_font)
+        name_texture = sdl_ui_text_texture(name_font, name, color,
+            &name_w, &name_h_px);
+    if (symbol_font)
+        symbol_texture = sdl_ui_text_texture(symbol_font, symbol, color,
+            &symbol_w, &symbol_h_px);
 
-    if (!name_surface && !symbol_surface)
-        return;
-
-    if (name_surface)
-        name_texture = SDL_CreateTextureFromSurface(g_state.renderer, name_surface);
-    if (symbol_surface)
-        symbol_texture = SDL_CreateTextureFromSurface(g_state.renderer, symbol_surface);
-
-    if (name_surface && !name_texture) {
-        SDL_DestroySurface(name_surface);
-        name_surface = NULL;
-    }
-    if (symbol_surface && !symbol_texture) {
-        SDL_DestroySurface(symbol_surface);
-        symbol_surface = NULL;
-    }
-
-    if (!name_surface && !symbol_surface)
+    if (!name_texture && !symbol_texture)
         return;
 
     gap = rect->h * 0.03f;
     if (gap < 2.0f)
         gap = 2.0f;
 
-    if (name_surface && symbol_surface) {
+    if (name_texture && symbol_texture) {
         float max_w = rect->w * 0.92f;
         float avail_h = rect->h - 4.0f;
         float name_scale = 1.0f;
@@ -1731,71 +1678,60 @@ void sdl_touch_pane_draw_button_text_px(const SDL_FRect* rect,
         float symbol_h;
         float start_y;
 
-        if (name_surface->w > 0 && (float)name_surface->w > max_w)
-            name_scale = max_w / (float)name_surface->w;
-        if (symbol_surface->w > 0 && (float)symbol_surface->w > max_w)
-            symbol_scale = max_w / (float)symbol_surface->w;
+        if (name_w > 0 && (float)name_w > max_w)
+            name_scale = max_w / (float)name_w;
+        if (symbol_w > 0 && (float)symbol_w > max_w)
+            symbol_scale = max_w / (float)symbol_w;
 
-        total_h = (float)name_surface->h * name_scale + gap
-            + (float)symbol_surface->h * symbol_scale;
+        total_h = (float)name_h_px * name_scale + gap
+            + (float)symbol_h_px * symbol_scale;
         scale = 1.0f;
         if (avail_h > 0.0f && total_h > avail_h)
             scale = avail_h / total_h;
 
         name_scale *= scale;
         symbol_scale *= scale;
-        name_h = (float)name_surface->h * name_scale;
-        symbol_h = (float)symbol_surface->h * symbol_scale;
+        name_h = (float)name_h_px * name_scale;
+        symbol_h = (float)symbol_h_px * symbol_scale;
         start_y = rect->y + (rect->h - (name_h + gap + symbol_h)) * 0.5f;
 
         name_dst = (SDL_FRect){
-            .x = rect->x + (rect->w - (float)name_surface->w * name_scale) * 0.5f,
+            .x = rect->x + (rect->w - (float)name_w * name_scale) * 0.5f,
             .y = start_y,
-            .w = (float)name_surface->w * name_scale,
+            .w = (float)name_w * name_scale,
             .h = name_h,
         };
         symbol_dst = (SDL_FRect){
-            .x = rect->x + (rect->w - (float)symbol_surface->w * symbol_scale) * 0.5f,
+            .x = rect->x + (rect->w - (float)symbol_w * symbol_scale) * 0.5f,
             .y = start_y + name_h + gap,
-            .w = (float)symbol_surface->w * symbol_scale,
+            .w = (float)symbol_w * symbol_scale,
             .h = symbol_h,
         };
 
-        SDL_SetTextureBlendMode(name_texture, SDL_BLENDMODE_BLEND);
-        SDL_SetTextureBlendMode(symbol_texture, SDL_BLENDMODE_BLEND);
         SDL_RenderTexture(g_state.renderer, name_texture, NULL, &name_dst);
         SDL_RenderTexture(g_state.renderer, symbol_texture, NULL, &symbol_dst);
     } else {
-        SDL_Surface* only_surface = name_surface ? name_surface : symbol_surface;
-        SDL_Texture* only_texture = name_surface ? name_texture : symbol_texture;
+        SDL_Texture* only_texture = name_texture ? name_texture : symbol_texture;
+        int only_w = name_texture ? name_w : symbol_w;
+        int only_h = name_texture ? name_h_px : symbol_h_px;
         float max_w = rect->w * 0.92f;
         float max_h = rect->h - 4.0f;
-        float scale_w = (only_surface->w > 0) ? (max_w / (float)only_surface->w) : 1.0f;
-        float scale_h = (only_surface->h > 0) ? (max_h / (float)only_surface->h) : 1.0f;
+        float scale_w = (only_w > 0) ? (max_w / (float)only_w) : 1.0f;
+        float scale_h = (only_h > 0) ? (max_h / (float)only_h) : 1.0f;
         float scale = (scale_w < scale_h) ? scale_w : scale_h;
 
         if (scale > 1.0f)
             scale = 1.0f;
 
         symbol_dst = (SDL_FRect){
-            .x = rect->x + (rect->w - (float)only_surface->w * scale) * 0.5f,
-            .y = rect->y + (rect->h - (float)only_surface->h * scale) * 0.5f,
-            .w = (float)only_surface->w * scale,
-            .h = (float)only_surface->h * scale,
+            .x = rect->x + (rect->w - (float)only_w * scale) * 0.5f,
+            .y = rect->y + (rect->h - (float)only_h * scale) * 0.5f,
+            .w = (float)only_w * scale,
+            .h = (float)only_h * scale,
         };
 
-        SDL_SetTextureBlendMode(only_texture, SDL_BLENDMODE_BLEND);
         SDL_RenderTexture(g_state.renderer, only_texture, NULL, &symbol_dst);
     }
-
-    if (name_texture)
-        SDL_DestroyTexture(name_texture);
-    if (symbol_texture)
-        SDL_DestroyTexture(symbol_texture);
-    if (name_surface)
-        SDL_DestroySurface(name_surface);
-    if (symbol_surface)
-        SDL_DestroySurface(symbol_surface);
 }
 
 void sdl_touch_pane_draw_wrapped_prompt(const SDL_FRect* rect,
@@ -1834,7 +1770,6 @@ void sdl_touch_pane_draw_wrapped_prompt(const SDL_FRect* rect,
         start_y = rect->y;
 
     for (int i = 0; i < line_count; i++) {
-        SDL_Surface* surface;
         SDL_Texture* texture;
         float max_w;
         float max_h;
@@ -1842,40 +1777,34 @@ void sdl_touch_pane_draw_wrapped_prompt(const SDL_FRect* rect,
         float scale_h;
         float scale;
         SDL_FRect dst;
+        int text_w = 0;
+        int text_h = 0;
 
         if (!lines[i][0])
             continue;
 
-        surface = TTF_RenderText_Blended(font, lines[i], 0, color);
-        if (!surface)
+        texture = sdl_ui_text_texture(font, lines[i], color, &text_w,
+            &text_h);
+        if (!texture)
             continue;
-
-        texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
-        if (!texture) {
-            SDL_DestroySurface(surface);
-            continue;
-        }
 
         max_w = rect->w;
         max_h = line_h;
-        scale_w = (surface->w > 0) ? (max_w / (float)surface->w) : 1.0f;
-        scale_h = (surface->h > 0) ? (max_h / (float)surface->h) : 1.0f;
+        scale_w = (text_w > 0) ? (max_w / (float)text_w) : 1.0f;
+        scale_h = (text_h > 0) ? (max_h / (float)text_h) : 1.0f;
         scale = (scale_w < scale_h) ? scale_w : scale_h;
         if (scale > 1.0f)
             scale = 1.0f;
 
         dst = (SDL_FRect){
-            .x = rect->x + (rect->w - (float)surface->w * scale) * 0.5f,
+            .x = rect->x + (rect->w - (float)text_w * scale) * 0.5f,
             .y = start_y + (float)i * line_h
-                + (line_h - (float)surface->h * scale) * 0.5f,
-            .w = (float)surface->w * scale,
-            .h = (float)surface->h * scale,
+                + (line_h - (float)text_h * scale) * 0.5f,
+            .w = (float)text_w * scale,
+            .h = (float)text_h * scale,
         };
 
-        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
         SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
-        SDL_DestroyTexture(texture);
-        SDL_DestroySurface(surface);
     }
 }
 
@@ -2080,12 +2009,13 @@ static int sdl_unified_look_log_text_font_px(void)
 static void sdl_unified_look_draw_centered_text(TTF_Font* font, cptr text,
     SDL_Color color, const SDL_FRect* rect)
 {
-    SDL_Surface* surface;
     SDL_Texture* texture;
     SDL_FRect dst;
     float scale = 1.0f;
     float max_w;
     float max_h;
+    int text_w = 0;
+    int text_h = 0;
 
     if (!font || !text || !text[0] || !rect
         || rect->w <= 0.0f || rect->h <= 0.0f)
@@ -2093,16 +2023,9 @@ static void sdl_unified_look_draw_centered_text(TTF_Font* font, cptr text,
         return;
     }
 
-    surface = TTF_RenderText_Blended(font, text, 0, color);
-    if (!surface)
-        return;
-
-    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
+    texture = sdl_ui_text_texture(font, text, color, &text_w, &text_h);
     if (!texture)
-    {
-        SDL_DestroySurface(surface);
         return;
-    }
 
     max_w = rect->w - 6.0f;
     max_h = rect->h - 4.0f;
@@ -2111,21 +2034,17 @@ static void sdl_unified_look_draw_centered_text(TTF_Font* font, cptr text,
     if (max_h < 1.0f)
         max_h = rect->h;
 
-    if (surface->w > 0 && (float)surface->w > max_w)
-        scale = max_w / (float)surface->w;
-    if (surface->h > 0 && (float)surface->h * scale > max_h)
-        scale = max_h / (float)surface->h;
+    if (text_w > 0 && (float)text_w > max_w)
+        scale = max_w / (float)text_w;
+    if (text_h > 0 && (float)text_h * scale > max_h)
+        scale = max_h / (float)text_h;
 
-    dst.w = (float)surface->w * scale;
-    dst.h = (float)surface->h * scale;
+    dst.w = (float)text_w * scale;
+    dst.h = (float)text_h * scale;
     dst.x = rect->x + (rect->w - dst.w) * 0.5f;
     dst.y = rect->y + (rect->h - dst.h) * 0.5f;
 
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
     SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
-
-    SDL_DestroyTexture(texture);
-    SDL_DestroySurface(surface);
 }
 
 typedef struct sdl_unified_look_prompt_layout_info {
@@ -2327,6 +2246,9 @@ static bool sdl_unified_look_prompt_layout(
     int base_font_px;
     int min_font_px;
     TTF_Font* font;
+    SDL_FRect area;
+    sdl_unified_look_prompt_layout_info best_layout = { 0 };
+    bool found_layout = false;
 
     if (!out)
         return false;
@@ -2354,6 +2276,7 @@ static bool sdl_unified_look_prompt_layout(
     };
     if (out->area.w <= 0.0f || out->area.h <= 0.0f)
         return false;
+    area = out->area;
 
     screen_margin = sdl_touch_pane_clampf(cell_w * 0.65f, 5.0f, 14.0f);
     base_font_px = sdl_unified_look_log_text_font_px();
@@ -2361,40 +2284,70 @@ static bool sdl_unified_look_prompt_layout(
     if (base_font_px < min_font_px)
         base_font_px = min_font_px;
 
-    for (int font_px = base_font_px; font_px >= min_font_px; font_px--)
     {
-        out->font_px = font_px;
-        font = sdl_story_font_for_height_slot(font_px,
-            SDL_STORY_FONT_SLOT_LOG);
-        if (!font)
-            continue;
+        int low_px = min_font_px;
+        int high_px = base_font_px;
 
-        panel_pad = sdl_touch_pane_clampf((float)font_px * 0.45f,
-            4.0f, 12.0f);
-        row_gap = 0.0f;
-        button_gap = sdl_touch_pane_clampf((float)font_px * 0.42f,
-            2.0f, 10.0f);
-        button_pad_x = sdl_touch_pane_clampf((float)font_px * 0.70f,
-            4.0f, 16.0f);
-        row_h = (float)font_px * 1.55f;
-        if (row_h < (float)font_px + 7.0f)
-            row_h = (float)font_px + 7.0f;
-        min_button_w = sdl_touch_pane_clampf((float)font_px * 2.2f,
-            14.0f, 58.0f);
+        while (low_px <= high_px) {
+            int font_px = low_px + (high_px - low_px) / 2;
+            sdl_unified_look_prompt_layout_info candidate = {
+                .area = area,
+                .font_px = font_px,
+            };
+            bool fits = false;
 
-        for (int variant = 0;
-             variant < SDL_UNIFIED_LOOK_PROMPT_LABEL_VARIANTS; variant++)
-        {
-            if (sdl_unified_look_prompt_try_layout(out, variant, font,
-                    &out->area, g_unified_look_prompt.anchor_row, cell_h,
-                    screen_margin, panel_pad, row_gap, button_gap,
-                    button_pad_x, row_h, min_button_w, 1))
+            font = sdl_story_font_for_height_slot(font_px,
+                SDL_STORY_FONT_SLOT_LOG);
+            if (!font) {
+                high_px = font_px - 1;
+                continue;
+            }
+
+            panel_pad = sdl_touch_pane_clampf((float)font_px * 0.45f,
+                4.0f, 12.0f);
+            row_gap = 0.0f;
+            button_gap = sdl_touch_pane_clampf((float)font_px * 0.42f,
+                2.0f, 10.0f);
+            button_pad_x = sdl_touch_pane_clampf((float)font_px * 0.70f,
+                4.0f, 16.0f);
+            row_h = (float)font_px * 1.55f;
+            if (row_h < (float)font_px + 7.0f)
+                row_h = (float)font_px + 7.0f;
+            min_button_w = sdl_touch_pane_clampf((float)font_px * 2.2f,
+                14.0f, 58.0f);
+
+            for (int variant = 0;
+                 variant < SDL_UNIFIED_LOOK_PROMPT_LABEL_VARIANTS; variant++)
             {
-                return true;
+                candidate = (sdl_unified_look_prompt_layout_info){
+                    .area = area,
+                    .font_px = font_px,
+                };
+                if (sdl_unified_look_prompt_try_layout(&candidate, variant,
+                        font, &area, g_unified_look_prompt.anchor_row, cell_h,
+                        screen_margin, panel_pad, row_gap, button_gap,
+                        button_pad_x, row_h, min_button_w, 1))
+                {
+                    fits = true;
+                    break;
+                }
+            }
+            if (fits) {
+                best_layout = candidate;
+                found_layout = true;
+                low_px = font_px + 1;
+            } else {
+                high_px = font_px - 1;
             }
         }
     }
 
+    if (found_layout) {
+        *out = best_layout;
+        return true;
+    }
+
+    out->area = area;
     out->font_px = min_font_px;
     font = sdl_story_font_for_height_slot(min_font_px,
         SDL_STORY_FONT_SLOT_LOG);
@@ -2676,56 +2629,46 @@ static SDL_Color sdl_unified_look_sidebar_attr_color(byte attr)
 static void sdl_unified_look_sidebar_draw_clipped_text(TTF_Font* font,
     cptr text, SDL_Color color, float x, float y, float max_w, float row_h)
 {
-    SDL_Surface* surface;
     SDL_Texture* texture;
     SDL_FRect src;
     SDL_FRect dst;
     float scale = 1.0f;
+    int text_w = 0;
+    int text_h = 0;
 
     if (!font || !text || !text[0] || max_w <= 0.0f || row_h <= 0.0f)
         return;
 
-    surface = TTF_RenderText_Blended(font, text, 0, color);
-    if (!surface)
-        return;
-
-    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
+    texture = sdl_ui_text_texture(font, text, color, &text_w, &text_h);
     if (!texture)
-    {
-        SDL_DestroySurface(surface);
         return;
-    }
 
-    if (surface->h > 0 && (float)surface->h > row_h * 0.94f)
-        scale = (row_h * 0.94f) / (float)surface->h;
+    if (text_h > 0 && (float)text_h > row_h * 0.94f)
+        scale = (row_h * 0.94f) / (float)text_h;
 
     src = (SDL_FRect){
         .x = 0.0f,
         .y = 0.0f,
-        .w = (float)surface->w,
-        .h = (float)surface->h,
+        .w = (float)text_w,
+        .h = (float)text_h,
     };
     dst = (SDL_FRect){
         .x = x,
         .y = y,
-        .w = (float)surface->w * scale,
-        .h = (float)surface->h * scale,
+        .w = (float)text_w * scale,
+        .h = (float)text_h * scale,
     };
 
     if (dst.w > max_w)
     {
         dst.w = max_w;
         src.w = max_w / scale;
-        if (src.w > (float)surface->w)
-            src.w = (float)surface->w;
+        if (src.w > (float)text_w)
+            src.w = (float)text_w;
     }
     dst.y = y + (row_h - dst.h) * 0.5f;
 
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
     SDL_RenderTexture(g_state.renderer, texture, &src, &dst);
-
-    SDL_DestroyTexture(texture);
-    SDL_DestroySurface(surface);
 }
 
 static float sdl_unified_look_sidebar_text_width(TTF_Font* font, cptr text,

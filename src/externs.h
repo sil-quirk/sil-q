@@ -573,10 +573,15 @@ extern void make_alert(monster_type* m_ptr);
 extern void set_alertness(monster_type* m_ptr, int alertness);
 extern void perceive(void);
 extern int success_chance(int sides, int skill, int difficulty);
+extern int player_skill_check_success_percent(int skill, int difficulty,
+    int skill_sides, int difficulty_sides);
 extern int skill_check(
     monster_type* m_ptr1, int skill, int difficulty, monster_type* m_ptr2);
 extern int skill_check_details(monster_type* m_ptr1, int skill, int difficulty,
     monster_type* m_ptr2, skill_roll_details* details);
+extern int skill_check_details_sided(monster_type* m_ptr1, int skill,
+    int difficulty, monster_type* m_ptr2, int skill_sides,
+    int difficulty_sides, skill_roll_details* details);
 extern int light_penalty(const monster_type* m_ptr);
 extern bool check_hit(int power, bool display_roll);
 extern int hit_roll(int att, int evn, const monster_type* m_ptr1,
@@ -675,6 +680,9 @@ extern bool trap_disarm_power(int feat, int* power);
 extern bool trap_is_rewireable(int feat);
 extern int show_interaction_skill_roll_animation(cptr title, cptr action,
     int y, int x, int skill, int difficulty, skill_roll_details* roll);
+extern int show_interaction_skill_roll_animation_sided(cptr title, cptr action,
+    int y, int x, int skill, int difficulty, int skill_sides,
+    int difficulty_sides, skill_roll_details* roll);
 extern int show_interaction_skill_roll_animation_actor(monster_type* actor,
     cptr title, cptr action, int y, int x, int skill, int difficulty,
     skill_roll_details* roll);
@@ -2258,6 +2266,8 @@ extern void set_sdl_show_pane_borders(bool value);
 extern bool g_hide_left_panel;
 #ifdef USE_SDL
 extern bool g_sdl_left_panel_pane_source_active;
+extern void sdl_side_map_pane_forget_level(void);
+extern void sdl_side_map_pane_invalidate_cell(int y, int x);
 #endif
 extern bool g_suppress_hidden_left_panel_overlay;
 extern byte g_hidden_left_panel_overlay_start_row;

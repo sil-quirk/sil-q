@@ -11,6 +11,10 @@
 
 static int sdl_touch_context_binding(int binding);
 static void sdl_touch_top_panel_set_hover_slot(int slot);
+static SDL_FRect g_touch_top_panel_cached_buttons[
+    SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
+static Uint64 g_touch_top_panel_cached_generation;
+static bool g_touch_top_panel_cached_layout_valid;
 
 /* Run a main-menu action that opens a modal screen inline (Quick Access / thumb
  * / swipe buttons bound to a main-menu choice).  Those screens call inkey(),
@@ -2202,6 +2206,8 @@ const char* sdl_touch_round_ctrl_action_for_dir(int dir)
         object_type* o_ptr = &o_list[cave_o_idx[y][x]];
 
         if (o_ptr->marked && o_ptr->tval == TV_CHEST) {
+            if (chest_trap_minigame && o_ptr->pval != 0)
+                return "Handle chest";
             if ((o_ptr->pval > 0) && object_chest_trap_flags(o_ptr)
                 && object_known_p(o_ptr))
             {
@@ -4102,15 +4108,25 @@ bool sdl_touch_top_panel_compute_layout_for_screen(
 
 bool sdl_touch_top_panel_point_to_slot(float x, float y, int* out_slot)
 {
-    SDL_FRect button_rects[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
+    const SDL_FRect* button_rects = g_touch_top_panel_cached_buttons;
     int visible_slots[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
     int active_count = sdl_touch_top_panel_visible_slots(visible_slots,
         SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
 
     if (out_slot)
         *out_slot = -1;
-    if (!sdl_touch_top_panel_compute_layout(button_rects, NULL))
-        return false;
+    if (!g_touch_top_panel_cached_layout_valid
+        || g_touch_top_panel_cached_generation != g_sdl_present_generation)
+    {
+        if (!sdl_touch_top_panel_compute_layout(
+                g_touch_top_panel_cached_buttons, NULL))
+        {
+            g_touch_top_panel_cached_layout_valid = false;
+            return false;
+        }
+        g_touch_top_panel_cached_layout_valid = true;
+        g_touch_top_panel_cached_generation = g_sdl_present_generation;
+    }
 
     for (int i = 0; i < active_count; i++) {
         int slot = visible_slots[i];
@@ -4592,7 +4608,6 @@ static void sdl_touch_top_panel_render_tooltip(const SDL_FRect* anchor,
 {
     SDL_Rect screen;
     TTF_Font* font;
-    SDL_Surface* surface;
     SDL_Texture* texture;
     SDL_FRect box;
     SDL_FRect text_dst;
@@ -4605,6 +4620,8 @@ static void sdl_touch_top_panel_render_tooltip(const SDL_FRect* anchor,
     float max_box_w;
     float max_text_w;
     int font_px;
+    int text_w = 0;
+    int text_h = 0;
 
     if (!anchor)
         return;
@@ -4635,19 +4652,13 @@ static void sdl_touch_top_panel_render_tooltip(const SDL_FRect* anchor,
         return;
 
     max_text_w = max_box_w - pad * 2.0f;
-    surface = sdl_object_tooltip_render_text_surface(font, description,
-        text_color, max_text_w);
-    if (!surface)
+    texture = sdl_ui_wrapped_text_texture(font, description,
+        MAX(1, (int)(max_text_w + 0.5f)), text_color, &text_w, &text_h);
+    if (!texture)
         return;
 
-    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
-    if (!texture) {
-        SDL_DestroySurface(surface);
-        return;
-    }
-
-    box.w = (float)surface->w + pad * 2.0f;
-    box.h = (float)surface->h + pad * 2.0f;
+    box.w = (float)text_w + pad * 2.0f;
+    box.h = (float)text_h + pad * 2.0f;
     box.x = anchor->x + anchor->w * 0.5f - box.w * 0.5f;
     box.y = anchor->y - box.h - gap;
     if (box.y < (float)screen.y + screen_margin)
@@ -4671,8 +4682,8 @@ static void sdl_touch_top_panel_render_tooltip(const SDL_FRect* anchor,
     text_dst = (SDL_FRect){
         .x = box.x + pad,
         .y = box.y + pad,
-        .w = (float)surface->w,
-        .h = (float)surface->h,
+        .w = (float)text_w,
+        .h = (float)text_h,
     };
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
@@ -4682,11 +4693,7 @@ static void sdl_touch_top_panel_render_tooltip(const SDL_FRect* anchor,
         166);
     SDL_RenderRect(g_state.renderer, &box);
 
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
     SDL_RenderTexture(g_state.renderer, texture, NULL, &text_dst);
-
-    SDL_DestroyTexture(texture);
-    SDL_DestroySurface(surface);
 }
 
 void sdl_touch_top_panel_render_buttons(
@@ -4762,20 +4769,24 @@ void sdl_touch_top_panel_render_buttons(
 
 void sdl_touch_top_panel_render(void)
 {
-    SDL_FRect button_rects[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
-
     if (!sdl_touch_top_panel_layout_visible()) {
+        g_touch_top_panel_cached_layout_valid = false;
         sdl_touch_top_panel_cancel_press();
         sdl_touch_top_panel_set_hover_slot(-1);
         return;
     }
 
-    if (!sdl_touch_top_panel_compute_layout(button_rects, NULL)) {
+    if (!sdl_touch_top_panel_compute_layout(g_touch_top_panel_cached_buttons,
+            NULL))
+    {
+        g_touch_top_panel_cached_layout_valid = false;
         sdl_touch_top_panel_set_hover_slot(-1);
         return;
     }
+    g_touch_top_panel_cached_layout_valid = true;
+    g_touch_top_panel_cached_generation = g_sdl_present_generation;
 
-    sdl_touch_top_panel_render_buttons(button_rects);
+    sdl_touch_top_panel_render_buttons(g_touch_top_panel_cached_buttons);
 
     if (g_touch_top_panel_flash_slot >= 0
         && SDL_GetTicksNS() >= g_touch_top_panel_flash_until)
@@ -4845,7 +4856,7 @@ bool sdl_touch_top_panel_handle_pointer_down(float x, float y,
     return true;
 }
 
-bool sdl_touch_top_panel_handle_pointer_motion(float x, float y,
+bool sdl_touch_top_panel_handle_pointer_motion(float x, float y, bool mouse,
     SDL_FingerID finger_id)
 {
     float dx;
@@ -4858,6 +4869,11 @@ bool sdl_touch_top_panel_handle_pointer_motion(float x, float y,
     if (!g_touch_top_panel_press.active
         || g_touch_top_panel_press.finger_id != finger_id)
     {
+        /* Fingers do not hover.  Avoid running the complete top-panel/status
+         * placement calculation for every Android movement sample when no
+         * top-panel button owns that finger. */
+        if (!mouse)
+            return false;
         if (sdl_touch_top_panel_point_to_slot(x, y, &slot) && slot >= 0) {
             sdl_touch_top_panel_set_hover_slot(slot);
             return true;

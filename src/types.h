@@ -646,7 +646,7 @@ struct object_type
     s32b unused1; // Smithing marker: 0=found, 1=forged by player, 2=reforged by player
     s32b unused2; // Ego prefix index (0 = none); see object_ego_prefix()
     s32b unused3; // Room for expansion without breaking savefiles
-    s32b unused4; // Room for expansion without breaking savefiles
+    s32b unused4; // Runtime payload; chests store last inspected Perception base
 };
 
 /*
@@ -1515,12 +1515,14 @@ struct skill_roll_details
 {
     int skill;             /* Adjusted skill used by the check */
     int difficulty;        /* Adjusted difficulty used by the check */
-    int skill_die;         /* Final d10 used on the skill side */
-    int difficulty_die;    /* Final d10 used on the difficulty side */
-    int skill_die_primary; /* First skill-side d10 */
-    int difficulty_die_primary; /* First difficulty-side d10 */
-    int skill_die_alt;     /* Alternate skill-side d10 for curses */
-    int difficulty_die_alt; /* Alternate difficulty-side d10 for curses */
+    int skill_sides;       /* Sides on the skill die */
+    int difficulty_sides;  /* Sides on the difficulty die */
+    int skill_die;         /* Final die used on the skill side */
+    int difficulty_die;    /* Final die used on the difficulty side */
+    int skill_die_primary; /* First skill-side die */
+    int difficulty_die_primary; /* First difficulty-side die */
+    int skill_die_alt;     /* Alternate skill-side die for curses */
+    int difficulty_die_alt; /* Alternate difficulty-side die for curses */
     int skill_total;
     int difficulty_total;
     int result;

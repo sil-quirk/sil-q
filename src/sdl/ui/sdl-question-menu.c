@@ -73,58 +73,48 @@ static void sdl_question_menu_draw_text(TTF_Font* font, cptr text,
     SDL_Color color, float x, float y, float max_w, float row_h,
     bool center)
 {
-    SDL_Surface* surface;
     SDL_Texture* texture;
     SDL_FRect src;
     SDL_FRect dst;
     float scale = 1.0f;
+    int text_w = 0;
+    int text_h = 0;
 
     if (!font || !text || !text[0] || max_w <= 0.0f || row_h <= 0.0f)
         return;
 
-    surface = TTF_RenderText_Blended(font, text, 0, color);
-    if (!surface)
-        return;
-
-    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
+    texture = sdl_ui_text_texture(font, text, color, &text_w, &text_h);
     if (!texture)
-    {
-        SDL_DestroySurface(surface);
         return;
-    }
 
-    if (surface->h > 0 && (float)surface->h > row_h * 0.94f)
-        scale = (row_h * 0.94f) / (float)surface->h;
+    if (text_h > 0 && (float)text_h > row_h * 0.94f)
+        scale = (row_h * 0.94f) / (float)text_h;
 
     src = (SDL_FRect){
         .x = 0.0f,
         .y = 0.0f,
-        .w = (float)surface->w,
-        .h = (float)surface->h,
+        .w = (float)text_w,
+        .h = (float)text_h,
     };
     dst = (SDL_FRect){
         .x = x,
         .y = y,
-        .w = (float)surface->w * scale,
-        .h = (float)surface->h * scale,
+        .w = (float)text_w * scale,
+        .h = (float)text_h * scale,
     };
 
     if (dst.w > max_w)
     {
         dst.w = max_w;
         src.w = max_w / scale;
-        if (src.w > (float)surface->w)
-            src.w = (float)surface->w;
+        if (src.w > (float)text_w)
+            src.w = (float)text_w;
     }
     if (center && dst.w < max_w)
         dst.x = x + (max_w - dst.w) * 0.5f;
     dst.y = y + (row_h - dst.h) * 0.5f;
 
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
     SDL_RenderTexture(g_state.renderer, texture, &src, &dst);
-
-    SDL_DestroyTexture(texture);
-    SDL_DestroySurface(surface);
 }
 
 static float sdl_question_menu_text_width(TTF_Font* font, cptr text,
@@ -145,20 +135,20 @@ static float sdl_question_menu_text_width(TTF_Font* font, cptr text,
 /* Height of the wrapped description block at the given width. */
 static float sdl_question_menu_desc_height(TTF_Font* font, float wrap_w)
 {
-    SDL_Surface* surface;
-    float h;
+    int width = 0;
+    int height = 0;
+    int wrap_width;
 
     if (!g_question_menu.desc[0] || !font || wrap_w <= 0.0f)
         return 0.0f;
 
-    surface = sdl_object_tooltip_render_text_surface(font,
-        g_question_menu.desc, (SDL_Color){ 255, 255, 255, 255 }, wrap_w);
-    if (!surface)
+    wrap_width = MAX(1, (int)(wrap_w + 0.5f));
+    if (!TTF_GetStringSizeWrapped(font, g_question_menu.desc, 0,
+            wrap_width, &width, &height))
+    {
         return 0.0f;
-
-    h = (float)surface->h;
-    SDL_DestroySurface(surface);
-    return h;
+    }
+    return (float)height;
 }
 
 static bool sdl_question_menu_close_button_enabled(void)
@@ -920,42 +910,36 @@ void sdl_question_menu_render(void)
 
     if (layout.has_desc)
     {
-        SDL_Surface* surface = sdl_object_tooltip_render_text_surface(
-            story_font, g_question_menu.desc,
-            g_state.palette[TERM_L_WHITE], layout.desc_rect.w);
+        int wrap_w = MAX(1, (int)(layout.desc_rect.w + 0.5f));
+        int text_w = 0;
+        int text_h = 0;
+        SDL_Texture* texture = sdl_ui_wrapped_text_texture(story_font,
+            g_question_menu.desc, wrap_w, g_state.palette[TERM_L_WHITE],
+            &text_w, &text_h);
 
-        if (surface)
+        if (texture)
         {
-            SDL_Texture* texture
-                = SDL_CreateTextureFromSurface(g_state.renderer, surface);
+            SDL_FRect src = (SDL_FRect){
+                .x = 0.0f,
+                .y = 0.0f,
+                .w = (float)text_w,
+                .h = (float)text_h,
+            };
+            SDL_FRect dst = (SDL_FRect){
+                .x = layout.desc_rect.x,
+                .y = layout.desc_rect.y,
+                .w = (float)text_w,
+                .h = (float)text_h,
+            };
 
-            if (texture)
+            if (dst.w > layout.desc_rect.w)
+                dst.w = layout.desc_rect.w;
+            if (dst.h > layout.desc_rect.h)
             {
-                SDL_FRect src = (SDL_FRect){
-                    .x = 0.0f,
-                    .y = 0.0f,
-                    .w = (float)surface->w,
-                    .h = (float)surface->h,
-                };
-                SDL_FRect dst = (SDL_FRect){
-                    .x = layout.desc_rect.x,
-                    .y = layout.desc_rect.y,
-                    .w = (float)surface->w,
-                    .h = (float)surface->h,
-                };
-
-                if (dst.w > layout.desc_rect.w)
-                    dst.w = layout.desc_rect.w;
-                if (dst.h > layout.desc_rect.h)
-                {
-                    dst.h = layout.desc_rect.h;
-                    src.h = layout.desc_rect.h;
-                }
-                SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-                SDL_RenderTexture(g_state.renderer, texture, &src, &dst);
-                SDL_DestroyTexture(texture);
+                dst.h = layout.desc_rect.h;
+                src.h = layout.desc_rect.h;
             }
-            SDL_DestroySurface(surface);
+            SDL_RenderTexture(g_state.renderer, texture, &src, &dst);
         }
     }
 

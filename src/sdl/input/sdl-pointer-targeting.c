@@ -1987,7 +1987,6 @@ static void sdl_pointer_aim_render_choice_prompt(void)
 {
     const sdl_view* view = &g_views[PANE_MAIN];
     TTF_Font* font;
-    SDL_Surface* surface;
     SDL_Texture* texture;
     SDL_FRect box;
     SDL_FRect text_dst;
@@ -2002,6 +2001,8 @@ static void sdl_pointer_aim_render_choice_prompt(void)
     float view_w = (float)(sdl_main_view_visual_cols(view) * view->cell_w);
     float view_h = (float)(sdl_main_view_visual_rows(view) * view->cell_h);
     float cell_h = (float)view->cell_h;
+    int text_w = 0;
+    int text_h = 0;
 
     if (!g_pointer_aim.select_prompt[0])
         return;
@@ -2015,18 +2016,15 @@ static void sdl_pointer_aim_render_choice_prompt(void)
 
     pad = sdl_touch_pane_clampf((float)font_px * 0.4f, 8.0f, 16.0f);
     gap = sdl_touch_pane_clampf(cell_h * 0.4f, 6.0f, 14.0f);
-    surface = sdl_object_tooltip_render_text_surface(font,
-        g_pointer_aim.select_prompt, text_color, view_w - pad * 2.0f);
-    if (!surface)
+    texture = sdl_ui_wrapped_text_texture(font,
+        g_pointer_aim.select_prompt,
+        MAX(1, (int)(view_w - pad * 2.0f + 0.5f)), text_color,
+        &text_w, &text_h);
+    if (!texture)
         return;
-    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
-    if (!texture) {
-        SDL_DestroySurface(surface);
-        return;
-    }
 
-    box.w = (float)surface->w + pad * 2.0f;
-    box.h = (float)surface->h + pad * 2.0f;
+    box.w = (float)text_w + pad * 2.0f;
+    box.h = (float)text_h + pad * 2.0f;
 
     /* Centre on the player horizontally and sit just below the bottom row of
      * adjacent doors; flip above if there is no room below. */
@@ -2045,17 +2043,14 @@ static void sdl_pointer_aim_render_choice_prompt(void)
     if (box.y + box.h > view_y + view_h - gap)
         box.y = view_y + view_h - gap - box.h;
 
-    text_dst = (SDL_FRect){ box.x + pad, box.y + pad, (float)surface->w,
-        (float)surface->h };
+    text_dst = (SDL_FRect){ box.x + pad, box.y + pad, (float)text_w,
+        (float)text_h };
 
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 232);
     SDL_RenderFillRect(g_state.renderer, &box);
     SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g, border.b, 200);
     SDL_RenderRect(g_state.renderer, &box);
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
     SDL_RenderTexture(g_state.renderer, texture, NULL, &text_dst);
-    SDL_DestroyTexture(texture);
-    SDL_DestroySurface(surface);
 }
 
 /* Highlight each adjacent candidate grid; the current selection is brighter. */
@@ -2143,6 +2138,13 @@ bool sdl_mouse_stuck_door_bash_take_command(int* command, int* dir)
     {
         log_debug("Queued stuck-door bash target is no longer valid at (%d,%d)",
             bash_y, bash_x);
+        return true;
+    }
+    if (lockpick_minigame)
+    {
+        sdl_mouse_note_feature_for_action(bash_y, bash_x);
+        *command = 'o';
+        *dir = bash_dir;
         return true;
     }
     if (!get_check_near(bash_y, bash_x,

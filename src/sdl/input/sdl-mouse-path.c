@@ -385,6 +385,7 @@ void sdl_mouse_path_search_free(void)
 {
     SDL_free(g_mouse_path_search.cost);
     SDL_free(g_mouse_path_search.heap_pos);
+    SDL_free(g_mouse_path_search.visit_generation);
     SDL_free(g_mouse_path_search.parent_grid);
     SDL_free(g_mouse_path_search.parent_state);
     SDL_free(g_mouse_path_search.heap_priority);
@@ -402,6 +403,8 @@ bool sdl_mouse_path_search_ensure(size_t state_count)
 
     g_mouse_path_search.cost = (int*)SDL_calloc(state_count, sizeof(int));
     g_mouse_path_search.heap_pos = (int*)SDL_calloc(state_count, sizeof(int));
+    g_mouse_path_search.visit_generation =
+        (u16b*)SDL_calloc(state_count, sizeof(u16b));
     g_mouse_path_search.parent_grid =
         (u16b*)SDL_calloc(state_count, sizeof(u16b));
     g_mouse_path_search.parent_state =
@@ -414,6 +417,7 @@ bool sdl_mouse_path_search_ensure(size_t state_count)
         (byte*)SDL_calloc(state_count, sizeof(byte));
 
     if (!g_mouse_path_search.cost || !g_mouse_path_search.heap_pos
+        || !g_mouse_path_search.visit_generation
         || !g_mouse_path_search.parent_grid
         || !g_mouse_path_search.parent_state
         || !g_mouse_path_search.heap_priority
@@ -425,6 +429,31 @@ bool sdl_mouse_path_search_ensure(size_t state_count)
 
     g_mouse_path_search.capacity = state_count;
     return true;
+}
+
+static void sdl_mouse_path_search_begin(void)
+{
+    g_mouse_path_search.current_generation++;
+    if (g_mouse_path_search.current_generation == 0) {
+        memset(g_mouse_path_search.visit_generation, 0,
+            g_mouse_path_search.capacity
+                * sizeof(*g_mouse_path_search.visit_generation));
+        g_mouse_path_search.current_generation = 1;
+    }
+}
+
+static void sdl_mouse_path_search_touch(size_t idx)
+{
+    if (g_mouse_path_search.visit_generation[idx]
+        == g_mouse_path_search.current_generation)
+    {
+        return;
+    }
+
+    g_mouse_path_search.visit_generation[idx] =
+        g_mouse_path_search.current_generation;
+    g_mouse_path_search.cost[idx] = 0x3f3f3f3f;
+    g_mouse_path_search.heap_pos[idx] = -1;
 }
 
 bool sdl_mouse_path_heap_less(int a, int b)
@@ -509,7 +538,10 @@ bool sdl_mouse_path_heap_insert_or_decrease(u16b grid, byte state,
     int priority)
 {
     size_t idx = sdl_mouse_path_search_grid_state_index(grid, state);
-    int pos = g_mouse_path_search.heap_pos[idx];
+    int pos;
+
+    sdl_mouse_path_search_touch(idx);
+    pos = g_mouse_path_search.heap_pos[idx];
 
     if (pos >= 0)
     {
@@ -622,12 +654,10 @@ bool sdl_mouse_path_compute_route(int target_y, int target_x,
 
     g_mouse_path_search.width = map_wid;
     g_mouse_path_search.heap_size = 0;
-    memset(g_mouse_path_search.cost, 0x3f,
-        state_count * sizeof(*g_mouse_path_search.cost));
-    memset(g_mouse_path_search.heap_pos, 0xFF,
-        state_count * sizeof(*g_mouse_path_search.heap_pos));
+    sdl_mouse_path_search_begin();
 
     start_idx = sdl_mouse_path_search_grid_state_index(start_grid, start_state);
+    sdl_mouse_path_search_touch(start_idx);
     g_mouse_path_search.cost[start_idx] = 0;
     g_mouse_path_search.parent_grid[start_idx] = start_grid;
     g_mouse_path_search.parent_state[start_idx] = start_state;
@@ -690,6 +720,7 @@ bool sdl_mouse_path_compute_route(int target_y, int target_x,
             next_grid = GRID(ny, nx);
             next_idx = sdl_mouse_path_search_grid_state_index(
                 next_grid, next_state);
+            sdl_mouse_path_search_touch(next_idx);
             next_cost =
                 base_cost + sdl_mouse_path_route_edge_cost(
                     state, dir, sprint_enabled);

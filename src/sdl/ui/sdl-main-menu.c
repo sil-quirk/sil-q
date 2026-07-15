@@ -272,38 +272,30 @@ float sdl_main_menu_draw_text(TTF_Font* font, cptr text, float x,
     float y, float max_w, float row_h, SDL_Color color,
     main_menu_text_align align)
 {
-    SDL_Surface* surface;
     SDL_Texture* texture;
     SDL_FRect dst;
     float scale = 1.0f;
     float max_h;
-    SDL_Color render_color;
+    int text_w = 0;
+    int text_h = 0;
 
     if (!font || !text || !text[0] || max_w <= 0.0f || row_h <= 0.0f)
         return 0.0f;
 
-    render_color = color;
-    render_color.a = SDL_ALPHA_OPAQUE;
-    surface = TTF_RenderText_Blended(font, text, 0, render_color);
-    if (!surface)
+    texture = sdl_ui_text_texture(font, text, color, &text_w, &text_h);
+    if (!texture)
         return 0.0f;
 
-    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
-    if (!texture) {
-        SDL_DestroySurface(surface);
-        return 0.0f;
-    }
-
-    if (surface->w > 0 && (float)surface->w > max_w)
-        scale = max_w / (float)surface->w;
+    if (text_w > 0 && (float)text_w > max_w)
+        scale = max_w / (float)text_w;
     max_h = row_h * 0.86f;
-    if (surface->h > 0 && (float)surface->h * scale > max_h)
-        scale = max_h / (float)surface->h;
+    if (text_h > 0 && (float)text_h * scale > max_h)
+        scale = max_h / (float)text_h;
     if (scale > 1.0f)
         scale = 1.0f;
 
-    dst.w = (float)surface->w * scale;
-    dst.h = (float)surface->h * scale;
+    dst.w = (float)text_w * scale;
+    dst.h = (float)text_h * scale;
     if (align == MAIN_MENU_TEXT_RIGHT)
         dst.x = x + max_w - dst.w;
     else if (align == MAIN_MENU_TEXT_CENTER)
@@ -312,12 +304,7 @@ float sdl_main_menu_draw_text(TTF_Font* font, cptr text, float x,
         dst.x = x;
     dst.y = y + (row_h - dst.h) * 0.5f;
 
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-    SDL_SetTextureAlphaMod(texture, color.a);
     SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
-
-    SDL_DestroyTexture(texture);
-    SDL_DestroySurface(surface);
     return dst.w;
 }
 
