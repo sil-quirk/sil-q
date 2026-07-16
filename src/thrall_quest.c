@@ -26,34 +26,40 @@ static const int human_thrall_weights[THRALL_QUEST_MAX] = {
     0,   /* NONE - not used */
     32,  /* SHOVEL - tools to pry/delve */
     26,  /* LANTERN - light against the dark */
-    18,  /* HERB_HEALING - common healing */
+    8,   /* HERB_HEALING - uncommon healing */
     6,   /* MALLORN - rarer, but prized */
     10,  /* POTION_HEALING - valuable healing */
     24,  /* DAGGER - last defence, cut bonds */
     18,  /* CLOAK - warmth and concealment */
     22,  /* BOOTS - escape over stone */
-    30,  /* HERB_SUSTENANCE - hunger is a chain */
-    12,  /* HERB_RESTORATION - recover strength */
+    8,   /* HERB_SUSTENANCE - rare respite from hunger */
+    5,   /* HERB_RESTORATION - rare recovery */
     16,  /* POTION_CLARITY - endure fear and glamour */
     24,  /* FLASK_OIL - precious lamp fuel */
-    20   /* WOODEN_TORCH - simple light for escape */
+    20,  /* WOODEN_TORCH - simple light for escape */
+    28,  /* DARK_BREAD - familiar, lasting food */
+    24,  /* DRIED_MEAT - strength for escape */
+    0    /* LEMBAS - requested only by elven thralls */
 };
 
 static const int elf_thrall_weights[THRALL_QUEST_MAX] = {
     0,   /* NONE - not used */
     8,   /* SHOVEL - seldom asked of the Eldar */
     18,  /* LANTERN - practical light */
-    26,  /* HERB_HEALING - lore of herbs */
+    10,  /* HERB_HEALING - uncommon healing lore */
     32,  /* MALLORN - light of fair make */
     10,  /* POTION_HEALING - costly draughts */
     18,  /* DAGGER - keen blade, cut bonds */
     26,  /* CLOAK - to move unseen */
     24,  /* BOOTS - to tread in silence */
-    6,   /* HERB_SUSTENANCE - still needed in torment */
-    18,  /* HERB_RESTORATION - recover spirit/strength */
+    3,   /* HERB_SUSTENANCE - rare respite from hunger */
+    7,   /* HERB_RESTORATION - rare recovery */
     14,  /* POTION_CLARITY - lift veils from the mind */
     12,  /* FLASK_OIL - clean fuel for a guarded flame */
-    14   /* WOODEN_TORCH - light in the pits */
+    14,  /* WOODEN_TORCH - light in the pits */
+    0,   /* DARK_BREAD - requested only by human thralls */
+    0,   /* DRIED_MEAT - requested only by human thralls */
+    24   /* LEMBAS - a remembered taste of home */
 };
 
 #define THRALL_ARTEFACT_REVEAL_COUNT 3
@@ -426,6 +432,15 @@ static cptr get_thrall_quest_reason(monster_type* m_ptr, byte quest_item)
                 ? "With it I could carry one honest flame into the black ways, and not go wholly blind beneath the earth."
                 : "With it I could find a gate, a crack, any path not barred by iron, before the dark swallows my nerve.";
 
+        case THRALL_QUEST_DARK_BREAD:
+            return "With it I could quiet the hunger that hollows my strength, and keep enough life in my limbs to endure the next labour.";
+
+        case THRALL_QUEST_DRIED_MEAT:
+            return "With it I could put strength back into my body; the scraps our masters cast us scarcely keep a man standing.";
+
+        case THRALL_QUEST_LEMBAS:
+            return "I ask only to taste it once more, and remember the clean air beneath the trees before iron and darkness became all my world.";
+
         default:
             return "With it I might yet endure a little longer, and do some small good before all light is quenched.";
     }
@@ -680,6 +695,9 @@ cptr get_thrall_quest_item_name(byte quest_item)
         case THRALL_QUEST_POTION_CLARITY:    return "a potion of clarity";
         case THRALL_QUEST_FLASK_OIL:         return "a flask of oil";
         case THRALL_QUEST_WOODEN_TORCH:      return "a full wooden torch";
+        case THRALL_QUEST_DARK_BREAD:         return "a piece of dark bread";
+        case THRALL_QUEST_DRIED_MEAT:         return "a strip of dried meat";
+        case THRALL_QUEST_LEMBAS:             return "a fragment of lembas";
         default:                             return "something";
     }
 }
@@ -733,6 +751,15 @@ static bool item_matches_quest(object_type* o_ptr, byte quest_item)
         case THRALL_QUEST_WOODEN_TORCH:
             return (o_ptr->tval == TV_LIGHT && o_ptr->sval == SV_LIGHT_TORCH
                     && player_light_fuel(o_ptr) >= 1000);
+
+        case THRALL_QUEST_DARK_BREAD:
+            return (o_ptr->tval == TV_FOOD && o_ptr->sval == SV_FOOD_BREAD);
+
+        case THRALL_QUEST_DRIED_MEAT:
+            return (o_ptr->tval == TV_FOOD && o_ptr->sval == SV_FOOD_MEAT);
+
+        case THRALL_QUEST_LEMBAS:
+            return (o_ptr->tval == TV_FOOD && o_ptr->sval == SV_FOOD_LEMBAS);
             
         default:
             return false;

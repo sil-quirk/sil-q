@@ -1607,6 +1607,13 @@ extern bool sdl_welcome_screen_set_status(cptr status);
 extern bool sdl_welcome_screen_show_loading(cptr status);
 extern void sdl_welcome_screen_hide(void);
 extern bool sdl_welcome_screen_active(void);
+extern bool sdl_death_poetry_screen_begin(cptr title, cptr body,
+    cptr transition, cptr prompt);
+extern void sdl_death_poetry_screen_update(bool title_visible,
+    byte title_attr, bool body_visible, byte body_attr,
+    bool transition_visible, byte transition_attr, bool prompt_visible);
+extern void sdl_death_poetry_screen_hide(void);
+extern bool sdl_death_poetry_screen_active(void);
 extern bool sdl_character_sheet_screen_active(void);
 extern void sdl_character_sheet_screen_hide(void);
 extern bool sdl_character_sheet_screen_begin_live(int focus_choice);
@@ -1904,6 +1911,8 @@ extern cptr get_ext_color_name(byte ext_color);
 extern byte total_mdd(const object_type* o_ptr);
 extern byte strength_modified_ds(const object_type* o_ptr, int str_adjustment);
 extern byte total_mds(const object_type* o_ptr, int str_adjustment);
+extern byte total_mds_for_weapon_mode(
+    const object_type* o_ptr, int str_adjustment, int mode);
 extern bool two_handed_melee(void);
 extern bool armour_is_light(const object_type* o_ptr);
 extern bool wearing_only_light_armour(void);
@@ -1911,11 +1920,13 @@ extern int hand_and_a_half_bonus(const object_type* o_ptr);
 extern int axe_bonus(const object_type* o_ptr);
 extern int polearm_bonus(const object_type* o_ptr);
 extern byte total_ads(const object_type* j_ptr);
+extern byte total_ads_for_weapon_mode(const object_type* j_ptr, int mode);
 extern int player_active_weapon_mode(void);
 extern bool player_active_weapon_is_melee(void);
 extern bool player_active_weapon_is_ranged(void);
 extern bool player_active_weapon_mode_is_ranged(int mode);
 extern int player_active_weapon_mode_for_quiver(int quiver);
+extern int player_last_ranged_weapon_mode(void);
 extern int player_active_weapon_quiver_slot(void);
 extern int player_active_weapon_quiver_number(void);
 extern bool player_set_active_weapon_mode(
@@ -1925,6 +1936,8 @@ extern void player_queue_active_weapon_mode(int mode);
 extern void do_cmd_pending_active_weapon_mode(void);
 extern bool player_weapon_slot_combat_bonuses_active(
     int slot, const object_type* o_ptr);
+extern bool player_weapon_slot_combat_bonuses_active_for_mode(
+    int mode, int slot, const object_type* o_ptr);
 extern bool player_shield_counts_for_active_weapon(const object_type* o_ptr);
 extern bool player_can_quick_throw_from_quiver(int slot);
 extern int player_quick_throw_quiver_slot(void);
@@ -1938,6 +1951,7 @@ extern bool player_has_throwable_potion(void);
 extern bool player_quick_throw_available(void);
 extern void cnv_stat(int val, char* out_val);
 extern int health_level(int current, int max);
+extern bool monster_health_bar_allowed(const monster_type* m_ptr);
 extern int monster_health_bar_text(
     const monster_type* m_ptr, char* buf, size_t buflen, int max_symbols);
 extern int monster_health_bar_put(

@@ -666,6 +666,12 @@ static bool sdl_touch_thumb_fire_targeting_active(void)
         && !g_pointer_aim.select_location;
 }
 
+static bool sdl_touch_round_aim_targeting_active(void)
+{
+    return g_pointer_aim.active && g_pointer_aim.select_mode
+        && !g_pointer_aim.select_location;
+}
+
 int sdl_touch_thumb_button_binding(int index, bool long_press)
 {
     bool description_open = sdl_touch_thumb_description_open();
@@ -1031,6 +1037,10 @@ static void sdl_touch_context_label_for_binding(int binding, char* buf,
         return;
     }
     if (binding == SDL_TOUCH_THUMB_BIND_FIRE_SELECTED) {
+        if (sdl_touch_thumb_fire_targeting_active()) {
+            SDL_strlcpy(buf, "Fire at target", buflen);
+            return;
+        }
         SDL_strlcpy(buf,
             (player_active_weapon_quiver_number() == 2) ? "Fire 2nd quiver"
                                                         : "Fire 1st quiver",
@@ -1363,7 +1373,8 @@ bool sdl_touch_round_layer_controls_active(void)
 {
     return sdl_touch_round_layer_config_enabled()
         && !g_main_menu_overlay_active
-        && sdl_main_screen_click_shortcuts_active();
+        && (sdl_main_screen_click_shortcuts_active()
+            || sdl_touch_round_aim_targeting_active());
 }
 
 bool sdl_touch_movement_point_blocked_by_overlay(float x, float y)
@@ -1840,6 +1851,13 @@ bool sdl_touch_round_handle_pointer_down(float x, float y,
 
     if (!sdl_touch_round_layer_controls_active())
         return false;
+    /* The aim command bar owns its buttons even when the direction wheel
+     * overlaps the same part of the map. */
+    if (sdl_touch_round_aim_targeting_active()
+        && sdl_unified_look_prompt_contains_point(x, y))
+    {
+        return false;
+    }
     if (sdl_touch_movement_point_blocked_by_overlay(x, y))
         return false;
     if (!sdl_touch_round_point_in_bounds(x, y))
@@ -1966,7 +1984,8 @@ bool sdl_touch_round_handle_pointer_up(float x, float y,
          * "drag to move" path stays plain movement. */
         if (dir && press_time >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
             ctrl = true;
-    } else if (dist <= g_touch_round_press.inner_radius
+    } else if (!sdl_touch_round_aim_targeting_active()
+        && dist <= g_touch_round_press.inner_radius
             * SDL_TOUCH_ROUND_CENTER_REPEAT_FRAC) {
         if (press_time < (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
             dir = g_touch_round_last_dir;
@@ -1977,6 +1996,13 @@ bool sdl_touch_round_handle_pointer_up(float x, float y,
             g_touch_round_press.inner_radius, radius);
     } else if (g_touch_round_press.selected_dir) {
         dir = g_touch_round_press.selected_dir;
+    }
+
+    /* During aim selection the wheel is a direct firing control, never a
+     * run or Ctrl+direction gameplay gesture. */
+    if (sdl_touch_round_aim_targeting_active()) {
+        ctrl = false;
+        run = false;
     }
 
     sdl_touch_round_cancel_press();
@@ -2400,6 +2426,7 @@ void sdl_touch_round_render(void)
     bool center_repeat;
     bool ctrl_preview;
     bool run_preview;
+    bool aim_targeting = sdl_touch_round_aim_targeting_active();
     int target_dir;
     int dir;
 
@@ -2424,7 +2451,7 @@ void sdl_touch_round_render(void)
     } else {
         if (!sdl_touch_round_layer_config_enabled())
             return;
-        if (!sdl_mouse_gameplay_context_active())
+        if (!sdl_mouse_gameplay_context_active() && !aim_targeting)
             return;
         if (!sdl_touch_round_compute_layout(&cx, &cy, &radius,
                 &inner_radius, &clip))
@@ -2436,15 +2463,17 @@ void sdl_touch_round_render(void)
     SDL_SetRenderClipRect(g_state.renderer, &clip);
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
 
-    frame.a = active ? 166 : 112;
-    accent.a = active ? 190 : 138;
+    if (aim_targeting)
+        accent = g_state.palette[TERM_L_RED];
+    frame.a = (active || aim_targeting) ? 166 : 112;
+    accent.a = (active || aim_targeting) ? 190 : 138;
     selected.a = 230;
 
     dx = active ? g_touch_round_press.current_x - cx : 0.0f;
     dy = active ? g_touch_round_press.current_y - cy : 0.0f;
     dist = SDL_sqrtf(dx * dx + dy * dy);
     press_time = active ? SDL_GetTicksNS() - g_touch_round_press.start_time : 0;
-    center_repeat = active
+    center_repeat = active && !aim_targeting
         && !g_touch_round_press.button_press
         && dist <= inner_radius * SDL_TOUCH_ROUND_CENTER_REPEAT_FRAC
         && press_time < (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL
@@ -2507,6 +2536,17 @@ void sdl_touch_round_render(void)
             .h = inner_radius * 2.0f,
         };
         sdl_touch_pane_draw_arrow(&center_arrow, '0' + dir, arrow_color);
+    } else if (aim_targeting) {
+        /* Name the otherwise ambiguous centre of the wheel so touch users can
+         * distinguish this direct-direction action from exact map targeting. */
+        center_arrow = (SDL_FRect){
+            .x = cx - inner_radius * 0.92f,
+            .y = cy - inner_radius * 0.92f,
+            .w = inner_radius * 1.84f,
+            .h = inner_radius * 1.84f,
+        };
+        sdl_touch_pane_draw_button_text_scaled(&center_arrow, NULL,
+            "Fire direction", accent, 0.22f, 0.54f);
     }
 
     if (ctrl_preview)

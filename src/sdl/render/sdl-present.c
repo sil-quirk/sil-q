@@ -1465,6 +1465,11 @@ bool sdl_render_current_window_frame(void)
     if (g_suppress_layout_refresh_present)
         return false;
 
+    if (sdl_death_poetry_screen_active()) {
+        sdl_death_poetry_screen_render();
+        return true;
+    }
+
     if (sdl_welcome_screen_active()) {
         sdl_welcome_screen_render();
         /* The yes/no confirm is modal and must stay visible above any

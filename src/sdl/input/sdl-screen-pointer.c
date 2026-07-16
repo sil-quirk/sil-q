@@ -966,6 +966,11 @@ bool sdl_pointer_dismiss_any_key_prompt(void)
         return true;
     if (!g_sdl_blocking_key_wait)
         return false;
+    if (sdl_death_poetry_screen_active())
+    {
+        Term_keypress('\r');
+        return true;
+    }
     if (ui_key_wait_dismiss_is_active())
     {
         Term_keypress(ui_key_wait_dismiss_get_key());

@@ -225,7 +225,22 @@ static void display_narrative_text(cptr text, int narrative_mode,
     if (command_transition)
         disturb(0, 0);
 
-    g_active_partition_banner_text[0] = '\0';
+    /*
+     * Partition entry is detected while cleaning up the movement command,
+     * before the dungeon loop's next normal refresh.  Present the completed
+     * move first so the player changes grids before the banner begins fading
+     * in.  Initial level-entry banners have no active command and retain their
+     * normal fade speed.
+     */
+    if (command_transition)
+    {
+        /* Do not let either the previous banner or the new banner flash at
+         * full opacity on the movement frame before the fade begins. */
+        clear_active_narrative_banner();
+        handle_stuff();
+        Term_fresh();
+    }
+
     SDL_strlcpy(g_active_partition_banner_text, text,
         sizeof(g_active_partition_banner_text));
     g_active_partition_banner_consumes_input =
@@ -236,18 +251,6 @@ static void display_narrative_text(cptr text, int narrative_mode,
         ? 1
         : narrative_banner_turn_setting();
 
-    /*
-     * Partition entry is detected while cleaning up the movement command,
-     * before the dungeon loop's next normal refresh.  Present the completed
-     * move first so the player changes grids before the banner begins fading
-     * in.  Initial level-entry banners have no active command and retain their
-     * normal fade speed.
-     */
-    if (command_transition)
-    {
-        handle_stuff();
-        Term_fresh();
-    }
     sdl_narrative_banner_show(
         line_delay || banner_with_delay, command_transition);
 }

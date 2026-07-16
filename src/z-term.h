@@ -40,6 +40,7 @@ typedef struct term_win term_win;
 struct term_win
 {
     bool cu, cv;
+    bool cursor_big;
     int cx, cy;
 
     byte** a;
@@ -305,6 +306,7 @@ extern errr Term_set_extra_cursor(bool v, int x, int y, bool big);
 extern void Term_health_bar_begin(int current, int max);
 extern void Term_health_bar_end(void);
 extern errr Term_gotoxy(int x, int y);
+extern errr Term_gotoxy_big(int x, int y);
 extern errr Term_draw(int x, int y, byte a, char c);
 extern errr Term_addch(byte a, char c);
 extern errr Term_addstr(int n, byte a, cptr s);

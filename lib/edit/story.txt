@@ -230,8 +230,8 @@ T:1
 O:0
 R:*
 D:Warm darkness embraces you—not Morgoth's chains, but a gentle silence.
-D:This death is no defeat, but the Gift of Ilúvatar itself.
-D:Your spirit passes briefly beyond the Circles of the World—
+D: This death is no defeat, but the Gift of Ilúvatar itself.
+D: Your spirit passes briefly beyond the Circles of the World—
 D:returning untouched by Mandos' count.
 
 N:32:Echo of Silence

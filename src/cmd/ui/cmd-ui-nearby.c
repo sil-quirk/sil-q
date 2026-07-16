@@ -1057,6 +1057,7 @@ static int unified_sidebar_compact_build_entries(
             int morale_color = TERM_WHITE;
             int morale_num = 0;
             int name_budget;
+            bool show_health;
 
             if (!m_idx)
                 continue;
@@ -1072,10 +1073,13 @@ static int unified_sidebar_compact_build_entries(
             r_ptr = &r_info[m_ptr->r_idx];
             monster_desc_race(m_name, sizeof(m_name), m_ptr->r_idx);
 
-            if (styled_monster_health_bars)
+            show_health = monster_health_bar_allowed(m_ptr);
+            if (show_health && styled_monster_health_bars)
                 SDL_strlcpy(hp_bar, "--------", sizeof(hp_bar));
-            else
+            else if (show_health)
                 monster_health_bar_text(m_ptr, hp_bar, sizeof(hp_bar), 8);
+            else
+                hp_bar[0] = '\0';
 
             if (m_ptr->alertness < ALERTNESS_UNWARY)
             {
@@ -1101,7 +1105,11 @@ static int unified_sidebar_compact_build_entries(
                     : (m_ptr->morale / 10);
             }
 
-            strnfmt(suffix, sizeof(suffix), " %s %d", hp_bar, morale_num);
+            if (show_health)
+                strnfmt(suffix, sizeof(suffix), " %s %d", hp_bar,
+                    morale_num);
+            else
+                strnfmt(suffix, sizeof(suffix), " %d", morale_num);
             name_budget = text_width - (int)strlen(suffix);
             if (name_budget < 4)
                 name_budget = 4;
@@ -1118,7 +1126,7 @@ static int unified_sidebar_compact_build_entries(
             entry->symbol[0] = monster_char(r_ptr);
             entry->symbol[1] = '\0';
             strnfmt(entry->text, sizeof(entry->text), "%s%s", name_buf, suffix);
-            if (styled_monster_health_bars)
+            if (show_health && styled_monster_health_bars)
             {
                 entry->health_m_idx = (s16b)m_idx;
                 entry->health_offset = (byte)MIN(strlen(name_buf) + 1, 255);
@@ -1577,6 +1585,7 @@ void show_unified_sidebar(unified_look_state* state)
             monster_race* r_ptr = &r_info[m_ptr->r_idx];
             char m_name[40];
             char morale_text[8];
+            bool show_health;
 
             /* Show only visible monsters on screen (like the [ monsters menu) */
             /* Skip empty monster slots */
@@ -1593,7 +1602,11 @@ void show_unified_sidebar(unified_look_state* state)
 
             /* Create compact HP bar */
             char hp_bar[10];
-            monster_health_bar_text(m_ptr, hp_bar, sizeof(hp_bar), 8);
+            show_health = monster_health_bar_allowed(m_ptr);
+            if (show_health)
+                monster_health_bar_text(m_ptr, hp_bar, sizeof(hp_bar), 8);
+            else
+                hp_bar[0] = '\0';
 
             /* Create morale number with proper color */
             int morale_color = TERM_WHITE;
@@ -1637,7 +1650,10 @@ void show_unified_sidebar(unified_look_state* state)
             char morale_display[12];
 
             /* Format health and morale as compact strings */
-            strnfmt(hp_display, sizeof(hp_display), " %s", hp_bar);
+            if (show_health)
+                strnfmt(hp_display, sizeof(hp_display), " %s", hp_bar);
+            else
+                hp_display[0] = '\0';
             strnfmt(morale_display, sizeof(morale_display), " %s", morale_text);
 
             /* Calculate available width for the whole line */

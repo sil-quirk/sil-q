@@ -17,6 +17,7 @@ extern struct sound_config g_sound_config;
 #include "score/score_postmortem.h"
 #include "pane.h"
 #include "cmd/ui/cmd-ui-internal.h"
+#include "ui/story_font.h"
 
 #define MAIN_MENU_LABEL_WIDTH 21
 #define MAIN_MENU_SHORTCUT_WIDTH 6
@@ -45,7 +46,7 @@ cptr main_menu_title(int choice)
     case MAIN_MENU_MAP: return "Map";
     case MAIN_MENU_LOG_HISTORY: return "Log & combat history";
     case MAIN_MENU_STORY: return "The story so far";
-    case MAIN_MENU_STORY_STATS: return "Story statistics";
+    case MAIN_MENU_STORY_STATS: return "Tale statistics";
     case MAIN_MENU_BLITZ: return "Blitz";
     case MAIN_MENU_OPTIONS: return "Options";
     case MAIN_MENU_HELP: return "Help";
@@ -1517,7 +1518,7 @@ static bool do_cmd_main_menu_execute_choice_impl(int actiontype,
         screen_load();
         return true;
     }
-    case MAIN_MENU_STORY_STATS: // Story statistics (g)
+    case MAIN_MENU_STORY_STATS: // Tale statistics (g)
     {
         print_metarun_stats();
         return true;
@@ -3090,6 +3091,7 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
     char tip_text[512];
     char ch;
     int line_count = 0;
+    story_font_term_state story_state;
 
     if (!skeleton_tip_text_by_index(index, tip_text, sizeof(tip_text)))
         return false;
@@ -3097,7 +3099,8 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
     if (manage_screen)
         screen_save();
 
-    sdl_story_font_enable();
+    story_font_term_push_slot(true, false, STORY_FONT_SLOT_SECONDARY,
+        &story_state);
 
     while (1)
     {
@@ -3163,7 +3166,7 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
 
     ui_menu_click_clear();
     ui_scroll_area_clear();
-    sdl_story_font_disable();
+    story_font_term_pop(&story_state);
     if (manage_screen)
         screen_load();
 
@@ -3184,6 +3187,7 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
     int display_line_count = 0;
     hint_message_action action = HINT_MESSAGE_ACTION_NONE;
     bool steamdeck = steamdeck_controls_active();
+    story_font_term_state story_state;
 
     hint_messages_ensure_level_state();
     stored_line_count = hint_messages_message_line_count(index);
@@ -3194,7 +3198,8 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
     if (manage_screen)
         screen_save();
 
-    sdl_story_font_enable();
+    story_font_term_push_slot(true, false, STORY_FONT_SLOT_SECONDARY,
+        &story_state);
 
     while (1)
     {
@@ -3317,7 +3322,7 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
 
     ui_menu_click_clear();
     ui_scroll_area_clear();
-    sdl_story_font_disable();
+    story_font_term_pop(&story_state);
     if (manage_screen)
         screen_load();
 
@@ -3362,6 +3367,7 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
     bool show_all_tips = false;
     bool tabs_focus = false;
     bool steamdeck = steamdeck_controls_active();
+    story_font_term_state story_state;
 
     /* Clear any active banner before opening hint messages */
     if (dismiss_active_narrative_banner()) {
@@ -3381,6 +3387,9 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
         screen_save();
         screen_push_supporting_panes_hidden();
     }
+
+    story_font_term_push_slot(true, false, STORY_FONT_SLOT_SECONDARY,
+        &story_state);
 
     while (1)
     {
@@ -3758,6 +3767,7 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
 
     ui_menu_click_clear();
     ui_scroll_area_clear();
+    story_font_term_pop(&story_state);
 
     if (manage_screen)
     {
@@ -3876,6 +3886,7 @@ static hint_message_action thrall_quest_show_internal(int m_idx,
     hint_message_action action = HINT_MESSAGE_ACTION_NONE;
     bool steamdeck = steamdeck_controls_active();
     monster_type* m_ptr;
+    story_font_term_state story_state;
 
     if (m_idx <= 0 || m_idx >= mon_max)
         return HINT_MESSAGE_ACTION_NONE;
@@ -3888,7 +3899,8 @@ static hint_message_action thrall_quest_show_internal(int m_idx,
             ? "Elven Thrall" : "Human Thrall");
     thrall_quest_format_goal(m_ptr, goal, sizeof(goal), true);
 
-    sdl_story_font_enable();
+    story_font_term_push_slot(true, false, STORY_FONT_SLOT_SECONDARY,
+        &story_state);
 
     while (true)
     {
@@ -3980,7 +3992,7 @@ static hint_message_action thrall_quest_show_internal(int m_idx,
 
     ui_menu_click_clear();
     ui_scroll_area_clear();
-    sdl_story_font_disable();
+    story_font_term_pop(&story_state);
     return action;
 }
 
@@ -4083,6 +4095,10 @@ static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
     int map_x = -1;
     hint_quest_page next_page = HINT_QUEST_PAGE_EXIT;
     bool steamdeck = steamdeck_controls_active();
+    story_font_term_state story_state;
+
+    story_font_term_push_slot(true, false, STORY_FONT_SLOT_SECONDARY,
+        &story_state);
 
     while (true)
     {
@@ -4344,6 +4360,7 @@ static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
 
     ui_menu_click_clear();
     ui_scroll_area_clear();
+    story_font_term_pop(&story_state);
     if (out_pending_look)
         *out_pending_look = pending_look;
     if (out_look_y)

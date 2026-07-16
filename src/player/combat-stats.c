@@ -40,7 +40,8 @@ byte total_mdd(const object_type* o_ptr)
  * Includes factors for strength and weight, but not bonuses from ring of damage
  * etc
  */
-byte strength_modified_ds(const object_type* o_ptr, int str_adjustment)
+static byte strength_modified_ds_with_bonus(const object_type* o_ptr,
+    int str_adjustment, int damage_sides_bonus, bool two_handed)
 {
     byte mds;
     int int_mds; /* to allow negative values in the intermediate stages */
@@ -60,7 +61,7 @@ byte strength_modified_ds(const object_type* o_ptr, int str_adjustment)
     {
         int_mds = o_ptr->ds;
 
-        if (two_handed_melee())
+        if (two_handed)
         {
             divisor = 10;
 
@@ -92,7 +93,7 @@ byte strength_modified_ds(const object_type* o_ptr, int str_adjustment)
     }
 
     // add generic damage bonus
-    int_mds += p_ptr->to_mds;
+    int_mds += damage_sides_bonus;
 
     // bonus for users of 'mighty blows' ability
     if (p_ptr->active_ability[S_MEL][MEL_POWER])
@@ -104,6 +105,73 @@ byte strength_modified_ds(const object_type* o_ptr, int str_adjustment)
     mds = (int_mds < 0) ? 0 : int_mds;
 
     return (mds);
+}
+
+byte strength_modified_ds(const object_type* o_ptr, int str_adjustment)
+{
+    return strength_modified_ds_with_bonus(o_ptr, str_adjustment,
+        p_ptr->to_mds, two_handed_melee());
+}
+
+/*
+ * Calculate the damage-sides bonus that would apply with the requested weapon
+ * mode active.  This is used for read-only combat-pane previews; it does not
+ * alter the player's active bonuses.
+ */
+static int damage_sides_bonus_for_weapon_mode(int mode)
+{
+    int bonus = 0;
+
+    for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+    {
+        const object_type* o_ptr = &inventory[i];
+        u32b f1 = 0;
+        u32b f2 = 0;
+        u32b f3 = 0;
+        bool is_throwing_item;
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        object_flags(o_ptr, &f1, &f2, &f3);
+        is_throwing_item = player_can_treat_as_throwing_flags(o_ptr, f3);
+
+        /* Match calc_bonuses(): the first quiver contributes no equipment
+         * flags, and the second only does so for arrows or throwing items. */
+        if (i == INVEN_QUIVER1)
+            continue;
+        if (i == INVEN_QUIVER2 && !is_throwing_item
+            && o_ptr->tval != TV_ARROW)
+        {
+            continue;
+        }
+
+        if ((f1 & TR1_DAMAGE_SIDES)
+            && player_weapon_slot_combat_bonuses_active_for_mode(
+                mode, i, o_ptr))
+        {
+            bonus += o_ptr->pval;
+        }
+    }
+
+    return bonus;
+}
+
+byte total_mds_for_weapon_mode(const object_type* o_ptr, int str_adjustment,
+    int mode)
+{
+    bool two_handed = false;
+
+    if (mode == PLAYER_ACTIVE_WEAPON_MELEE)
+    {
+        const object_type* wield = &inventory[INVEN_WIELD];
+
+        two_handed = (k_info[wield->k_idx].flags3 & TR3_TWO_HANDED)
+            || hand_and_a_half_bonus(wield);
+    }
+
+    return strength_modified_ds_with_bonus(o_ptr, str_adjustment,
+        damage_sides_bonus_for_weapon_mode(mode), two_handed);
 }
 
 /*
@@ -288,7 +356,8 @@ int polearm_bonus(const object_type* o_ptr)
  * based on the weight of the bow, strength, and the sides of the bow
  */
 
-extern byte total_ads(const object_type* j_ptr)
+static byte total_ads_with_bonus(const object_type* j_ptr,
+    int damage_sides_bonus)
 {
     byte ads;
     int int_ads; /* to allow negative values in the intermediate stages */
@@ -313,12 +382,23 @@ extern byte total_ads(const object_type* j_ptr)
     }
 
     // add archery damage bonus
-    int_ads += p_ptr->to_ads;
+    int_ads += damage_sides_bonus;
 
     /* make sure the total is non-negative */
     ads = (int_ads < 0) ? 0 : int_ads;
 
     return (ads);
+}
+
+extern byte total_ads(const object_type* j_ptr)
+{
+    return total_ads_with_bonus(j_ptr, p_ptr->to_ads);
+}
+
+byte total_ads_for_weapon_mode(const object_type* j_ptr, int mode)
+{
+    return total_ads_with_bonus(j_ptr,
+        damage_sides_bonus_for_weapon_mode(mode));
 }
 
 /*

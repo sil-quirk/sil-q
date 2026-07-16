@@ -1806,6 +1806,16 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        /* In aim-select mode the visible round wheel is a direct
+         * fire-in-direction control.  Claim its sectors before the map
+         * target handler interprets the same touch as an exact square. */
+        if (g_pointer_aim.active && g_pointer_aim.select_mode
+            && !g_pointer_aim.select_location
+            && sdl_touch_round_handle_pointer_down(x, y,
+                ev->tfinger.fingerID))
+        {
+            return;
+        }
         if (sdl_pointer_aim_handle_touch_down(x, y, ev->tfinger.fingerID))
             return;
         if (sdl_main_menu_pane_handle_pointer(x, y))

@@ -50,6 +50,18 @@ int player_active_weapon_mode_for_quiver(int quiver)
                          : PLAYER_ACTIVE_WEAPON_RANGED_1;
 }
 
+int player_last_ranged_weapon_mode(void)
+{
+    int mode = player_active_weapon_mode();
+
+    if (player_active_weapon_mode_is_ranged(mode))
+        return mode;
+
+    mode = normalize_active_weapon_mode(last_ranged_weapon_mode);
+    return player_active_weapon_mode_is_ranged(mode)
+        ? mode : PLAYER_ACTIVE_WEAPON_RANGED_1;
+}
+
 int player_active_weapon_quiver_slot(void)
 {
     switch (player_active_weapon_mode())
@@ -392,41 +404,57 @@ bool player_quick_throw_available(void)
         || player_has_throwable_potion();
 }
 
-bool player_shield_counts_for_active_weapon(const object_type* o_ptr)
+static bool player_shield_counts_for_weapon_mode(int mode,
+    const object_type* o_ptr)
 {
     if (!o_ptr || !o_ptr->k_idx || o_ptr->tval != TV_SHIELD)
         return false;
-    if (player_active_weapon_is_melee())
+    if (mode == PLAYER_ACTIVE_WEAPON_MELEE)
         return true;
 
-    return player_active_weapon_is_ranged()
+    return player_active_weapon_mode_is_ranged(mode)
         && o_ptr->sval == SV_ROUND_SHIELD
         && p_ptr->active_ability[S_ARC][ARC_POINT_BLANK];
 }
 
-bool player_weapon_slot_combat_bonuses_active(int slot,
+bool player_shield_counts_for_active_weapon(const object_type* o_ptr)
+{
+    return player_shield_counts_for_weapon_mode(
+        player_active_weapon_mode(), o_ptr);
+}
+
+bool player_weapon_slot_combat_bonuses_active_for_mode(int mode, int slot,
     const object_type* o_ptr)
 {
     if (!o_ptr || !o_ptr->k_idx)
         return false;
 
+    mode = normalize_active_weapon_mode(mode);
+
     switch (slot)
     {
     case INVEN_WIELD:
-        return player_active_weapon_is_melee();
+        return mode == PLAYER_ACTIVE_WEAPON_MELEE;
     case INVEN_BOW:
-        return player_active_weapon_is_ranged();
+        return player_active_weapon_mode_is_ranged(mode);
     case INVEN_ARM:
         if (o_ptr->tval == TV_SHIELD)
-            return player_shield_counts_for_active_weapon(o_ptr);
-        return player_active_weapon_is_melee();
+            return player_shield_counts_for_weapon_mode(mode, o_ptr);
+        return mode == PLAYER_ACTIVE_WEAPON_MELEE;
     case INVEN_QUIVER1:
-        return player_active_weapon_mode() == PLAYER_ACTIVE_WEAPON_RANGED_1;
+        return mode == PLAYER_ACTIVE_WEAPON_RANGED_1;
     case INVEN_QUIVER2:
-        return player_active_weapon_mode() == PLAYER_ACTIVE_WEAPON_RANGED_2;
+        return mode == PLAYER_ACTIVE_WEAPON_RANGED_2;
     default:
         return true;
     }
+}
+
+bool player_weapon_slot_combat_bonuses_active(int slot,
+    const object_type* o_ptr)
+{
+    return player_weapon_slot_combat_bonuses_active_for_mode(
+        player_active_weapon_mode(), slot, o_ptr);
 }
 
 static void player_polearm_switch_attack(void)

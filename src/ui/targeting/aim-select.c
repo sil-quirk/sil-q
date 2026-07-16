@@ -285,13 +285,25 @@ static bool target_select(int range, bool allow_vertical, bool location_mode,
             if (movement_input_take_legacy_direction(
                     MOVEMENT_INPUT_CONTEXT_TARGETING, &semantic_dir))
             {
+                /* Controller-style direction controls (including the touch
+                 * direction wheel) mean "fire that way" while aiming.  Keep
+                 * ordinary keyboard direction keys for moving/cycling the
+                 * selector. */
+                if (!location_mode && semantic_dir >= 1
+                    && semantic_dir <= 9 && semantic_dir != 5)
+                {
+                    chosen_dir = semantic_dir;
+                    done = true;
+                    continue;
+                }
                 query = (char)('0' + semantic_dir);
             }
         }
 
         /* Pointer events from the map: hover moves the selection, a
-         * click fires, a tap selects first and fires on the selected
-         * square. */
+         * click fires.  A tap selects a listed target first; once manual
+         * ranged targeting is active, the tapped square is the deliberate
+         * choice and fires immediately. */
         if (query == UI_MENU_CLICK_WAKE_KEY)
         {
             int kind = 0;
@@ -319,7 +331,8 @@ static bool target_select(int range, bool allow_vertical, bool location_mode,
 
             if ((kind == AIM_SELECT_EVENT_HOVER)
                 || ((kind == AIM_SELECT_EVENT_TAP)
-                    && ((ey != y) || (ex != x))))
+                    && ((ey != y) || (ex != x))
+                    && (!manual || location_mode)))
             {
                 if (manual)
                 {

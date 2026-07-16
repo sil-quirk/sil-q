@@ -347,7 +347,10 @@
 #define THRALL_QUEST_POTION_CLARITY 11
 #define THRALL_QUEST_FLASK_OIL 12
 #define THRALL_QUEST_WOODEN_TORCH 13
-#define THRALL_QUEST_MAX 14
+#define THRALL_QUEST_DARK_BREAD 14
+#define THRALL_QUEST_DRIED_MEAT 15
+#define THRALL_QUEST_LEMBAS 16
+#define THRALL_QUEST_MAX 17
 
 /* Per-monster thrall quest progress (monster_type.thrall_quest_completed). */
 #define THRALL_QUEST_STATE_ACTIVE 0

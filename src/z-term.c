@@ -318,6 +318,8 @@ static errr term_win_init(term_win* s, int w, int h)
 {
     int y;
 
+    s->cursor_big = false;
+
     /* Make the window access arrays */
     s->a = mem_alloc_array(h, byte*);
     s->c = mem_alloc_array(h, char*);
@@ -404,6 +406,7 @@ static errr term_win_copy(term_win* s, term_win* f, int w, int h)
     s->cy = f->cy;
     s->cu = f->cu;
     s->cv = f->cv;
+    s->cursor_big = f->cursor_big;
 
     /* Success */
     return (0);
@@ -1282,7 +1285,8 @@ errr Term_fresh(void)
 
     /* Trivial Refresh */
     if ((y1 > y2) && (scr->cu == old->cu) && (scr->cv == old->cv)
-        && (scr->cx == old->cx) && (scr->cy == old->cy) && !(Term->total_erase))
+        && (scr->cx == old->cx) && (scr->cy == old->cy)
+        && (scr->cursor_big == old->cursor_big) && !(Term->total_erase))
     {
         /*
          * A frontend may compose live panes outside the terminal cell buffer.
@@ -1316,6 +1320,7 @@ errr Term_fresh(void)
 
         /* Hack -- clear all "cursor" data */
         old->cv = old->cu = false;
+        old->cursor_big = false;
         old->cx = old->cy = 0;
 
         /* Wipe each row */
@@ -1363,6 +1368,9 @@ errr Term_fresh(void)
         {
             int tx = old->cx;
             int ty = old->cy;
+            bool old_cursor_big = old->cursor_big
+                || ((tx + 1 < w) && (old->a[ty][tx + 1] == 255));
+            bool restored_as_pict = false;
 
             byte* old_aa = old->a[ty];
             char* old_cc = old->c[ty];
@@ -1380,12 +1388,14 @@ errr Term_fresh(void)
             if (Term->always_pict)
             {
                 (void)((*Term->pict_hook)(tx, ty, 1, &oa, &oc, &ota, &otc));
+                restored_as_pict = true;
             }
 
             /* Hack -- use "Term_pict()" sometimes */
             else if (Term->higher_pict && (oa & 0x80) && (oc & 0x80))
             {
                 (void)((*Term->pict_hook)(tx, ty, 1, &oa, &oc, &ota, &otc));
+                restored_as_pict = true;
             }
 
             /* Hack -- restore the actual character */
@@ -1398,6 +1408,22 @@ errr Term_fresh(void)
             else
             {
                 (void)((*Term->wipe_hook)(tx, ty, 1));
+            }
+
+            /* A map cursor can cover two terminal cells even when the grid is
+             * represented by ordinary text or a blank rather than a tile
+             * sentinel.  Restore that second cell explicitly; pict hooks
+             * already restore the full bigtile span from the first cell. */
+            if (old_cursor_big && !restored_as_pict && tx + 1 < w)
+            {
+                tx++;
+                oa = old_aa[tx];
+                oc = old_cc[tx];
+
+                if (oa || Term->always_text)
+                    (void)((*Term->text_hook)(tx, ty, 1, oa, &oc));
+                else
+                    (void)((*Term->wipe_hook)(tx, ty, 1));
             }
         }
     }
@@ -1493,7 +1519,8 @@ errr Term_fresh(void)
         /* Draw the cursor */
         if (!scr->cu && scr->cv)
         {
-            if ((scr->cx + 1 < w) && (old->a[scr->cy][scr->cx + 1] == 255))
+            if (scr->cursor_big || ((scr->cx + 1 < w)
+                    && (old->a[scr->cy][scr->cx + 1] == 255)))
             {
                 /* Double width cursor for the Bigtile mode */
                 (void)((*Term->bigcurs_hook)(scr->cx, scr->cy));
@@ -1543,6 +1570,7 @@ errr Term_fresh(void)
     /* Save the "cursor state" */
     old->cu = scr->cu;
     old->cv = scr->cv;
+    old->cursor_big = scr->cursor_big;
     old->cx = scr->cx;
     old->cy = scr->cy;
 
@@ -1693,12 +1721,30 @@ errr Term_gotoxy(int x, int y)
     /* Remember the cursor */
     Term->scr->cx = x;
     Term->scr->cy = y;
+    Term->scr->cursor_big = false;
 
     /* The cursor is not useless */
     Term->scr->cu = 0;
 
     /* Success */
     return (0);
+}
+
+/*
+ * Place a double-width cursor at a given location.
+ *
+ * This records cursor geometry explicitly instead of relying on the next
+ * cell's glyph being the special bigtile continuation marker.  Blank and
+ * text-backed map grids still occupy two terminal columns in bigtile mode.
+ */
+errr Term_gotoxy_big(int x, int y)
+{
+    errr result = Term_gotoxy(x, y);
+
+    if (result == 0)
+        Term->scr->cursor_big = true;
+
+    return result;
 }
 
 /*
@@ -1761,6 +1807,7 @@ errr Term_addch(byte a, char c)
 
     /* Advance the cursor */
     Term->scr->cx++;
+    Term->scr->cursor_big = false;
 
     /* Success */
     if (Term->scr->cx < w)
@@ -1820,6 +1867,7 @@ errr Term_addstr(int n, byte a, cptr s)
 
     /* Advance the cursor */
     Term->scr->cx += n;
+    Term->scr->cursor_big = false;
 
     /* Hack -- Notice "Useless" cursor */
     if (res)
@@ -1983,6 +2031,7 @@ errr Term_clear(void)
 
     /* Cursor to the top left */
     Term->scr->cx = Term->scr->cy = 0;
+    Term->scr->cursor_big = false;
 
     /* Wipe each row */
     for (y = 0; y < h; y++)

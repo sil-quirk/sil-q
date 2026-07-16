@@ -1898,6 +1898,14 @@ void sdl_welcome_render_intro_canvas(const SDL_Rect* canvas);
 void sdl_welcome_render_status_canvas(const SDL_Rect* canvas);
 void sdl_welcome_render_menu_footer_canvas(const SDL_Rect* canvas);
 void sdl_welcome_screen_render(void);
+bool sdl_death_poetry_screen_begin(cptr title, cptr body, cptr transition,
+    cptr prompt);
+void sdl_death_poetry_screen_update(bool title_visible, byte title_attr,
+    bool body_visible, byte body_attr, bool transition_visible,
+    byte transition_attr, bool prompt_visible);
+void sdl_death_poetry_screen_hide(void);
+bool sdl_death_poetry_screen_active(void);
+void sdl_death_poetry_screen_render(void);
 float sdl_char_sheet_clampf(float value, float min_value, float max_value);
 int sdl_char_sheet_clampi(int value, int min_value, int max_value);
 int sdl_char_sheet_text_width(TTF_Font* font, cptr text);

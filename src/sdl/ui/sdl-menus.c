@@ -959,6 +959,13 @@ void sdl_narrative_banner_show(bool line_delay, bool fast_fade)
     if (!active_narrative_banner_visible())
         return;
 
+    /* A transition fade blocks normal event dispatch for 500 ms, longer than
+     * the 350 ms touch long-press threshold.  A new tap queued while the
+     * previous movement command enters a partition must not age into a
+     * Ctrl+direction gesture behind the banner. */
+    if (fast_fade)
+        sdl_touch_cancel_all_inputs();
+
     restore_view = sdl_view_from_term(Term);
     if (!restore_view)
         restore_view = &g_views[PANE_MAIN];
@@ -2944,7 +2951,8 @@ void sdl_unified_look_sidebar_add_entry(int choice, int entity_type, int y,
     SDL_strlcpy(item->symbol, symbol ? symbol : "", sizeof(item->symbol));
     SDL_strlcpy(item->text, text, sizeof(item->text));
     if (styled_monster_health_bars && entity_type == 1
-        && in_bounds(y, x) && cave_m_idx[y][x] > 0)
+        && in_bounds(y, x) && cave_m_idx[y][x] > 0
+        && monster_health_bar_allowed(&mon_list[cave_m_idx[y][x]]))
     {
         cptr marker = strstr(item->text, "--------");
 

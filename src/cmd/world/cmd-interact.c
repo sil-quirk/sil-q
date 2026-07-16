@@ -1283,6 +1283,27 @@ bool trap_disarm_power(int feat, int* power)
     return true;
 }
 
+/* Keep the floor-trap preview and the actual disarm roll on the same values. */
+static int trap_disarm_score(void)
+{
+    int score = p_ptr->skill_use[S_PER];
+
+    if (p_ptr->active_ability[S_PER][PER_REWIRE_TRAPS])
+        score += 5;
+    return score;
+}
+
+static int trap_disarm_difficulty(int power)
+{
+    int difficulty = power + p_ptr->depth / 6;
+
+    if (p_ptr->blind || no_light() || p_ptr->image)
+        difficulty += 5;
+    if (p_ptr->confused)
+        difficulty += 5;
+    return difficulty;
+}
+
 /*
  * Whether a trap can be "rewired" (re-keyed to catch monsters) by a player who
  * has the Rewire Traps ability.  Only disarmable, offensive "device" traps
@@ -1481,6 +1502,7 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
     char title[80];
     char desc[480];
     char line[160];
+    char disarm_label[64];
 
     if (out_command)
         *out_command = 0;
@@ -1655,23 +1677,24 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
         }
         else if (can_rewire)
         {
-            strnfmt(line, sizeof(line),
-                "Rewiring it tests your Perception (difficulty %d); the wider "
-                "your margin, the harder foes find it to notice or undo.",
-                power);
-            grid_question_append(desc, sizeof(desc), line);
+            strnfmt(disarm_label, sizeof(disarm_label), "Rewire: %d%%",
+                player_skill_check_success_percent(trap_disarm_score(),
+                    trap_disarm_difficulty(power), 10, 10));
+            grid_question_append(desc, sizeof(desc),
+                "A bad failure may set it off; the wider your successful "
+                "margin, the harder foes find it to notice or undo.");
             /* Same command as disarm: do_cmd_disarm_aux re-keys it when you
              * have the ability (see the rewire branch there). */
-            GRID_Q_ADD('D', 'd', "Rewire it", TERM_L_BLUE);
+            GRID_Q_ADD('D', 'd', disarm_label, TERM_L_BLUE);
         }
         else if (disarmable)
         {
-            strnfmt(line, sizeof(line),
-                "Disarming it tests your Perception (difficulty %d); failing "
-                "badly may set it off.",
-                power);
-            grid_question_append(desc, sizeof(desc), line);
-            GRID_Q_ADD('D', 'd', "Disarm it", TERM_L_GREEN);
+            strnfmt(disarm_label, sizeof(disarm_label), "Disarm: %d%%",
+                player_skill_check_success_percent(trap_disarm_score(),
+                    trap_disarm_difficulty(power), 10, 10));
+            grid_question_append(desc, sizeof(desc),
+                "A bad failure may set it off.");
+            GRID_Q_ADD('D', 'd', disarm_label, TERM_L_GREEN);
         }
         else
         {
@@ -2622,12 +2645,8 @@ bool do_cmd_disarm_aux(int y, int x)
     /* Get the trap name */
     name = (f_name + f_info[cave_feat[y][x]].name);
 
-    /* Get the score in favour (=perception) */
-    score = p_ptr->skill_use[S_PER];
-
-    /* Mastery of trap mechanisms (Rewire Traps) makes disarming easier. */
-    if (p_ptr->active_ability[S_PER][PER_REWIRE_TRAPS])
-        score += 5;
+    /* Get the score in favour (=perception), including trap mastery. */
+    score = trap_disarm_score();
 
     /* Determine trap power based on the dungeon level (1--7)*/
     // power = 1 + p_ptr->depth / 5;
@@ -2718,13 +2737,7 @@ bool do_cmd_disarm_aux(int y, int x)
     // Base difficulty is the trap power, made harder with depth so that
     // skilled characters cannot trivially disarm deep traps (and so more of
     // them are set off when an attempt fails badly).
-    difficulty = power + p_ptr->depth / 6;
-
-    /* Penalize some conditions */
-    if (p_ptr->blind || no_light() || p_ptr->image)
-        difficulty += 5;
-    if (p_ptr->confused)
-        difficulty += 5;
+    difficulty = trap_disarm_difficulty(power);
 
     /* With the Rewire Traps ability, a successful disarm of a suitable trap
      * re-keys it instead of removing it (see below). */

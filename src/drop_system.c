@@ -1252,7 +1252,7 @@ static byte scale_arrow_supply_rarity(byte rarity, int att_bonus)
 
     while (att_bonus > 0 && scaled > 0)
     {
-        scaled /= 2;
+        scaled /= 3;
         att_bonus--;
     }
 

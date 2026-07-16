@@ -527,7 +527,7 @@ bool sdl_object_tooltip_format_grid(int y, int x, char* out,
             sizeof(morale_text), &morale_attr);
         sdl_object_tooltip_append_part(buf, buflen, attrs, m_name,
             TERM_WHITE);
-        if (m_ptr->maxhp > 0) {
+        if (monster_health_bar_allowed(m_ptr) && m_ptr->maxhp > 0) {
             if (styled_monster_health_bars)
                 SDL_strlcpy(hp_bar, "--------", sizeof(hp_bar));
             else

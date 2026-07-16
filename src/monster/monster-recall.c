@@ -36,7 +36,7 @@ static void roff_top_live(int r_idx, const monster_type* m_ptr)
         Term_addch(255, -1);
     }
 
-    if (m_ptr && (m_ptr->maxhp > 0))
+    if (monster_health_bar_allowed(m_ptr) && (m_ptr->maxhp > 0))
     {
         Term_addstr(-1, TERM_WHITE, " ");
         monster_health_bar_put(m_ptr, 8);

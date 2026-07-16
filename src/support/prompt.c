@@ -911,6 +911,7 @@ s16b get_quantity_touch_category_force_prompt_action(cptr prompt, cptr action,
 static bool get_check_aux(cptr prompt, int anchor_y, int anchor_x, bool lower)
 {
     char ch;
+    bool saved_hide_cursor = hide_cursor;
 
     /* Paranoia XXX XXX XXX */
     message_flush();
@@ -924,6 +925,9 @@ static bool get_check_aux(cptr prompt, int anchor_y, int anchor_x, bool lower)
         sdl_touch_pane_begin_yes_no_prompt_lower(prompt);
     else
         sdl_touch_pane_begin_yes_no_prompt(prompt);
+
+    /* The modal panel owns the selection; do not expose the term cursor. */
+    hide_cursor = true;
     Term_fresh();
 
     /* Get an acceptable answer */
@@ -943,6 +947,7 @@ static bool get_check_aux(cptr prompt, int anchor_y, int anchor_x, bool lower)
 
     /* Erase the prompt */
     sdl_touch_pane_end_yes_no_prompt();
+    hide_cursor = saved_hide_cursor;
     prt("", 0, 0);
     Term_fresh();
 

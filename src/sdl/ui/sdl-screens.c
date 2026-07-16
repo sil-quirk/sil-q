@@ -19,6 +19,23 @@ static bool g_sdl_select_choice_page_only = false;
 static bool g_sdl_select_dynamic_description = false;
 static int g_sdl_select_menu_rows_per_column = 0;
 
+typedef struct sdl_death_poetry_screen_state {
+    bool active;
+    bool title_visible;
+    bool body_visible;
+    bool transition_visible;
+    bool prompt_visible;
+    byte title_attr;
+    byte body_attr;
+    byte transition_attr;
+    char title[160];
+    char body[2048];
+    char transition[512];
+    char prompt[160];
+} sdl_death_poetry_screen_state;
+
+static sdl_death_poetry_screen_state g_sdl_death_poetry_screen;
+
 const sdl_welcome_intro_line g_sdl_welcome_intro_flame[] = {
     { TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
         "\"In the beginning Eru, the One," },
@@ -344,6 +361,64 @@ void sdl_welcome_screen_hide(void)
     g_sdl_welcome_screen.hover_quit = false;
     sdl_welcome_screen_clear_hits();
     sdl_welcome_screen_mark_dirty();
+}
+
+bool sdl_death_poetry_screen_begin(cptr title, cptr body, cptr transition,
+    cptr prompt)
+{
+    if (!sdl_welcome_screen_available())
+        return false;
+
+    memset(&g_sdl_death_poetry_screen, 0,
+        sizeof(g_sdl_death_poetry_screen));
+    g_sdl_death_poetry_screen.active = true;
+    g_sdl_death_poetry_screen.title_attr = TERM_RED;
+    g_sdl_death_poetry_screen.body_attr = TERM_WHITE;
+    g_sdl_death_poetry_screen.transition_attr = TERM_L_BLUE;
+    SDL_strlcpy(g_sdl_death_poetry_screen.title, title ? title : "",
+        sizeof(g_sdl_death_poetry_screen.title));
+    SDL_strlcpy(g_sdl_death_poetry_screen.body, body ? body : "",
+        sizeof(g_sdl_death_poetry_screen.body));
+    SDL_strlcpy(g_sdl_death_poetry_screen.transition,
+        transition ? transition : "",
+        sizeof(g_sdl_death_poetry_screen.transition));
+    SDL_strlcpy(g_sdl_death_poetry_screen.prompt,
+        (prompt && prompt[0]) ? prompt : "[Press any key to continue]",
+        sizeof(g_sdl_death_poetry_screen.prompt));
+    sdl_welcome_screen_mark_dirty();
+    return true;
+}
+
+void sdl_death_poetry_screen_update(bool title_visible, byte title_attr,
+    bool body_visible, byte body_attr, bool transition_visible,
+    byte transition_attr, bool prompt_visible)
+{
+    if (!g_sdl_death_poetry_screen.active)
+        return;
+
+    g_sdl_death_poetry_screen.title_visible = title_visible;
+    g_sdl_death_poetry_screen.title_attr = title_attr;
+    g_sdl_death_poetry_screen.body_visible = body_visible;
+    g_sdl_death_poetry_screen.body_attr = body_attr;
+    g_sdl_death_poetry_screen.transition_visible = transition_visible;
+    g_sdl_death_poetry_screen.transition_attr = transition_attr;
+    g_sdl_death_poetry_screen.prompt_visible = prompt_visible;
+    sdl_welcome_screen_mark_dirty();
+}
+
+void sdl_death_poetry_screen_hide(void)
+{
+    bool was_active = g_sdl_death_poetry_screen.active;
+
+    memset(&g_sdl_death_poetry_screen, 0,
+        sizeof(g_sdl_death_poetry_screen));
+    if (was_active)
+        sdl_welcome_screen_mark_dirty();
+}
+
+bool sdl_death_poetry_screen_active(void)
+{
+    return g_sdl_death_poetry_screen.active;
 }
 
 bool sdl_welcome_screen_cycle_intro(int direction)
@@ -3407,6 +3482,169 @@ void sdl_char_sheet_draw_wrapped(TTF_Font* font, cptr text, byte attr,
     }
 }
 
+/*
+ * Draw the death poem on the real window canvas.  It deliberately shares the
+ * welcome screen's margins, story-font roles, black field, and responsive
+ * pixel sizing, but wraps the data-driven story paragraphs instead of relying
+ * on terminal rows and columns.
+ */
+void sdl_death_poetry_screen_render(void)
+{
+    const sdl_death_poetry_screen_state* screen =
+        &g_sdl_death_poetry_screen;
+    SDL_Rect canvas;
+    SDL_FRect content;
+    TTF_Font* title_font = NULL;
+    TTF_Font* body_font = NULL;
+    TTF_Font* prompt_font = NULL;
+    float column_w;
+    float column_x;
+    float title_h = 0.0f;
+    float body_line_h = 0.0f;
+    float prompt_line_h = 0.0f;
+    float title_gap = 0.0f;
+    float transition_gap = 0.0f;
+    float footer_gap = 0.0f;
+    float narrative_h = 0.0f;
+    float top_margin;
+    float bottom_margin;
+    float footer_y;
+    float narrative_bottom;
+    float y;
+    int body_lines = 0;
+    int transition_lines = 0;
+    int body_px;
+    int max_body_px;
+    int min_body_px;
+
+    if (!screen->active || !sdl_welcome_screen_available())
+        return;
+
+    canvas = sdl_get_window_pixel_rect();
+    if (!sdl_rect_has_area(&canvas))
+        return;
+
+    content = sdl_welcome_content_rect(&canvas);
+    column_w = sdl_char_sheet_clampf((float)canvas.w * 0.66f, 260.0f,
+        920.0f);
+    if (column_w > content.w)
+        column_w = content.w;
+    column_x = content.x + (content.w - column_w) * 0.5f;
+
+    top_margin = sdl_welcome_top_margin(&canvas);
+    bottom_margin = sdl_welcome_bottom_margin(&canvas);
+    min_body_px = MAX(12, (int)((float)canvas.h * 0.020f + 0.5f));
+    max_body_px = (int)sdl_char_sheet_clampf((float)canvas.h * 0.042f,
+        22.0f, 44.0f);
+    if (max_body_px < min_body_px)
+        max_body_px = min_body_px;
+
+    /* Pick one semantic body size for both paragraphs.  Reserving all text
+     * bands from the first fade frame keeps the composition from jumping as
+     * the title, poem, transition, and prompt appear. */
+    for (body_px = max_body_px; body_px >= min_body_px; body_px--)
+    {
+        int title_px = MAX(1,
+            (int)((float)body_px
+                * sdl_welcome_role_font_factor(SDL_WELCOME_LINE_TITLE)
+                + 0.5f));
+        int prompt_px = sdl_welcome_footer_font_px(body_px);
+        float available_h = (float)canvas.h - top_margin - bottom_margin;
+        float need_h;
+
+        title_font = sdl_story_font_for_height_slot(title_px,
+            SDL_STORY_FONT_SLOT_DEFAULT);
+        body_font = sdl_story_font_for_height_slot(body_px,
+            SDL_WELCOME_STORY_FONT_SLOT);
+        prompt_font = sdl_story_font_for_height_slot(prompt_px,
+            SDL_WELCOME_STORY_FONT_SLOT);
+        if (!title_font || !body_font || !prompt_font)
+            continue;
+
+        title_h = sdl_welcome_line_h_for_role(title_font, title_px,
+            SDL_WELCOME_LINE_TITLE);
+        body_line_h = sdl_char_sheet_line_h(body_font, body_px, 1.20f);
+        prompt_line_h = sdl_char_sheet_line_h(prompt_font, prompt_px, 1.18f);
+        body_lines = screen->body[0]
+            ? sdl_char_sheet_wrap_text(body_font, screen->body, column_w,
+                NULL, 0)
+            : 0;
+        transition_lines = screen->transition[0]
+            ? sdl_char_sheet_wrap_text(body_font, screen->transition,
+                column_w, NULL, 0)
+            : 0;
+        title_gap = body_line_h * 0.88f;
+        transition_gap = (body_lines > 0 && transition_lines > 0)
+            ? body_line_h * 0.78f : 0.0f;
+        footer_gap = sdl_char_sheet_clampf((float)body_px * 1.35f,
+            18.0f, 84.0f);
+        narrative_h = title_h + title_gap
+            + (float)body_lines * body_line_h + transition_gap
+            + (float)transition_lines * body_line_h;
+        need_h = narrative_h + footer_gap + prompt_line_h;
+        if (need_h <= available_h || body_px == min_body_px)
+            break;
+    }
+
+    if (!title_font || !body_font || !prompt_font)
+        return;
+
+    footer_y = (float)canvas.y + (float)canvas.h - bottom_margin
+        - prompt_line_h;
+    narrative_bottom = footer_y - footer_gap;
+    y = (float)canvas.y + top_margin;
+    if (narrative_bottom - y > narrative_h)
+        y += (narrative_bottom - y - narrative_h) * 0.5f;
+
+    SDL_SetRenderTarget(g_state.renderer, NULL);
+    SDL_SetRenderClipRect(g_state.renderer, NULL);
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+    SDL_RenderClear(g_state.renderer);
+
+    if (screen->title_visible)
+    {
+        SDL_FRect title_box = {
+            .x = content.x,
+            .y = y,
+            .w = content.w,
+            .h = title_h,
+        };
+        (void)sdl_welcome_draw_text_box(title_font, screen->title,
+            screen->title_attr, title_box, true);
+    }
+    y += title_h + title_gap;
+
+    if (screen->body_visible && body_lines > 0)
+    {
+        sdl_char_sheet_draw_wrapped(body_font, screen->body,
+            screen->body_attr, column_x, y, column_w,
+            (float)body_lines * body_line_h + body_line_h, body_line_h,
+            body_lines);
+    }
+    y += (float)body_lines * body_line_h + transition_gap;
+
+    if (screen->transition_visible && transition_lines > 0)
+    {
+        sdl_char_sheet_draw_wrapped(body_font, screen->transition,
+            screen->transition_attr, column_x, y, column_w,
+            (float)transition_lines * body_line_h + body_line_h,
+            body_line_h, transition_lines);
+    }
+
+    if (screen->prompt_visible)
+    {
+        SDL_FRect prompt_box = {
+            .x = content.x,
+            .y = footer_y,
+            .w = content.w,
+            .h = prompt_line_h,
+        };
+        (void)sdl_welcome_draw_text_box(prompt_font, screen->prompt,
+            TERM_SLATE, prompt_box, true);
+    }
+}
+
 void sdl_char_sheet_draw_history(TTF_Font* font, cptr text, float x,
     float y, float w, float h, float line_h, int line_count)
 {
@@ -4223,19 +4461,36 @@ static void sdl_char_sheet_draw_book_page_controls(TTF_Font* prompt_font,
     {
         cptr close_label = g_sdl_character_sheet_screen.narrative_close_label;
         bool long_close_label = close_label && strlen(close_label) > 12;
+        bool emphasized_close =
+            g_sdl_character_sheet_screen.context
+                == SDL_CHARACTER_SHEET_NARRATIVE
+            && close_label && !streq(close_label, "Close");
+        float close_h = emphasized_close ? bh * 1.12f : bh;
+        float close_y = prompt_y - (close_h - bh) * 0.5f;
         float cw = long_close_label
-            ? MIN(content_w * 0.30f, bh * 9.0f)
+            ? MIN(content_w * (emphasized_close ? 0.34f : 0.30f),
+                close_h * 9.0f)
             : MIN(content_w * 0.22f, bh * 6.0f);
         float ccx = content_x + (content_w - cw) * 0.5f;
-        SDL_FRect r = { ccx, prompt_y, cw, bh };
+        SDL_FRect r = { ccx, close_y, cw, close_h };
         bool jump_to_last_page = (g_sdl_character_sheet_screen.context
             == SDL_CHARACTER_SHEET_BIRTH_SELECT);
+        TTF_Font* close_font = prompt_font;
         byte a = (hov == SDL_SELECT_CLICK_CLOSE) ? TERM_WHITE
-            : (jump_to_last_page ? TERM_L_BLUE : TERM_SLATE);
+            : (jump_to_last_page ? TERM_L_BLUE
+                : (emphasized_close ? TERM_L_GREEN : TERM_SLATE));
         cptr label = jump_to_last_page ? "Jump to last page" : close_label;
 
-        (void)sdl_char_sheet_draw_text(prompt_font, label, a, ccx, prompt_y,
-            cw, bh, true);
+        if (emphasized_close)
+        {
+            TTF_Font* larger_font = sdl_story_font_for_height_slot(
+                (int)(close_h + 0.5f), SDL_STORY_FONT_SLOT_DEFAULT);
+
+            if (larger_font)
+                close_font = larger_font;
+        }
+        (void)sdl_char_sheet_draw_text(close_font, label, a, ccx, close_y,
+            cw, close_h, true);
         sdl_char_sheet_add_select_button_hit(r, SDL_SELECT_CLICK_CLOSE);
     }
 }

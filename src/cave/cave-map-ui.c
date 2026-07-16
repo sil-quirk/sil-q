@@ -119,7 +119,10 @@ void move_cursor_relative(int y, int x)
         return;
 
     /* Go there */
-    (void)Term_gotoxy(vx, vy);
+    if (use_bigtile)
+        (void)Term_gotoxy_big(vx, vy);
+    else
+        (void)Term_gotoxy(vx, vy);
 }
 
 /*

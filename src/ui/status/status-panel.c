@@ -186,12 +186,12 @@ static int pointer_attack_ranged_display_mode(void)
 
     if (mode == SDL_POINTER_ATTACK_RANGED_1
         || mode == SDL_POINTER_ATTACK_RANGED_2)
-    {
-        const object_type* ammo = pointer_attack_ranged_ammo_for_mode(mode);
+        return mode;
 
-        if (ammo && ammo->k_idx)
-            return mode;
-    }
+    mode = player_last_ranged_weapon_mode();
+    if (mode == SDL_POINTER_ATTACK_RANGED_1
+        || mode == SDL_POINTER_ATTACK_RANGED_2)
+        return mode;
 
     if (pointer_attack_ammo_is_throwing(&inventory[INVEN_QUIVER1]))
         return SDL_POINTER_ATTACK_RANGED_1;
@@ -226,13 +226,14 @@ static bool pointer_attack_ranged_display_stats(int* attack, int* dd, int* ds,
 {
     int mode = pointer_attack_ranged_display_mode();
     const object_type* ammo = pointer_attack_ranged_ammo_for_mode(mode);
+    const object_type* bow = &inventory[INVEN_BOW];
 
     if (attack)
         *attack = p_ptr->skill_use[S_ARC];
     if (dd)
-        *dd = p_ptr->add;
+        *dd = bow->k_idx ? bow->dd : 0;
     if (ds)
-        *ds = p_ptr->ads;
+        *ds = bow->k_idx ? total_ads_for_weapon_mode(bow, mode) : 0;
     if (throwing)
         *throwing = false;
 
@@ -246,7 +247,7 @@ static bool pointer_attack_ranged_display_stats(int* attack, int* dd, int* ds,
         object_flags4(ammo, &f1, &f2, &f3, &f4);
         if (player_can_treat_as_throwing_flags(ammo, f3))
         {
-            int throw_ds = strength_modified_ds(ammo, 0);
+            int throw_ds = total_mds_for_weapon_mode(ammo, 0, mode);
 
             if (attack)
                 *attack = pointer_attack_throwing_display_attack(ammo);
@@ -259,7 +260,7 @@ static bool pointer_attack_ranged_display_stats(int* attack, int* dd, int* ds,
             return true;
         }
 
-        if ((&inventory[INVEN_BOW])->k_idx && ammo->tval == TV_ARROW)
+        if (bow->k_idx && ammo->tval == TV_ARROW)
         {
             if (attack)
                 *attack += ammo->att;
@@ -267,7 +268,39 @@ static bool pointer_attack_ranged_display_stats(int* attack, int* dd, int* ds,
         }
     }
 
-    return (&inventory[INVEN_BOW])->k_idx ? true : false;
+    return bow->k_idx ? true : false;
+}
+
+static int pointer_attack_apply_melee_side_shift(int ds)
+{
+    int shift = curse_flag_delta_cur(CUR_MDS_SHIFT);
+
+    if (ds > 0 && shift != 0)
+        ds = MAX(1, ds - shift);
+
+    return ds;
+}
+
+static bool pointer_attack_offhand_is_paired(void)
+{
+    const object_type* main_hand = &inventory[INVEN_WIELD];
+    const object_type* off_hand = &inventory[INVEN_ARM];
+
+    return main_hand->name1 && off_hand->name1
+        && get_paired_artefact(main_hand->name1) == off_hand->name1;
+}
+
+static void pointer_attack_melee_display_damage(const object_type* o_ptr,
+    int str_adjustment, int* dd, int* ds)
+{
+    if (dd)
+        *dd = total_mdd(o_ptr);
+    if (ds)
+    {
+        *ds = pointer_attack_apply_melee_side_shift(
+            total_mds_for_weapon_mode(o_ptr, str_adjustment,
+                PLAYER_ACTIVE_WEAPON_MELEE));
+    }
 }
 
 static bool pointer_attack_melee_has_offhand(void)
@@ -714,6 +747,8 @@ void prt_exp(void)
 void prt_mel(void)
 {
     char buf[32];
+    int main_dd;
+    int main_ds;
     bool has_offhand = pointer_attack_melee_has_offhand();
     bool can_use_offhand_row = (ROW_MEL - 1) != ROW_LIGHT;
     int main_row = ROW_MEL;
@@ -736,8 +771,11 @@ void prt_mel(void)
         = p_ptr->active_ability[S_MEL][MEL_SMITE] ? TERM_L_RED : TERM_L_WHITE;
     meleeColour = pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE,
         meleeColour);
+    pointer_attack_melee_display_damage(&inventory[INVEN_WIELD],
+        p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? -3 : 0,
+        &main_dd, &main_ds);
     strnfmt(buf, sizeof(buf), "(%+d,%dd%d)", p_ptr->skill_use[S_MEL],
-        p_ptr->mdd, p_ptr->mds);
+        main_dd, main_ds);
     prt_pointer_attack_value_row_icon(
         p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? "M2x" : "Mel",
         pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
@@ -746,9 +784,15 @@ void prt_mel(void)
 
     if (has_offhand && can_use_offhand_row)
     {
+        int offhand_dd;
+        int offhand_ds;
+
+        pointer_attack_melee_display_damage(&inventory[INVEN_ARM],
+            pointer_attack_offhand_is_paired() ? 0 : -3,
+            &offhand_dd, &offhand_ds);
         strnfmt(buf, sizeof(buf), "(%+d,%dd%d)",
-            p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod, p_ptr->mdd2,
-            p_ptr->mds2);
+            p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod, offhand_dd,
+            offhand_ds);
         prt_pointer_attack_value_row_icon("Off",
             pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
             pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
@@ -1079,6 +1123,21 @@ void prt_char_health_graphic(void)
 }
 
 /*
+ * Peaceful monsters are not combat targets, so do not represent them with a
+ * combat health meter in any UI.
+ */
+bool monster_health_bar_allowed(const monster_type* m_ptr)
+{
+    const monster_race* r_ptr;
+
+    if (!m_ptr || !m_ptr->r_idx || m_ptr->r_idx >= z_info->r_max)
+        return false;
+
+    r_ptr = &r_info[m_ptr->r_idx];
+    return !(r_ptr->flags1 & RF1_PEACEFUL);
+}
+
+/*
  * Build the compact monster health bar used by look/target displays.
  */
 int monster_health_bar_text(
@@ -1092,7 +1151,8 @@ int monster_health_bar_text(
 
     buf[0] = '\0';
 
-    if (!m_ptr || (max_symbols <= 0) || (m_ptr->maxhp <= 0))
+    if (!monster_health_bar_allowed(m_ptr) || (max_symbols <= 0)
+        || (m_ptr->maxhp <= 0))
         return 0;
 
     len = (max_symbols * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
@@ -1132,7 +1192,8 @@ int monster_health_bar_put(const monster_type* m_ptr, int max_symbols)
     int fill_len;
     byte attr;
 
-    if (!Term || !m_ptr || m_ptr->maxhp <= 0 || max_symbols <= 0)
+    if (!Term || !monster_health_bar_allowed(m_ptr) || m_ptr->maxhp <= 0
+        || max_symbols <= 0)
         return 0;
     if (max_symbols >= (int)sizeof(track))
         max_symbols = (int)sizeof(track) - 1;
@@ -1721,10 +1782,16 @@ int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines)
 
     {
         const object_type* icon_obj = left_panel_melee_display_object();
+        int main_dd;
+        int main_ds;
+
+        pointer_attack_melee_display_damage(&inventory[INVEN_WIELD],
+            p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? -3 : 0,
+            &main_dd, &main_ds);
 
         strnfmt(buf, sizeof(buf), "%s(%+d,%dd%d)",
             p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? "M2" : "M",
-            p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
+            p_ptr->skill_use[S_MEL], main_dd, main_ds);
         SDL_strlcpy(short_buf, buf, sizeof(short_buf));
         {
             int old_count = count;
@@ -1747,10 +1814,16 @@ int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines)
         if (pointer_attack_melee_has_offhand())
         {
             const object_type* offhand_icon = left_panel_offhand_display_object();
+            int offhand_dd;
+            int offhand_ds;
+
+            pointer_attack_melee_display_damage(&inventory[INVEN_ARM],
+                pointer_attack_offhand_is_paired() ? 0 : -3,
+                &offhand_dd, &offhand_ds);
 
             strnfmt(buf, sizeof(buf), "O(%+d,%dd%d)",
-                p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod, p_ptr->mdd2,
-                p_ptr->mds2);
+                p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod, offhand_dd,
+                offhand_ds);
             SDL_strlcpy(short_buf, buf, sizeof(short_buf));
             {
                 int old_count = count;
@@ -1901,7 +1974,8 @@ int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines)
     if (p_ptr->health_who
         && mon_list[p_ptr->health_who].ml
         && !p_ptr->image
-        && (mon_list[p_ptr->health_who].hp > 0))
+        && (mon_list[p_ptr->health_who].hp > 0)
+        && monster_health_bar_allowed(&mon_list[p_ptr->health_who]))
     {
         monster_type* m_ptr = &mon_list[p_ptr->health_who];
         char health_bar[10];

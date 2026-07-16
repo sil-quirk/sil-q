@@ -209,12 +209,17 @@ void health_redraw(void)
         /* Afraid */
         // if (m_ptr->stance == STANCE_FLEEING) attr = TERM_VIOLET;
 
-        /* Default to "unknown" */
-        Term_putstr(COL_INFO, ROW_INFO, 12, TERM_L_DARK, "  --------  ");
+        Term_erase(COL_INFO, ROW_INFO, 12);
+        if (monster_health_bar_allowed(m_ptr))
+        {
+            /* Default to "unknown" */
+            Term_putstr(COL_INFO, ROW_INFO, 12, TERM_L_DARK,
+                "  --------  ");
 
-        /* Dump the current health (including confusion/stun labels). */
-        Term_gotoxy(COL_INFO + 2, ROW_INFO);
-        monster_health_bar_put(m_ptr, 8);
+            /* Dump the current health (including confusion/stun labels). */
+            Term_gotoxy(COL_INFO + 2, ROW_INFO);
+            monster_health_bar_put(m_ptr, 8);
+        }
 
         Term_erase(COL_INFO, ROW_INFO + 1, 12);
 

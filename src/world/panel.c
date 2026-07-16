@@ -430,92 +430,33 @@ void verify_panel(void)
 
     map_safe_center(&center_y, &center_x, spans, span_count);
 
-    /*
-     * Treat each floating pane like a sidebar: shrink the map playfield to
-     * the screen cells the panes leave clear, then scroll the player inside
-     * that reduced window with the normal logic (see scroll_axis_within).
-     * This keeps the player tile from ever sliding under a pane without
-     * pinning it to the pane edge -- the old clamp did the latter, which felt
-     * like the camera was permanently centred.  Each pane hugs one screen
-     * edge or corner; reserve the band along whichever edge it is nearest,
-     * and for a corner pane reserve the axis that hides the fewest map cells
-     * (a tall, narrow panel costs a column band; a short, wide one a row
-     * band).
-     */
-    int play_y_lo = 0;
-    int play_y_hi = SCREEN_HGT;
-    int play_x_lo = 0;
-    int play_x_hi = SCREEN_WID;
-
-    for (int i = 0; i < span_count; i++)
-    {
-        const struct map_pane_span* s = &spans[i];
-        int gap_left = s->x1;
-        int gap_right = SCREEN_WID - s->x2;
-        int gap_top = s->y1;
-        int gap_bottom = SCREEN_HGT - s->y2;
-
-        /* The pane hugs the edge whose gap is smaller; equal gaps mean it is
-         * centred on that axis and so cannot be cleared by scrolling. */
-        bool anchor_left = (gap_left < gap_right);
-        bool anchor_top = (gap_top < gap_bottom);
-        bool reserve_horizontal = (gap_left != gap_right);
-        bool reserve_vertical = (gap_top != gap_bottom);
-
-        /* Corner pane: reserve only the cheaper axis. */
-        if (reserve_horizontal && reserve_vertical)
-        {
-            int horiz_cost = (anchor_left ? s->x2 : (SCREEN_WID - s->x1))
-                * SCREEN_HGT;
-            int vert_cost = (anchor_top ? s->y2 : (SCREEN_HGT - s->y1))
-                * SCREEN_WID;
-
-            if (horiz_cost <= vert_cost)
-                reserve_vertical = false;
-            else
-                reserve_horizontal = false;
-        }
-
-        if (reserve_horizontal)
-        {
-            if (anchor_left)
-            {
-                if (s->x2 > play_x_lo)
-                    play_x_lo = s->x2;
-            }
-            else if (s->x1 < play_x_hi)
-                play_x_hi = s->x1;
-        }
-        else if (reserve_vertical)
-        {
-            if (anchor_top)
-            {
-                if (s->y2 > play_y_lo)
-                    play_y_lo = s->y2;
-            }
-            else if (s->y1 < play_y_hi)
-                play_y_hi = s->y1;
-        }
-    }
-
     bool do_center = center_player && (!p_ptr->running || !run_avoid_center);
 
-    /* Scroll vertically: centre on demand, else keep within the playfield. */
+    /* Scroll vertically: centre on demand, else use the full map viewport. */
     if (do_center)
         wy = py - center_y;
     else
-        wy = scroll_axis_within(py, wy, play_y_lo, play_y_hi, center_y,
+        wy = scroll_axis_within(py, wy, 0, SCREEN_HGT, center_y,
             PANEL_HGT, 13);
 
-    /* Scroll horizontally: centre on demand, else keep within the playfield. */
+    /* Scroll horizontally: centre on demand, else use the full map viewport. */
     if (do_center)
     {
         if (px != wx + center_x)
             wx = px - center_x;
     }
     else
-        wx = scroll_axis_within(px, wx, play_x_lo, play_x_hi, center_x,
+        wx = scroll_axis_within(px, wx, 0, SCREEN_WID, center_x,
             PANEL_WID, 17);
+
+    /* Panes are rectangles, not full-width or full-height bands.  Let the
+     * normal camera use every visible map cell and intervene only when the
+     * player's resulting screen cell is inside a pane on both axes. */
+    if (!map_center_clear(py - wy, px - wx, spans, span_count))
+    {
+        wy = py - center_y;
+        wx = px - center_x;
+    }
 
     /* Scroll if needed */
     bool panel_changed = modify_panel(wy, wx);

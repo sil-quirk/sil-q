@@ -433,6 +433,7 @@ void do_cmd_fire(int quiver)
     bool puncture = false;
     bool returning_arrow = false;
     bool warding_girdle_active = false;
+    bool clear_location_target = false;
 
     // Determine the projectile in the requested quiver
     if (quiver == 1)
@@ -545,6 +546,7 @@ void do_cmd_fire(int quiver)
     {
         ty = p_ptr->target_row;
         tx = p_ptr->target_col;
+        clear_location_target = (p_ptr->target_who == 0);
 
         m_ptr = &mon_list[cave_m_idx[ty][tx]];
         r_ptr = &r_info[m_ptr->r_idx];
@@ -1287,6 +1289,18 @@ void do_cmd_fire(int quiver)
         attacks_of_opportunity(first_y, first_x);
     else
         attacks_of_opportunity(0, 0);
+
+    /* A manually aimed empty square is an input for this shot, not a lasting
+     * target.  Location targets never invalidate by themselves, so retaining
+     * one leaves the target cursor highlighted indefinitely.  Monster targets
+     * remain tracked as before. */
+    if (clear_location_target)
+    {
+        target_set_monster(0);
+        health_track(0);
+        (void)Term_set_cursor(false);
+        Term_fresh();
+    }
 }
 
 bool do_cmd_fire_at_adjacent(int y, int x)

@@ -29,6 +29,93 @@ static void wait_prompt(prompt_t id) {         /* tiny wrapper */
     wait_for_keypress_with_prompt(prompt_text[id]);
 }
 
+/*
+ * Present the pre-Final-Look death poem on the SDL window canvas.  The screen
+ * keeps the original staged fade timings and Esc-to-fast-forward behavior,
+ * while the renderer owns wrapping and placement in semantic pixels.
+ */
+static bool show_death_poetry_semantic(cptr title, cptr body,
+    cptr transition)
+{
+    const byte title_fade[] = { TERM_L_DARK, TERM_SLATE, TERM_RED };
+    const byte paragraph_fade[] = {
+        TERM_L_DARK, TERM_SLATE, TERM_L_WHITE, TERM_WHITE
+    };
+    const byte transition_fade[] = {
+        TERM_L_DARK, TERM_SLATE, TERM_L_WHITE, TERM_L_BLUE
+    };
+    bool body_fast_forward = false;
+    bool transition_fast_forward = false;
+
+    if (!sdl_death_poetry_screen_begin(title, body, transition,
+            prompt_text[PROMPT_RETURN_MIDDLE_EARTH]))
+    {
+        return false;
+    }
+
+    sdl_story_font_enable();
+
+    for (int i = 0; i < (int)N_ELEMENTS(title_fade); i++)
+    {
+        sdl_death_poetry_screen_update(true, title_fade[i], false,
+            TERM_WHITE, false, TERM_L_BLUE, false);
+        Term_fresh();
+        Term_xtra(TERM_XTRA_DELAY, 150);
+    }
+    Term_xtra(TERM_XTRA_DELAY, 500);
+
+    for (int i = 0; i < (int)N_ELEMENTS(paragraph_fade); i++)
+    {
+        char ch;
+
+        if (Term_inkey(&ch, false, false) == 0 && ch == ESCAPE)
+        {
+            body_fast_forward = true;
+            break;
+        }
+        sdl_death_poetry_screen_update(true, TERM_RED, true,
+            paragraph_fade[i], false, TERM_L_BLUE, false);
+        Term_fresh();
+        Term_xtra(TERM_XTRA_DELAY, 125);
+    }
+    sdl_death_poetry_screen_update(true, TERM_RED, true, TERM_WHITE,
+        false, TERM_L_BLUE, false);
+    Term_fresh();
+    if (!body_fast_forward)
+        Term_xtra(TERM_XTRA_DELAY, 1000);
+
+    for (int i = 0; i < (int)N_ELEMENTS(transition_fade); i++)
+    {
+        char ch;
+
+        if (Term_inkey(&ch, false, false) == 0 && ch == ESCAPE)
+        {
+            transition_fast_forward = true;
+            break;
+        }
+        sdl_death_poetry_screen_update(true, TERM_RED, true, TERM_WHITE,
+            true, transition_fade[i], false);
+        Term_fresh();
+        Term_xtra(TERM_XTRA_DELAY, 125);
+    }
+    sdl_death_poetry_screen_update(true, TERM_RED, true, TERM_WHITE,
+        true, TERM_L_BLUE, false);
+    Term_fresh();
+    if (!transition_fast_forward)
+        Term_xtra(TERM_XTRA_DELAY, 1000);
+
+    sdl_death_poetry_screen_update(true, TERM_RED, true, TERM_WHITE,
+        true, TERM_L_BLUE, true);
+    Term_fresh();
+    ui_key_wait_dismiss_begin('\r');
+    metarun_wait_hidden();
+    ui_key_wait_dismiss_clear();
+
+    sdl_death_poetry_screen_hide();
+    sdl_story_font_disable();
+    return true;
+}
+
 /* ------------------------------------------------------------------
  * metarun_update_on_exit() - v5, 30 Jul 2025
  * ------------------------------------------------------------------
@@ -198,20 +285,26 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
             story_type *pick = &st_info[ pool[rand_int(pool_sz)] ];
             cptr title = st_name + pick->name;
             cptr text  = st_text + pick->text;
-
-            print_heading_fade(title, TERM_RED);
-            print_paragraph_fade(text, TERM_WHITE, 4);
-
             char transition_text[256];
             strnfmt(transition_text, sizeof(transition_text),
                     "The hero whose mantle you took has fallen, their tale ends in shadow. "
                     "Yet your spirit returns, for the Valar's trial is not yet complete.");
 
-            if (!fast_forward && !print_paragraph_fade(transition_text, TERM_L_BLUE, 8))
-                fast_forward = true;
-            else if (fast_forward)
-                print_paragraph(transition_text, TERM_L_BLUE);
-            wait_prompt(PROMPT_RETURN_MIDDLE_EARTH);
+            if (!show_death_poetry_semantic(title, text, transition_text))
+            {
+                /* Non-SDL fallback retains the original terminal-grid scene. */
+                print_heading_fade(title, TERM_RED);
+                print_paragraph_fade(text, TERM_WHITE, 4);
+
+                if (!fast_forward
+                    && !print_paragraph_fade(transition_text, TERM_L_BLUE, 8))
+                {
+                    fast_forward = true;
+                }
+                else if (fast_forward)
+                    print_paragraph(transition_text, TERM_L_BLUE);
+                wait_prompt(PROMPT_RETURN_MIDDLE_EARTH);
+            }
         }
 
         screen_pop_touch_pane_hidden();

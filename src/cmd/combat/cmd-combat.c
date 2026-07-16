@@ -2690,6 +2690,55 @@ void break_valorous_oath(monster_type* m_ptr, int damage, int attack_type, int d
     p_ptr->oaths_broken |= OATH_VALOROUS_FLAG;
 }
 
+/* Handle bumping into a peaceful creature without making an attack. */
+static bool handle_peaceful_attack_target(int y, int x, int attack_type)
+{
+    int m_idx = cave_m_idx[y][x];
+    monster_type* m_ptr;
+    monster_race* r_ptr;
+    char m_name[80];
+
+    if (m_idx <= 0)
+        return false;
+
+    m_ptr = &mon_list[m_idx];
+    r_ptr = &r_info[m_ptr->r_idx];
+    if (!(r_ptr->flags1 & (RF1_PEACEFUL)))
+        return false;
+
+    player_face_grid_before_attack(y, x);
+
+    /* Possibly update the monster health bar. */
+    if (p_ptr->health_who == m_idx)
+        p_ptr->redraw |= (PR_HEALTHBAR);
+
+    disturb(0, 0);
+    monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+
+    if (m_ptr->ml)
+    {
+        monster_race_track(m_ptr->r_idx);
+        health_track(m_idx);
+        target_set_monster(m_idx);
+    }
+
+    if (attack_type == ATT_MAIN)
+    {
+        if (is_alert_thrall(m_ptr))
+            handle_thrall_interaction(m_ptr);
+        else
+            msg_format("You stop before you bump into %s.", m_name);
+    }
+
+    if (!player_attacked)
+    {
+        p_ptr->previous_action[0] = ACTION_NOTHING;
+        p_ptr->energy_use = 0;
+    }
+
+    return true;
+}
+
 /*
  * Attack the monster at the given location
  *
@@ -2742,6 +2791,9 @@ void py_attack_aux(int y, int x, int attack_type)
     if (!player_active_weapon_is_melee())
         return;
 
+    if (handle_peaceful_attack_target(y, x, attack_type))
+        return;
+
     /* Get the monster */
     m_idx = cave_m_idx[y][x];
     m_ptr = &mon_list[m_idx];
@@ -2770,30 +2822,6 @@ void py_attack_aux(int y, int x, int attack_type)
     /* Target this monster */
     if (m_ptr->ml)
         target_set_monster(cave_m_idx[y][x]);
-
-    if (r_ptr->flags1 & (RF1_PEACEFUL))
-    {
-        if (attack_type == ATT_MAIN)
-        {
-            /* Handle alert thrall quest interaction */
-            if (is_alert_thrall(m_ptr))
-            {
-                handle_thrall_interaction(m_ptr);
-            }
-            else
-            {
-                msg_format("You stop before you bump into %s.", m_name);
-            }
-        }
-
-        if (!player_attacked)
-        {
-            p_ptr->previous_action[0] = ACTION_NOTHING;
-            p_ptr->energy_use = 0;
-        }
-
-        return;
-    }
 
     /* Get the weapon */
     o_ptr = &inventory[INVEN_WIELD];
@@ -3484,7 +3512,8 @@ void py_attack(int y, int x, int attack_type)
 
     if (!player_active_weapon_is_melee())
     {
-        if (attack_type == ATT_MAIN)
+        if (attack_type == ATT_MAIN
+            && !handle_peaceful_attack_target(y, x, attack_type))
             (void)do_cmd_fire_at_adjacent(y, x);
         return;
     }

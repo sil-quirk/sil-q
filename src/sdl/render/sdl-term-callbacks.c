@@ -334,10 +334,20 @@ void draw_cursor(int x, int y, bool big)
         return;
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
     SDL_Rect clip = { x * d->cell_w, y * d->cell_h, d->cell_w * (big + 1), d->cell_h };
+    SDL_FRect frame[4] = {
+        { (float)clip.x, (float)clip.y, (float)clip.w, 1.0f },
+        { (float)clip.x, (float)(clip.y + clip.h - 1),
+            (float)clip.w, 1.0f },
+        { (float)clip.x, (float)clip.y, 1.0f, (float)clip.h },
+        { (float)(clip.x + clip.w - 1), (float)clip.y,
+            1.0f, (float)clip.h },
+    };
     SDL_SetRenderClipRect(g_state.renderer, &clip);
-    SDL_FRect r = { x * d->cell_w, y * d->cell_h, d->cell_w * (big + 1), d->cell_h };
     SDL_SetRenderDrawColor(g_state.renderer, 0, 255, 255, 255);
-    SDL_RenderRect(g_state.renderer, &r);
+    /* Draw each edge inside the cell.  A clipped SDL_RenderRect() can lose
+     * its bottom or right line on some renderer/scale combinations, leaving
+     * movement and targeting cursors looking like half a square. */
+    SDL_RenderFillRects(g_state.renderer, frame, (int)N_ELEMENTS(frame));
     SDL_SetRenderClipRect(g_state.renderer, NULL);
     g_state.need_present = true;
 }
@@ -1177,6 +1187,11 @@ static float sdl_map_monster_overlay_scale(void)
 #endif
 }
 
+/* Overview maps compress the dungeon into small retained-texture cells.  Keep
+ * status indicators subordinate to the creature tile there; the ordinary map
+ * still uses the full, mobile-readable overlay scale above. */
+static const float sdl_overview_status_icon_scale = 0.70f;
+
 static float sdl_map_monster_health_bar_height(const SDL_FRect* cell)
 {
     float height;
@@ -1235,6 +1250,8 @@ static bool sdl_map_monster_health_bar_visible(int y, int x)
 
     m_ptr = &mon_list[m_idx];
     if (!m_ptr->r_idx || !m_ptr->ml || m_ptr->hp <= 0 || m_ptr->maxhp <= 0)
+        return false;
+    if (!monster_health_bar_allowed(m_ptr))
         return false;
     if (m_ptr->alertness < ALERTNESS_UNWARY)
         return false;
@@ -1327,10 +1344,11 @@ static void sdl_status_icon_fill_disc(float cx, float cy, float radius)
     SDL_RenderFillRect(g_state.renderer, &vertical);
 }
 
-static void sdl_draw_pixel_sleep_marker(const SDL_FRect* cell)
+static void sdl_draw_pixel_sleep_marker(const SDL_FRect* cell,
+    float icon_scale)
 {
     float size;
-    float scale = sdl_map_monster_overlay_scale();
+    float scale = sdl_map_monster_overlay_scale() * icon_scale;
     float margin;
     float radius;
     float cx;
@@ -1374,7 +1392,7 @@ static void sdl_draw_eye_outline(const SDL_FRect* eye, float offset,
 }
 
 static void sdl_draw_pixel_los_marker(const SDL_FRect* cell,
-    bool avoid_health_bar)
+    bool avoid_health_bar, float icon_scale)
 {
     float size;
     float margin;
@@ -1397,7 +1415,7 @@ static void sdl_draw_pixel_los_marker(const SDL_FRect* cell,
     size = MIN(cell->w, cell->h);
     stealth_eye = p_ptr && p_ptr->stealth_mode;
     scale = (stealth_eye ? 1.5f : 1.0f)
-        * sdl_map_monster_overlay_scale();
+        * sdl_map_monster_overlay_scale() * icon_scale;
     margin = sdl_status_icon_clampf(size * 0.08f * scale,
         1.0f * scale, 4.0f * scale);
     top = cell->y + margin;
@@ -1460,10 +1478,10 @@ static void sdl_draw_pixel_los_marker(const SDL_FRect* cell,
 }
 
 static void sdl_draw_pixel_alert_marker(const SDL_FRect* cell, bool fleeing,
-    bool avoid_health_bar)
+    bool avoid_health_bar, float icon_scale)
 {
     float size;
-    float scale = sdl_map_monster_overlay_scale();
+    float scale = sdl_map_monster_overlay_scale() * icon_scale;
     float margin;
     float top;
     float width;
@@ -1598,47 +1616,64 @@ static void sdl_map_monster_status_icons_from_live_state(int y, int x,
 
 static void sdl_draw_map_monster_status_icons(bool sleep, bool seen,
     bool alert, bool alert_fleeing, bool avoid_health_bar,
-    const SDL_FRect* dst)
+    const SDL_FRect* dst, float icon_scale)
 {
+    SDL_FRect scaled_dst;
+    const SDL_FRect* icon_dst = dst;
+
     if (!dst)
+        return;
+
+    if (icon_scale <= 0.0f)
         return;
 
     if (pixel_monster_status_icons)
     {
         if (seen)
-            sdl_draw_pixel_los_marker(dst, avoid_health_bar);
+            sdl_draw_pixel_los_marker(dst, avoid_health_bar, icon_scale);
         if (sleep)
-            sdl_draw_pixel_sleep_marker(dst);
+            sdl_draw_pixel_sleep_marker(dst, icon_scale);
         if (alert)
             sdl_draw_pixel_alert_marker(dst, alert_fleeing,
-                avoid_health_bar);
+                avoid_health_bar, icon_scale);
         return;
+    }
+
+    if (icon_scale != 1.0f)
+    {
+        scaled_dst = (SDL_FRect){
+            .x = dst->x + dst->w * (1.0f - icon_scale) * 0.5f,
+            .y = dst->y + dst->h * (1.0f - icon_scale) * 0.5f,
+            .w = dst->w * icon_scale,
+            .h = dst->h * icon_scale,
+        };
+        icon_dst = &scaled_dst;
     }
 
     if (sleep) {
         byte icon_a = misc_to_attr[ICON_SLEEPING];
         byte icon_c = (byte)misc_to_char[ICON_SLEEPING];
         if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG))
-            sdl_draw_tileset_sprite(icon_a, (char)icon_c, dst, true);
+            sdl_draw_tileset_sprite(icon_a, (char)icon_c, icon_dst, true);
     }
 
     if (seen) {
         byte icon_a = misc_to_attr[ICON_MONSTER_SEES_PLAYER];
         byte icon_c = (byte)misc_to_char[ICON_MONSTER_SEES_PLAYER];
         if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG))
-            sdl_draw_tileset_sprite(icon_a, (char)icon_c, dst, true);
+            sdl_draw_tileset_sprite(icon_a, (char)icon_c, icon_dst, true);
     }
 
     if (alert) {
         byte icon_a = misc_to_attr[ICON_ALERT];
         byte icon_c = (byte)misc_to_char[ICON_ALERT];
         if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG))
-            sdl_draw_tileset_sprite(icon_a, (char)icon_c, dst, true);
+            sdl_draw_tileset_sprite(icon_a, (char)icon_c, icon_dst, true);
     }
 }
 
-void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
-    char tc, const SDL_FRect* dst)
+static void sdl_draw_map_tile_layers_at_status_scale(int dy, int dx, byte a,
+    char c, byte ta, char tc, const SDL_FRect* dst, float status_icon_scale)
 {
     bool terrain_tile = (ta & TILE_FLAG) && (((byte)tc) & TILE_FLAG);
     bool base_tile = (a & TILE_FLAG) && (((byte)c) & TILE_FLAG);
@@ -1802,7 +1837,14 @@ void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
     if (health_bar_visible)
         sdl_draw_map_monster_health_bar(dy, dx, dst);
     sdl_draw_map_monster_status_icons(sleep, seen, alert, alert_fleeing,
-        health_bar_visible, dst);
+        health_bar_visible, dst, status_icon_scale);
+}
+
+void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
+    char tc, const SDL_FRect* dst)
+{
+    sdl_draw_map_tile_layers_at_status_scale(dy, dx, a, c, ta, tc, dst,
+        1.0f);
 }
 
 bool sdl_minimap_hint_source_valid(const hint_message_meta* meta)
@@ -2674,7 +2716,8 @@ void sdl_side_map_pane_render(void)
                     SDL_BLENDMODE_BLEND);
             }
             map_info(y, x, &a, &c, &ta, &tc);
-            sdl_draw_map_tile_layers_at(y, x, a, c, ta, tc, &cell_dst);
+            sdl_draw_map_tile_layers_at_status_scale(y, x, a, c, ta, tc,
+                &cell_dst, sdl_overview_status_icon_scale);
         }
         g_side_map_render_texture_valid = true;
         sdl_side_map_pane_clear_dirty_cells();
@@ -3319,7 +3362,8 @@ bool sdl_display_pixel_map(int* cy, int* cx)
                 };
 
                 map_info(y, x, &a, &c, &ta, &tc);
-                sdl_draw_map_tile_layers_at(y, x, a, c, ta, tc, &cell_dst);
+                sdl_draw_map_tile_layers_at_status_scale(y, x, a, c, ta, tc,
+                    &cell_dst, sdl_overview_status_icon_scale);
             }
         }
 
