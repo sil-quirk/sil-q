@@ -515,7 +515,6 @@ static int blitz_select_effect_from_list(bool blessing, bool show_effects, int o
     int ids[METAR_CURSE_SLOTS];
     int count = blitz_collect_eligible_effect_ids(blessing, ids, METAR_CURSE_SLOTS);
     int selected = 0;
-    int top = 0;
     bool steamdeck = steamdeck_controls_active();
 
     if (count <= 0)
@@ -523,152 +522,32 @@ static int blitz_select_effect_from_list(bool blessing, bool show_effects, int o
 
     while (1)
     {
-        int wid = 80;
-        int hgt = 24;
-        int list_rows;
         int selected_id;
-        int row;
         char key;
         char title[80];
-        bool semantic_menu;
-
-        Term_get_size(&wid, &hgt);
-        list_rows = show_effects ? MAX(4, hgt - 11) : MAX(4, hgt - 10);
-
-        if (selected < top)
-            top = selected;
-        if (selected >= top + list_rows)
-            top = selected - list_rows + 1;
 
         selected_id = ids[selected];
-        Term_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
 
         strnfmt(title, sizeof(title), "Choose %s %d of %d",
             blessing ? "Blessing" : "Curse", ordinal, total);
-        semantic_menu = sdl_character_sheet_screen_begin_select(selected,
-            title);
-        if (semantic_menu)
+        sdl_character_sheet_screen_begin_select(selected, title);
+        sdl_character_sheet_screen_set_select_menu_style(true);
+        sdl_character_sheet_screen_set_select_dynamic_description(true);
+        for (int idx = 0; idx < count; idx++)
         {
-            sdl_character_sheet_screen_set_select_menu_style(true);
-            sdl_character_sheet_screen_set_select_dynamic_description(true);
-            for (int idx = 0; idx < count; idx++)
-            {
-                /* No letter prefix: there are more curses than the 26 letters
-                 * cover, so letter shortcuts are inconsistent -- the list is
-                 * navigated by direction keys / pointer instead. */
-                cptr name = blessing ? blitz_blessing_name_str(ids[idx])
-                                     : blitz_curse_name_str(ids[idx]);
+            /* No letter prefix: there are more curses than the 26 letters
+             * cover, so letter shortcuts are inconsistent -- the list is
+             * navigated by direction keys / pointer instead. */
+            cptr name = blessing ? blitz_blessing_name_str(ids[idx])
+                                 : blitz_curse_name_str(ids[idx]);
 
-                sdl_character_sheet_screen_add_select_row(idx, name,
-                    blessing ? TERM_L_GREEN : TERM_L_RED, "");
-            }
-
-            blitz_add_effect_details(selected_id, blessing, show_effects);
-            sdl_character_sheet_screen_commit_select(selected);
+            sdl_character_sheet_screen_add_select_row(idx, name,
+                blessing ? TERM_L_GREEN : TERM_L_RED, "");
         }
-        else
-        {
-            c_put_str(TERM_YELLOW, title, 1,
-                MAX((wid - (int)strlen(title)) / 2, 0));
-
-            for (row = 0; row < list_rows && top + row < count; row++)
-            {
-                int idx = top + row;
-                cptr name = blessing ? blitz_blessing_name_str(ids[idx])
-                                     : blitz_curse_name_str(ids[idx]);
-                char line[128];
-                strnfmt(line, sizeof(line), "%s", name);
-                birth_put_str_fit(idx == selected ? TERM_L_BLUE
-                                                  : (blessing ? TERM_L_GREEN
-                                                              : TERM_L_RED),
-                    line, 3 + row, 4);
-                ui_menu_click_add(idx, 4, 3 + row, wid - 8);
-            }
-
-            {
-                curse_type* cu = &cu_info[selected_id];
-                cptr desc = blessing
-                    ? (cu->blessing_text ? cu_text + cu->blessing_text : "")
-                    : (cu->text ? cu_text + cu->text : "");
-                cptr power = blessing
-                    ? (cu->blessing_power ? cu_text + cu->blessing_power : "")
-                    : (cu->power ? cu_text + cu->power : "");
-                /* See blitz_add_effect_details: "+ descriptions" reveals the
-                 * effect at birth without the CURSE_SEEN gate. */
-                bool reveal_power = show_effects && power && power[0];
-                int desc_row = 4 + list_rows;
-
-                birth_put_str_fit(TERM_WHITE,
-                    blessing ? blitz_blessing_name_str(selected_id)
-                             : blitz_curse_name_str(selected_id),
-                    desc_row++, 2);
-                if (desc && desc[0])
-                {
-                    birth_put_wrapped_text(TERM_SLATE, desc, desc_row, 2);
-                    desc_row += birth_wrapped_line_count(desc, 2);
-                }
-                if (reveal_power)
-                {
-                    char power_line[512];
-                    strnfmt(power_line, sizeof(power_line), "Effect: %s",
-                        power);
-                    birth_put_wrapped_text(
-                        blessing ? TERM_L_GREEN : TERM_L_RED,
-                        power_line, desc_row + 1, 2);
-                }
-            }
-
-            if (steamdeck)
-            {
-                char confirm_label[16];
-                char back_label[16];
-                char prompt_buf[96];
-
-                birth_prompt_label(steamdeck_confirm_key(), "A",
-                    confirm_label, sizeof(confirm_label));
-                birth_prompt_label(steamdeck_back_key(), "B", back_label,
-                    sizeof(back_label));
-                {
-                    char prompt_full[96];
-                    char prompt_short[80];
-                    const char* variants[2];
-
-                    strnfmt(prompt_full, sizeof(prompt_full),
-                        "D-pad navigate  %s select  %s back",
-                        confirm_label, back_label);
-                    strnfmt(prompt_short, sizeof(prompt_short),
-                        "%s select  %s back", confirm_label, back_label);
-                    variants[0] = prompt_full;
-                    variants[1] = prompt_short;
-                    terminal_prompt_pick_variant(prompt_buf,
-                        sizeof(prompt_buf), wid - 4, false, variants,
-                        N_ELEMENTS(variants));
-                }
-                birth_put_str_fit(TERM_L_DARK, prompt_buf, hgt - 1, 2);
-                ui_menu_click_add_text_token(-2, 2, hgt - 1, prompt_buf,
-                    "select");
-                ui_menu_click_add_text_token(-1, 2, hgt - 1, prompt_buf,
-                    "back");
-            }
-            else
-            {
-                char prompt_text[96];
-                const char* variants[] = {
-                    "Dir navigate  Enter select  Esc back",
-                    "Enter select  Esc back"
-                };
-                terminal_prompt_pick_variant(prompt_text,
-                    sizeof(prompt_text), wid - 4, false, variants,
-                    N_ELEMENTS(variants));
-                birth_put_str_fit(TERM_L_DARK, prompt_text, hgt - 1, 2);
-                ui_menu_click_add_text_token(-2, 2, hgt - 1, prompt_text,
-                    "select");
-                ui_menu_click_add_text_token(-1, 2, hgt - 1, prompt_text,
-                    "back");
-            }
-        }
+        blitz_add_effect_details(selected_id, blessing, show_effects);
+        sdl_character_sheet_screen_commit_select(selected);
         key = inkey();
         bool click_generated_command = false;
 

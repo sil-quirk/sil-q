@@ -402,91 +402,16 @@ static void birth_select_emit_detail(int race, int character, bool affinities_va
 /*
  * Display additional information about each race during the selection.
  */
-static void race_aux_hook(birth_menu r_str)
+static void race_aux_hook(birth_menu choice)
 {
-    int race, i, adj;
-    char s[50];
-    byte attr;
-
-    /* Extract the proper race index from the string. */
-    for (race = 0; race < z_info->p_max; race++)
+    for (int race = 0; race < z_info->p_max; race++)
     {
-        if (!strcmp(r_str.name, p_name + p_info[race].name))
-            break;
-    }
-
-    if (race == z_info->p_max)
-        return;
-
-    /* Pixel-semantic selection screen: feed the detail panel and stop (no
-     * terminal grid underdraw). */
-    if (sdl_character_sheet_screen_active())
-    {
-        birth_select_emit_detail(race, -1, false);
-        return;
-    }
-
-    /* Display the stats */
-    for (i = 0; i < A_MAX; i++)
-    {
-        /*dump the stats*/
-        strnfmt(s, sizeof(s), "%s", stat_names[i]);
-        Term_putstr(RACE_AUX_COL, TABLE_ROW + i, -1, TERM_WHITE, s);
-
-        adj = p_info[race].r_adj[i];
-        strnfmt(s, sizeof(s), "%+d", adj);
-
-        if (adj < 0)
-            attr = TERM_RED;
-        else if (adj == 0)
-            attr = TERM_L_DARK;
-        else if (adj == 1)
-            attr = TERM_GREEN;
-        else if (adj == 2)
-            attr = TERM_L_GREEN;
-        else
-            attr = TERM_L_BLUE;
-
-        Term_putstr(RACE_AUX_COL + 4, TABLE_ROW + i, -1, attr, s);
+        if (streq(choice.name, p_name + p_info[race].name))
         {
-            char desc[256];
-
-            character_sheet_format_stat_hint(i, adj, true, desc,
-                sizeof(desc));
-            birth_detail_hover_add(RACE_AUX_COL, TABLE_ROW + i, 8, desc);
+            birth_select_emit_detail(race, -1, false);
+            return;
         }
     }
-
-    /* Display the race flags */
-
-    Term_putstr(RACE_AUX_COL, TABLE_ROW + A_MAX + 1, -1, TERM_WHITE,
-        "                         ");
-    Term_putstr(RACE_AUX_COL, TABLE_ROW + A_MAX + 2, -1, TERM_WHITE,
-        "                         ");
-    Term_putstr(RACE_AUX_COL, TABLE_ROW + A_MAX + 3, -1, TERM_WHITE,
-        "                         ");
-    Term_putstr(RACE_AUX_COL, TABLE_ROW + A_MAX + 4, -1, TERM_WHITE,
-        "                        ");
-
-    /* Clear the TOTAL_AUX_COL area (where character info was displayed) */
-    Term_putstr(TOTAL_AUX_COL, HEADER_ROW, -1, TERM_WHITE,
-        "                                         ");
-    Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1, -1, TERM_WHITE,
-        "                                         ");
-    Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 2, -1, TERM_WHITE,
-        "                                         ");
-    Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 3, -1, TERM_WHITE,
-        "                                         ");
-    Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 4, -1, TERM_WHITE,
-        "                                         ");
-    Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 5, -1, TERM_WHITE,
-        "                                         ");
-    Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 6, -1, TERM_WHITE,
-        "                                         ");
-    Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 7, -1, TERM_WHITE,
-        "                                         ");
-
-    // print_rh_flags(race, 0, RACE_AUX_COL, TABLE_ROW + A_MAX + 1);
 }
 
 /*
@@ -532,10 +457,6 @@ static bool get_player_race(bool open_on_choice_page)
         headings[noldor_count] = "The other free peoples of Beleriand:";
 
     {
-        /*
-         * race_aux_hook only feeds the terminal-fallback detail; the SDL book
-         * page ignores it (no stats/affinities -- just story).
-         */
         birth_select_page page = {
             "The War of the Jewels",   /* title */
             birth_frame_top,           /* framing line above (accent) */
@@ -546,8 +467,8 @@ static bool get_player_race(bool open_on_choice_page)
             open_on_choice_page        /* back from character -> list page */
         };
 
-        race = get_player_choice(menu, num, p_ptr->prace, RACE_COL, 15,
-            race_aux_hook, false, &page);
+        race = get_player_choice(menu, num, p_ptr->prace, race_aux_hook,
+            &page);
     }
 
     /* No selection -> back to main menu. */
@@ -587,244 +508,18 @@ bool birth_character_is_set(int bit) {
  * Display additional information about each character during the selection.
  */
 
-static void character_aux_hook(birth_menu c_str)
+static void character_aux_hook(birth_menu choice)
 {
-    int character_idx, i, adj;
-    int term_wid = 80;
-    int term_hgt = 24;
-    int description_row = birth_description_base_row();
-    bool compact_layout = character_flags_need_compact_layout();
-    bool tight_height = character_selection_tight_height();
-    int name_col;
-    int fallback_name_col;
-    bool aligned_name_fits;
-    char s[128];
-    byte attr;
-
-    /* Extract the proper character index from the string. */
-    for (character_idx = 0; character_idx < z_info->c_max; character_idx++)
+    for (int character = 0; character < z_info->c_max; character++)
     {
-        if (!strcmp(c_str.name, c_name + c_info[character_idx].name))
-            break;
-    }
-
-    if (character_idx == z_info->c_max)
-        return;
-
-    /* Pixel-semantic selection screen: feed the detail panel and stop (no
-     * terminal grid underdraw). */
-    if (sdl_character_sheet_screen_active())
-    {
-        birth_select_emit_detail(p_ptr->prace, character_idx, false);
-        return;
-    }
-
-    Term_get_size(&term_wid, &term_hgt);
-    if (term_wid < 1)
-        term_wid = 80;
-    if (term_hgt < 1)
-        term_hgt = 24;
-
-    /* Clear the entire TOTAL_AUX_COL area FIRST before displaying new info */
-    /* Clear from HEADER_ROW down but stop before DESCRIPTION_ROW to preserve history */
-    for (i = HEADER_ROW; i < description_row; i++)
-    {
-        Term_putstr(TOTAL_AUX_COL, i, -1, TERM_WHITE,
-            "                                         ");
-        /* Also clear the right side area where penalties/flags appear */
-        Term_putstr(TOTAL_AUX_COL + 21, i, -1, TERM_WHITE,
-            "                                         ");
-    }
-
-    /* Also clear the abilities area (col + 7) but only in the same range */
-    for (i = 0; i < description_row; i++)
-    {
-        Term_erase(TOTAL_AUX_COL + 7, i, 60);  /* Wider clearing */
-    }
-
-    /* Now display the new stats */
-    for (i = 0; i < A_MAX; i++)
-    {
-        /*dump potential total stats*/
-        strnfmt(s, sizeof(s), "%s", stat_names[i]);
-        Term_putstr(TOTAL_AUX_COL, TABLE_ROW + i, -1, TERM_WHITE, s);
-
-        adj = c_info[character_idx].h_adj[i] + rp_ptr->r_adj[i] + curses_stat_adj(i);
-        strnfmt(s, sizeof(s), "%+d", adj);
-
-        if (adj < 0)
-            attr = TERM_RED;
-        else if (adj == 0)
-            attr = TERM_L_DARK;
-        else if (adj == 1)
-            attr = TERM_GREEN;
-        else if (adj == 2)
-            attr = TERM_L_GREEN;
-        else
-            attr = TERM_L_BLUE;
-
-        Term_putstr(TOTAL_AUX_COL + 4, TABLE_ROW + i, -1, attr, s);
+        if (streq(choice.name, c_name + c_info[character].name))
         {
-            char desc[256];
-
-            character_sheet_format_stat_hint(i, adj, true, desc,
-                sizeof(desc));
-            birth_detail_hover_add(TOTAL_AUX_COL, TABLE_ROW + i, 8, desc);
+            birth_select_emit_detail(p_ptr->prace, character, false);
+            return;
         }
     }
-    // Check dead
-    // if (c_str.ghost) Term_putstr(TOTAL_AUX_COL, QUESTION_ROW + A_MAX + 7, -1, TERM_RED,
-    //     "Dead");
-    // else Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX +7, -1, TERM_L_BLUE,
-    //     "Alive");
-    char pretty_name[40];
-    bool pretty_name_has_utf8;
-    strnfmt(pretty_name, sizeof(pretty_name), "%s%s", c_name + c_info[character_idx].name, c_name + c_info[character_idx].alt_name); 
-    pretty_name_has_utf8 = utf8_has_non_ascii(pretty_name);
-    
-    /* Add power stars to the character name */
-    char power_stars[16];
-    byte star_attr;
-#if defined(__ANDROID__) || defined(SIL_IOS)
-    cptr power_label = NULL;
-    char power_suffix[32];
-
-    birth_format_character_power(c_info[character_idx].power, true,
-        power_stars, sizeof(power_stars), &star_attr, &power_label);
-    if (power_label && power_label[0])
-    {
-        char power_word[16];
-
-        SDL_strlcpy(power_word, power_label, sizeof(power_word));
-        power_word[0] = (char)tolower((unsigned char)power_word[0]);
-        strnfmt(power_suffix, sizeof(power_suffix), "%s %s", power_stars,
-            power_word);
-        SDL_strlcpy(power_stars, power_suffix, sizeof(power_stars));
-    }
-#else
-    birth_format_character_power(c_info[character_idx].power, true,
-        power_stars, sizeof(power_stars), &star_attr, NULL);
-#endif
-    
-    fallback_name_col = QUESTION_COL
-        + utf8_display_width_n(character_selection_header_text(true),
-            (int)strlen(character_selection_header_text(true)))
-        + 1;
-    if (fallback_name_col < 0)
-        fallback_name_col = 0;
-    Term_erase(fallback_name_col, HEADER_ROW, 255);
-
-    aligned_name_fits =
-        (TOTAL_AUX_COL
-            + utf8_display_width_n(pretty_name, (int)strlen(pretty_name))
-            + utf8_display_width_n(power_stars, (int)strlen(power_stars))
-            < term_wid);
-    name_col = aligned_name_fits ? TOTAL_AUX_COL : fallback_name_col;
-
-    Term_putstr(name_col, HEADER_ROW, -1, TERM_L_BLUE, pretty_name);
-    if (pretty_name_has_utf8)
-    {
-        cptr star_text = (power_stars[0] == ' ') ? power_stars + 1 : power_stars;
-
-        Term_putstr(name_col + (int)strlen(pretty_name), HEADER_ROW, -1,
-            star_attr, star_text);
-    }
-    else
-    {
-        Term_putstr(name_col
-            + utf8_display_width_n(pretty_name, (int)strlen(pretty_name)),
-            HEADER_ROW, -1, star_attr, power_stars);
-    }
-    birth_invalidate_cells(fallback_name_col, HEADER_ROW,
-        term_wid - fallback_name_col);
-    
-    {
-        int legend_row = (compact_layout && tight_height) ? 9 : 10;
-        int left_block_width = CLASS_COL;
-        int character_list_count = 0;
-        int character_list_rows;
-        int wide_clear_row;
-
-        if (legend_row < TABLE_ROW + A_MAX + 3)
-            legend_row = TABLE_ROW + A_MAX + 3;
-
-        if (left_block_width < 1)
-            left_block_width = 1;
-
-        for (i = 0; i < z_info->c_max; i++)
-            if (birth_character_is_set(i))
-                character_list_count++;
-
-        character_list_rows = choice_visible_capacity(character_list_count,
-            c_str.text, true);
-        wide_clear_row = TABLE_ROW + character_list_rows;
-        if (wide_clear_row < legend_row)
-            wide_clear_row = legend_row;
-
-        for (i = legend_row; i < birth_prompt_row(); ++i)
-            Term_erase(0, i, left_block_width);
-        for (i = wide_clear_row; i < birth_prompt_row(); ++i)
-            Term_erase(0, i, TOTAL_AUX_COL - 1);
-    }
-
-    print_rh_flags(
-        p_ptr->prace, character_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
-
-#if !defined(__ANDROID__) && !defined(SIL_IOS)
-    {
-        int legend_col = 2;  /* Left side */
-        int legend_row = (compact_layout && tight_height) ? 9 : 10;
-        int legend_limit_row = birth_prompt_row();
-        bool legend_has_room;
-
-        legend_has_room = (legend_row + 3 < legend_limit_row);
-        if (compact_layout)
-        {
-            int compact_first_row = description_row;
-
-            /*
-             * Compact flags can start one row above description_row when the
-             * screen is short. Keep the optional power legend whenever its
-             * rows end before the compact block starts; no blank separator is
-             * required.
-             */
-            if (Term && Term->hgt > 0 && Term->hgt < 24)
-                compact_first_row--;
-
-            legend_has_room = !tight_height
-                && (compact_first_row > legend_row + 3)
-                && (legend_row + 3 < legend_limit_row);
-        }
-
-        if (legend_has_room)
-        {
-            /* Count alive heroes by power level across ALL races */
-            int power_counts[4] = {0, 0, 0, 0};  /* weak, fair, strong, mighty (P:3/P:4) */
-            birth_count_alive_character_powers(power_counts);
-
-            /* Display legend without "Power Rating:" header */
-            Term_putstr(legend_col, legend_row, -1, TERM_L_GREEN, "***");
-            strnfmt(s, sizeof(s), "Mighty %d", power_counts[3]);
-            Term_putstr(legend_col + 4, legend_row, -1, TERM_WHITE, s);
-
-            Term_putstr(legend_col, legend_row + 1, -1, TERM_GREEN, "***");
-            strnfmt(s, sizeof(s), "Strong %d", power_counts[2]);
-            Term_putstr(legend_col + 4, legend_row + 1, -1, TERM_WHITE, s);
-
-            Term_putstr(legend_col, legend_row + 2, -1, TERM_WHITE, "**");
-            strnfmt(s, sizeof(s), "Fair %d", power_counts[1]);
-            Term_putstr(legend_col + 4, legend_row + 2, -1, TERM_WHITE, s);
-
-            Term_putstr(legend_col, legend_row + 3, -1, TERM_RED, "*");
-            strnfmt(s, sizeof(s), "Weak %d", power_counts[0]);
-            Term_putstr(legend_col + 4, legend_row + 3, -1, TERM_WHITE, s);
-        }
-    }
-#endif
 }
-/*
- * Player character template selection
- */
+
 static bool get_character_profile(void)
 {
     int i;
@@ -914,9 +609,8 @@ static bool get_character_profile(void)
         page.detail_ability_rows_hint = max_ability_rows;
         page.detail_trait_rows_hint = max_trait_rows;
 
-        character_choice = get_player_choice(
-            character_menu, character, previous_choice, CLASS_COL, 22,
-            character_aux_hook, true, &page);
+        character_choice = get_player_choice(character_menu, character,
+            previous_choice, character_aux_hook, &page);
     }
     screen_pop_touch_pane_hidden();
 
@@ -972,8 +666,6 @@ static bool get_character_profile(void)
  */
 static NavResult character_creation_from_phase(int initial_phase)
 {
-    int i;
-
     int phase = initial_phase;
     NavResult result = NAV_OK;
     /* True once we have stepped back into race selection from the character
@@ -991,49 +683,6 @@ static NavResult character_creation_from_phase(int initial_phase)
     }
 
     screen_push_touch_pane_hidden();
-
-    /*** Instructions ***/
-
-    /* Clear screen */
-    Term_clear();
-
-    /* Display some helpful information */
-    draw_character_selection_header(false);
-
-    if (steamdeck_controls_active()) {
-        int prompt_row = birth_prompt_row();
-        char random_label[16];
-        char back_label[16];
-        char options_label[16];
-        char scores_label[16];
-        char full_desc_label[16];
-        char help_label[16];
-        char quit_label[16];
-        char prompt_buf[160];
-
-        birth_prompt_label('r', "r", random_label, sizeof(random_label));
-        birth_prompt_label(steamdeck_back_key(), "B", back_label,
-            sizeof(back_label));
-        birth_prompt_label('o', "o", options_label, sizeof(options_label));
-        birth_prompt_label('s', "s", scores_label, sizeof(scores_label));
-        birth_prompt_label(steamdeck_alt_action_key(), "X", full_desc_label,
-            sizeof(full_desc_label));
-        birth_prompt_label('?', "?", help_label, sizeof(help_label));
-        if (streq(help_label, "?"))
-            birth_prompt_label('h', "h", help_label, sizeof(help_label));
-        birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
-
-        strnfmt(prompt_buf, sizeof(prompt_buf),
-            "%s-random  %s-back  %s-options  %s-scores  %s-description  %s-help  %s-quit",
-            random_label, back_label, options_label, scores_label, full_desc_label, help_label, quit_label);
-        Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
-    } else if (sdl_touch_only_device_active()) {
-        Term_putstr(QUESTION_COL, birth_prompt_row(), -1, TERM_SLATE,
-            "Tap a row to choose, tap away to go back");
-    } else {
-        Term_putstr(QUESTION_COL, birth_prompt_row(), -1, TERM_SLATE,
-            "r -random   ESC -back   o -options   s -scores   f -description   h -help   q -quit");
-    }
 
     while (phase <= 2)
     {
@@ -1056,19 +705,11 @@ static NavResult character_creation_from_phase(int initial_phase)
 
         if (phase == 2)
         {
-            draw_character_selection_header(true);
-
             /* Choose the player's character template */
             if (!get_character_profile())
             {
                 phase = 1;          /* Esc here -> go back to race */
                 race_from_character = true; /* reopen race book on its list */
-                draw_character_selection_header(false);
-                /* Clear the character display area when going back to race selection */
-                for (i = HEADER_ROW; i <= TABLE_ROW + A_MAX + 10; i++)
-                {
-                    Term_erase(TOTAL_AUX_COL, i, 255);
-                }
                 continue;
             }
 

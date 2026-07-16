@@ -1607,7 +1607,7 @@ extern bool sdl_welcome_screen_set_status(cptr status);
 extern bool sdl_welcome_screen_show_loading(cptr status);
 extern void sdl_welcome_screen_hide(void);
 extern bool sdl_welcome_screen_active(void);
-extern bool sdl_death_poetry_screen_begin(cptr title, cptr body,
+extern void sdl_death_poetry_screen_begin(cptr title, cptr body,
     cptr transition, cptr prompt);
 extern void sdl_death_poetry_screen_update(bool title_visible,
     byte title_attr, bool body_visible, byte body_attr,
@@ -1616,16 +1616,16 @@ extern void sdl_death_poetry_screen_hide(void);
 extern bool sdl_death_poetry_screen_active(void);
 extern bool sdl_character_sheet_screen_active(void);
 extern void sdl_character_sheet_screen_hide(void);
-extern bool sdl_character_sheet_screen_begin_live(int focus_choice);
-extern bool sdl_character_sheet_screen_begin_birth_preview(void);
+extern void sdl_character_sheet_screen_begin_live(int focus_choice);
+extern void sdl_character_sheet_screen_begin_birth_preview(void);
 extern void sdl_character_sheet_screen_add_live_item(int choice, int kind,
     int skill, int value_kind, cptr label, cptr desc);
-extern bool sdl_character_sheet_screen_show_birth_stats(const int* stats,
+extern void sdl_character_sheet_screen_show_birth_stats(const int* stats,
     const int* costs, int selected_stat, int points_left);
-extern bool sdl_character_sheet_screen_show_birth_skills(const int* old_base,
+extern void sdl_character_sheet_screen_show_birth_skills(const int* old_base,
     const int* skill_gain, const int* costs, int selected_skill,
     int points_left);
-extern bool sdl_character_sheet_screen_begin_select(int focus_choice,
+extern void sdl_character_sheet_screen_begin_select(int focus_choice,
     cptr title);
 extern void sdl_character_sheet_screen_set_select_menu_style(bool enabled);
 extern void sdl_character_sheet_screen_set_select_dynamic_description(
@@ -1675,7 +1675,7 @@ extern void sdl_character_sheet_screen_set_select_description(cptr text);
 extern bool sdl_character_sheet_screen_commit_select(int selected_index);
 /* Narrative "book" (N pages with optional actions): quest text, stats, etc.  Reuses the page-turn
  * navigation accessors above (select_page / page_turning / begin_page_turn). */
-extern bool sdl_character_sheet_screen_begin_book(cptr title);
+extern void sdl_character_sheet_screen_begin_book(cptr title);
 extern void sdl_character_sheet_screen_add_book_paragraph(cptr text);
 extern void sdl_character_sheet_screen_add_book_paragraph_colored(cptr text,
     int attr);
@@ -2338,7 +2338,7 @@ extern int get_sdl_max_main_view_zoom_scale(void);
 extern void sdl_apply_config(void);
 extern void sdl_apply_config_no_redraw(void);
 extern void sdl_request_redraw(void);
-extern bool sdl_main_menu_overlay_begin(void);
+extern void sdl_main_menu_overlay_begin(void);
 extern bool steamdeck_controls_active(void);
 extern bool sdl_menu_letters_enabled(void);
 extern bool portable_controls_active(void);

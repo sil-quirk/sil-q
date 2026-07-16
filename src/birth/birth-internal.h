@@ -121,10 +121,8 @@ void birth_invalidate_cells(int col, int row, int width);
 int birth_wrapped_entry_lines(cptr entries[], int entry_n, int width,
     int max_entries);
 
-void birth_detail_hover_add(int col, int row, int width, cptr desc);
-int get_player_choice(birth_menu* choices, int num, int def, int col,
-    int wid, void (*hook)(birth_menu), bool allow_full_description_screen,
-    const birth_select_page* page);
+int get_player_choice(birth_menu* choices, int num, int def,
+    void (*hook)(birth_menu), const birth_select_page* page);
 
 int collect_character_trait_lines(int race, int character, bool short_labels,
     birth_compact_flag_line out[], int out_max, int* max_line_len);
@@ -134,22 +132,12 @@ void birth_format_ability_hint(int skill, int ability, char* buf,
     size_t buflen);
 void birth_format_trait_hint(const birth_compact_flag_line* line,
     char* buf, size_t buflen);
-void print_rh_flags(int race, int character, int col, int row);
 
 bool birth_character_is_set(int bit);
 
 NavResult select_oath(void);
 NavResult blitz_configure_effects(void);
 NavResult blitz_auto_build_character(void);
-void birth_register_allocation_prompt_clicks(int row, cptr prompt,
-    int col, cptr back_label, cptr confirm_label, cptr quit_label);
-void birth_draw_allocation_confirm_status(int row, int col, int end_col,
-    cptr status);
-void birth_configure_allocation_sheet_layout(bool stats_screen,
-    int* skill_first_row_out, int* status_row_out);
-void birth_display_skill_allocation_compact(int selected_skill,
-    const int old_base[S_MAX], const int skill_gain[S_MAX], int points_left,
-    bool steamdeck);
 NavResult player_birth_aux_2(int stats[A_MAX]);
 
 #endif /* INCLUDED_BIRTH_INTERNAL_H */

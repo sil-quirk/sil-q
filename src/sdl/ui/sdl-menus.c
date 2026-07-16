@@ -959,12 +959,10 @@ void sdl_narrative_banner_show(bool line_delay, bool fast_fade)
     if (!active_narrative_banner_visible())
         return;
 
-    /* A transition fade blocks normal event dispatch for 500 ms, longer than
-     * the 350 ms touch long-press threshold.  A new tap queued while the
-     * previous movement command enters a partition must not age into a
-     * Ctrl+direction gesture behind the banner. */
-    if (fast_fade)
-        sdl_touch_cancel_all_inputs();
+    /* Banner presentation is an input boundary.  Do not let a touch press
+     * armed while the previous command was being collected survive into the
+     * banner and age into a Ctrl+direction gesture. */
+    sdl_touch_cancel_all_inputs();
 
     restore_view = sdl_view_from_term(Term);
     if (!restore_view)

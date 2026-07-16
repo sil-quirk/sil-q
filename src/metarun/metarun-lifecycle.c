@@ -34,7 +34,7 @@ static void wait_prompt(prompt_t id) {         /* tiny wrapper */
  * keeps the original staged fade timings and Esc-to-fast-forward behavior,
  * while the renderer owns wrapping and placement in semantic pixels.
  */
-static bool show_death_poetry_semantic(cptr title, cptr body,
+static void show_death_poetry_semantic(cptr title, cptr body,
     cptr transition)
 {
     const byte title_fade[] = { TERM_L_DARK, TERM_SLATE, TERM_RED };
@@ -47,11 +47,8 @@ static bool show_death_poetry_semantic(cptr title, cptr body,
     bool body_fast_forward = false;
     bool transition_fast_forward = false;
 
-    if (!sdl_death_poetry_screen_begin(title, body, transition,
-            prompt_text[PROMPT_RETURN_MIDDLE_EARTH]))
-    {
-        return false;
-    }
+    sdl_death_poetry_screen_begin(title, body, transition,
+        prompt_text[PROMPT_RETURN_MIDDLE_EARTH]);
 
     sdl_story_font_enable();
 
@@ -113,7 +110,6 @@ static bool show_death_poetry_semantic(cptr title, cptr body,
 
     sdl_death_poetry_screen_hide();
     sdl_story_font_disable();
-    return true;
 }
 
 /* ------------------------------------------------------------------
@@ -290,21 +286,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
                     "The hero whose mantle you took has fallen, their tale ends in shadow. "
                     "Yet your spirit returns, for the Valar's trial is not yet complete.");
 
-            if (!show_death_poetry_semantic(title, text, transition_text))
-            {
-                /* Non-SDL fallback retains the original terminal-grid scene. */
-                print_heading_fade(title, TERM_RED);
-                print_paragraph_fade(text, TERM_WHITE, 4);
-
-                if (!fast_forward
-                    && !print_paragraph_fade(transition_text, TERM_L_BLUE, 8))
-                {
-                    fast_forward = true;
-                }
-                else if (fast_forward)
-                    print_paragraph(transition_text, TERM_L_BLUE);
-                wait_prompt(PROMPT_RETURN_MIDDLE_EARTH);
-            }
+            show_death_poetry_semantic(title, text, transition_text);
         }
 
         screen_pop_touch_pane_hidden();

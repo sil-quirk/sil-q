@@ -682,12 +682,15 @@ void sdl_main_menu_overlay_close(void)
     g_state.need_present = true;
 }
 
-bool sdl_main_menu_overlay_begin(void)
+void sdl_main_menu_overlay_begin(void)
 {
     main_menu_pane_layout layout;
 
     if (!sdl_main_menu_overlay_layout(&layout))
-        return false;
+    {
+        log_warn("Unable to lay out the SDL main menu overlay");
+        return;
+    }
 
     (void)dismiss_active_narrative_banner();
     sdl_player_action_menu_cancel();
@@ -721,7 +724,6 @@ bool sdl_main_menu_overlay_begin(void)
 
     sdl_main_menu_overlay_scroll_to_highlight(layout.visible_count);
     g_state.need_present = true;
-    return true;
 }
 
 void sdl_main_menu_overlay_move(int delta)
@@ -925,7 +927,7 @@ bool sdl_main_menu_overlay_handle_gamepad_axis(
         return true;
     }
 
-    return true;
+    return false;
 }
 
 static Uint8 sdl_popup_notification_alpha(Uint64 now_ns)
@@ -1211,7 +1213,7 @@ bool sdl_main_menu_pane_handle_pointer(float x, float y)
 
     g_main_menu_pane_hover = false;
     g_state.need_present = true;
-    (void)sdl_main_menu_overlay_begin();
+    sdl_main_menu_overlay_begin();
     return true;
 }
 

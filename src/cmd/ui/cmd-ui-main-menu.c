@@ -1633,7 +1633,7 @@ bool do_cmd_main_menu_execute_choice(int actiontype)
  */
 void do_cmd_main_menu(void)
 {
-    (void)sdl_main_menu_overlay_begin();
+    sdl_main_menu_overlay_begin();
 }
 
 static bool hint_message_has_source(const hint_message_meta* meta)

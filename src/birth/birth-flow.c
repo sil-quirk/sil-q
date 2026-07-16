@@ -99,93 +99,6 @@ static bool birth_keyboard_preset_prompt_needed(void)
     return true;
 }
 
-static void birth_keyboard_preset_center_putstr(int row, byte attr, cptr text)
-{
-    int wid = 80;
-    int hgt = 24;
-    int col;
-
-    if (!text)
-        text = "";
-
-    Term_get_size(&wid, &hgt);
-    if (wid < 1)
-        wid = 80;
-    if (row < 0 || row >= hgt)
-        return;
-
-    col = (wid - (int)strlen(text)) / 2;
-    if (col < 0)
-        col = 0;
-    Term_putstr(col, row, -1, attr, text);
-}
-
-static void birth_keyboard_preset_draw_terminal(int selected)
-{
-    int wid = 80;
-    int hgt = 24;
-    int list_row;
-    int detail_row;
-    int prompt_row;
-
-    Term_get_size(&wid, &hgt);
-    if (wid < 1)
-        wid = 80;
-    if (hgt < 1)
-        hgt = 24;
-
-    list_row = (hgt <= 20) ? 5 : 6;
-    detail_row = list_row + (int)N_ELEMENTS(keyboard_preset_choices) + 2;
-    prompt_row = hgt - 1;
-
-    Term_clear();
-    birth_keyboard_preset_center_putstr(1, TERM_L_BLUE,
-        "Choose Keyboard Movement");
-    birth_put_wrapped_text(TERM_WHITE,
-        "Pick the movement preset for this game. You can change it later from "
-        "Options > Input > Keyboard Input.",
-        3, 2);
-
-    for (int i = 0; i < (int)N_ELEMENTS(keyboard_preset_choices); i++)
-    {
-        byte attr = (i == selected) ? TERM_L_BLUE : TERM_WHITE;
-        char line[96];
-
-        strnfmt(line, sizeof(line), "%c) %s", I2A(i),
-            keyboard_preset_choices[i].name);
-        Term_erase(2, list_row + i, wid - 4);
-        Term_putstr(2, list_row + i, -1, attr, line);
-        ui_menu_click_add(i, 2, list_row + i, wid - 4);
-    }
-
-    for (int row = detail_row; row < prompt_row; row++)
-        Term_erase(0, row, wid);
-    birth_put_wrapped_text(TERM_SLATE, keyboard_preset_choices[selected].text,
-        detail_row, 2);
-
-    /* Always-visible general recommendation, pinned near the bottom so it
-     * shows regardless of the highlighted preset. */
-    {
-        int rec_row = (prompt_row > detail_row + 2) ? prompt_row - 2
-                                                    : detail_row;
-        birth_put_wrapped_text(TERM_L_GREEN, keyboard_preset_recommendation,
-            rec_row, 2);
-    }
-
-    if (prompt_row >= 0)
-    {
-        cptr prompt = "Enter select  Esc back";
-
-        Term_erase(0, prompt_row, wid);
-        Term_putstr(2, prompt_row, -1, TERM_SLATE, prompt);
-        ui_menu_click_add_text_token(-1, 2, prompt_row, prompt, "select");
-        ui_menu_click_add_text_token(-2, 2, prompt_row, prompt, "back");
-        ui_menu_click_add_text_token(-2, 2, prompt_row, prompt, "Esc");
-    }
-
-    Term_fresh();
-}
-
 static int birth_keyboard_preset_choose(void)
 {
     int selected = keyboard_preset_choice_index(config.movement_keyboard_preset);
@@ -197,50 +110,42 @@ static int birth_keyboard_preset_choose(void)
         int clicked_choice = 0;
         int click_action = UI_MENU_CLICK_PRIMARY;
         int key;
-        bool semantic_menu;
 
         steamdeck = steamdeck_controls_active();
         menu_letters = sdl_menu_letters_enabled();
 
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
-        semantic_menu = sdl_character_sheet_screen_begin_select(selected,
+        sdl_character_sheet_screen_begin_select(selected,
             "Choose Keyboard Movement");
-        if (semantic_menu)
+        sdl_character_sheet_screen_set_select_menu_style(true);
+        sdl_character_sheet_screen_set_select_dynamic_description(true);
+
+        for (int i = 0; i < (int)N_ELEMENTS(keyboard_preset_choices); i++)
         {
-            sdl_character_sheet_screen_set_select_menu_style(true);
-            sdl_character_sheet_screen_set_select_dynamic_description(true);
+            char label[96];
 
-            for (int i = 0; i < (int)N_ELEMENTS(keyboard_preset_choices); i++)
-            {
-                char label[96];
-
-                if (menu_letters && !sdl_touch_only_device_active())
-                    strnfmt(label, sizeof(label), "%c) %s", I2A(i),
-                        keyboard_preset_choices[i].name);
-                else
-                    SDL_strlcpy(label, keyboard_preset_choices[i].name,
-                        sizeof(label));
-                sdl_character_sheet_screen_add_select_row(i, label,
-                    i == selected ? TERM_L_BLUE : TERM_WHITE, "");
-            }
-
-            /* Feed the detail panel for the focused preset.  Without any detail
-             * content the polished two-panel menu bails to a sparse, full-width
-             * single-column list, so this is what gives it the proper layout
-             * (list on one side, description on the other). */
-            sdl_character_sheet_screen_add_select_detail(
-                keyboard_preset_choices[selected].text, TERM_WHITE, "");
-            /* Always-visible general recommendation, re-added every iteration
-             * so it stays put regardless of the highlighted preset. */
-            sdl_character_sheet_screen_add_select_detail(
-                keyboard_preset_recommendation, TERM_L_GREEN, "");
-            sdl_character_sheet_screen_commit_select(selected);
+            if (menu_letters && !sdl_touch_only_device_active())
+                strnfmt(label, sizeof(label), "%c) %s", I2A(i),
+                    keyboard_preset_choices[i].name);
+            else
+                SDL_strlcpy(label, keyboard_preset_choices[i].name,
+                    sizeof(label));
+            sdl_character_sheet_screen_add_select_row(i, label,
+                i == selected ? TERM_L_BLUE : TERM_WHITE, "");
         }
-        else
-        {
-            birth_keyboard_preset_draw_terminal(selected);
-        }
+
+        /* Feed the detail panel for the focused preset.  Without any detail
+         * content the polished two-panel menu bails to a sparse, full-width
+         * single-column list, so this is what gives it the proper layout
+         * (list on one side, description on the other). */
+        sdl_character_sheet_screen_add_select_detail(
+            keyboard_preset_choices[selected].text, TERM_WHITE, "");
+        /* Always-visible general recommendation, re-added every iteration
+         * so it stays put regardless of the highlighted preset. */
+        sdl_character_sheet_screen_add_select_detail(
+            keyboard_preset_recommendation, TERM_L_GREEN, "");
+        sdl_character_sheet_screen_commit_select(selected);
 
         hide_cursor = true;
         key = inkey();

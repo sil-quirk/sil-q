@@ -86,12 +86,7 @@ static void quest_show_book(cptr title, cptr texts[], int total_texts,
     screen_save();
     screen_push_supporting_panes_hidden();
 
-    if (!sdl_character_sheet_screen_begin_book(title))
-    {
-        screen_pop_supporting_panes_hidden();
-        screen_load();
-        return;
-    }
+    sdl_character_sheet_screen_begin_book(title);
     if (target_page_count < 0)
         target_page_count = sdl_touch_only_device_active() ? 4 : 3;
     sdl_character_sheet_screen_set_book_target_page_count(target_page_count);

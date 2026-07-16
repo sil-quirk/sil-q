@@ -147,11 +147,17 @@ errr callback_sdl_xtra(int n, int v)
                      * SDL_WaitEvent() removes one event only. Returning to
                      * inkey() after every mouse-motion, timer, or window event
                      * made a queued movement key wait behind repeated frontend
-                     * and presentation passes. Preserve event order, but drain
-                     * everything already queued in this one input pass.
+                     * and presentation passes. Preserve event order and drain
+                     * frontend-only events, but stop as soon as gameplay input
+                     * is queued. Otherwise a rapid next touch-down can arm a
+                     * new gesture while the previous command is still being
+                     * resolved (and can age into a long press behind a banner).
                      */
-                    while (SDL_PollEvent(&ev))
+                    while (Term->key_head == Term->key_tail
+                        && SDL_PollEvent(&ev))
+                    {
                         sdl_handle_event(&g_state, &ev);
+                    }
                 }
             }
             sdl_main_map_flush_pending_pan();

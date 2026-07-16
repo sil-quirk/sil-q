@@ -950,20 +950,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool us
                         /* Recall on screen */
                         recall_key = screen_roff(m_ptr->r_idx, m_ptr);
 
-                        if (recall_key)
-                        {
-                            query = (char)recall_key;
-                        }
-                        else
-                        {
-                            /* Hack -- Complete the prompt (again) */
-                            Term_addstr(-1, TERM_WHITE,
-                                format("  [(r)ecall, %s]", info));
-
-                            /* Command */
-                            query = inkey_movement_context(
-                                MOVEMENT_INPUT_CONTEXT_TARGETING);
-                        }
+                        query = (char)recall_key;
 
                         /* Load screen */
                         screen_load();

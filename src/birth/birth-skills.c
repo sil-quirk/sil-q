@@ -25,125 +25,12 @@ void gain_skills_set_initial_skill(int skill)
         gain_skills_initial_skill = skill;
 }
 
-static char gain_skills_screen_char(int row, int col)
-{
-    unsigned char ch;
-
-    if (!Term || !Term->scr || !Term->scr->c)
-        return ' ';
-    if (row < 0 || row >= Term->hgt || col < 0 || col >= Term->wid)
-        return ' ';
-
-    ch = (unsigned char)Term->scr->c[row][col];
-    if (!ch || ch == (unsigned char)Term->char_blank)
-        return ' ';
-
-    return (char)ch;
-}
-
-static bool gain_skills_screen_text_matches(int row, int col, cptr text,
-    int len)
-{
-    if (!text || len <= 0)
-        return false;
-
-    for (int i = 0; i < len; i++)
-    {
-        if (gain_skills_screen_char(row, col + i) != text[i])
-            return false;
-    }
-
-    return true;
-}
-
-static bool gain_skills_screen_row_has_value(int row, int start_col)
-{
-    int wid = 0;
-    int hgt = 0;
-
-    if (Term)
-        Term_get_size(&wid, &hgt);
-    (void)hgt;
-
-    for (int col = start_col; col < wid; col++)
-    {
-        if (gain_skills_screen_char(row, col) == '=')
-            return true;
-    }
-
-    return false;
-}
-
-static void gain_skills_register_visible_skill_clicks(void)
-{
-    int wid = 80;
-    int hgt = 24;
-
-    if (!Term || !Term->scr || !Term->scr->c)
-        return;
-
-    Term_get_size(&wid, &hgt);
-    if (wid < 1)
-        wid = 80;
-    if (hgt < 1)
-        hgt = 24;
-
-    for (int skill = 0; skill < S_MAX; skill++)
-    {
-        cptr name;
-        int name_len;
-        int match_len;
-        bool found = false;
-
-        if (skill == S_SPC)
-            continue;
-
-        name = skill_names_full[skill];
-        if (!name || !name[0])
-            continue;
-
-        name_len = (int)strlen(name);
-        match_len = name_len;
-        if (match_len > 5)
-            match_len = 5;
-        if (match_len < 4)
-            match_len = name_len;
-
-        for (int row = 0; row < hgt - 1 && !found; row++)
-        {
-            for (int col = 0; col <= wid - match_len; col++)
-            {
-                int start_col;
-
-                if (!gain_skills_screen_text_matches(row, col, name,
-                    name_len)
-                    && !gain_skills_screen_text_matches(row, col, name,
-                        match_len))
-                {
-                    continue;
-                }
-
-                if (!gain_skills_screen_row_has_value(row, col + match_len))
-                    continue;
-
-                start_col = MAX(0, col - 1);
-                ui_menu_click_add(skill, start_col, row, wid - start_col);
-                found = true;
-                break;
-            }
-        }
-    }
-}
-
 /*
- * Increase your skills by spending experience points
+ * Increase your skills by spending experience points.
  */
 extern NavResult gain_skills(void)
 {
     int i;
-
-    int row = 6;
-    int col = 43;
 
     int skill = ((gain_skills_initial_skill >= 0
         && gain_skills_initial_skill < S_MAX
@@ -160,11 +47,8 @@ extern NavResult gain_skills(void)
 
     char ch;
 
-    char buf[80];
-
     NavResult result = NAV_OK;
 
-    int tab = 0;
     bool death_view = death_spectator_active();
 
     log_debug("Starting skills allocation with %d experience points", p_ptr->new_exp);
@@ -221,188 +105,11 @@ extern NavResult gain_skills(void)
 
         update_stuff();
 
-        int wid = 80;
-        int hgt = 24;
-        Term_get_size(&wid, &hgt);
-        if (wid < 1) wid = 80;
-        if (hgt < 1) hgt = 24;
-        bool compact = (wid < 80);
-        int wide_offset = (wid > 80) ? (wid - 80) / 2 : 0;
-        int sheet_col = col + wide_offset;
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
 
-        if (compact)
-        {
-            ui_menu_click_begin();
-            ui_menu_click_set_hover_enabled(true);
-            birth_display_skill_allocation_compact(skill, old_base, skill_gain, p_ptr->new_exp, steamdeck);
-            gain_skills_register_visible_skill_clicks();
-            ui_scroll_area_begin(0, hgt - 2, SDL_TOUCH_MENU_CATEGORY_OTHER);
-            ui_scroll_area_set_keys('6', '4', '6', '4');
-        }
-        else
-        {
-            int prompt_row = birth_prompt_row();
-            int status_row = row + S_SNG + 1;
-            int skill_first_row = row;
-            ui_menu_click_begin();
-            ui_menu_click_set_hover_enabled(true);
-            birth_configure_allocation_sheet_layout(false, &skill_first_row,
-                &status_row);
-            row = skill_first_row;
-            ui_scroll_area_begin(row, row + S_SNG,
-                SDL_TOUCH_MENU_CATEGORY_OTHER);
-            ui_scroll_area_set_keys('6', '4', '6', '4');
-
-            /* Display the player */
-            display_player(0);
-            display_player_standard_layout_clear();
-
-            /* Display the costs header */
-            if (!character_dungeon)
-            {
-                if (p_ptr->new_exp >= 10000)
-                    tab = 0;
-                else if (p_ptr->new_exp >= 1000)
-                    tab = 1;
-                else if (p_ptr->new_exp >= 100)
-                    tab = 2;
-                else if (p_ptr->new_exp >= 10)
-                    tab = 3;
-                else
-                    tab = 4;
-
-                strnfmt(buf, sizeof(buf), "%6d", p_ptr->new_exp);
-                c_put_str(TERM_L_GREEN, buf, row - 2, sheet_col + 30);
-                c_put_str(TERM_WHITE, "Points Left:", row - 2, sheet_col + 17 + tab);
-            }
-
-            /* Display the costs */
-            for (i = 0; i < S_MAX; i++)
-            {
-                /* Skip Special abilities skill - not trainable */
-                if (i == S_SPC) continue;
-
-                if (i == skill)
-                {
-                    byte attr = TERM_L_BLUE;
-
-                    bool use_story = story_character_enabled();
-                    if (use_story) {
-                        sdl_story_font_enable();
-                    }
-
-                    c_put_str(attr, skill_names_full[i], row + i, sheet_col - 1);
-
-                    if (use_story) {
-                        sdl_story_font_disable();
-                    }
-
-#ifndef MONOCHROME_MODE
-                    strnfmt(buf, sizeof(buf), "%6d",
-                        birth_skill_cost(old_base[i], skill_gain[i]));
-                    c_put_str(attr, buf, row + i, sheet_col + 30);
-#else
-                    strnfmt(buf, sizeof(buf), "%6d*",
-                        birth_skill_cost(old_base[i], skill_gain[i]));
-                    c_put_str(attr, buf, row + i, sheet_col + 30);
-                    c_put_str(attr, "*", row + i, sheet_col - 2);
-#endif
-                }
-                else
-                {
-                    byte attr = TERM_L_WHITE;
-                    strnfmt(buf, sizeof(buf), "%6d",
-                        birth_skill_cost(old_base[i], skill_gain[i]));
-                    c_put_str(attr, buf, row + i, sheet_col + 30);
-                }
-                ui_menu_click_add(i, sheet_col - 2, row + i, 40);
-            }
-
-            if (status_row < prompt_row)
-            {
-                char skill_buf[80];
-
-                strnfmt(skill_buf, sizeof(skill_buf), "Cost:%d Left:%d",
-                    birth_skill_cost(old_base[skill], skill_gain[skill]),
-                    p_ptr->new_exp);
-                birth_draw_allocation_confirm_status(status_row, sheet_col - 1,
-                    sheet_col + 37, skill_buf);
-            }
-
-            /* Bottom bar follows character sheet font setting */
-            if (story_character_enabled()) {
-                sdl_story_font_enable();
-            }
-
-            if (steamdeck) {
-                char confirm_label[16];
-                char back_label[16];
-                char prompt_buf[160];
-
-                /* Steam Deck UI: A=confirm, B=back */
-                birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
-                birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
-
-                {
-                    char prompt_full[160];
-                    char prompt_short[96];
-                    const char* variants[2];
-
-                    strnfmt(prompt_full, sizeof(prompt_full),
-                        "D-pad allocate  %s back  %s confirm",
-                        back_label, confirm_label);
-                    strnfmt(prompt_short, sizeof(prompt_short),
-                        "%s confirm  %s back", confirm_label, back_label);
-                    variants[0] = prompt_full;
-                    variants[1] = prompt_short;
-                    terminal_prompt_pick_variant(prompt_buf,
-                        sizeof(prompt_buf), Term ? Term->wid - QUESTION_COL
-                                                  : 80 - QUESTION_COL,
-                        story_character_enabled(), variants,
-                        N_ELEMENTS(variants));
-                }
-                Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
-                birth_register_allocation_prompt_clicks(prompt_row,
-                    prompt_buf, QUESTION_COL, back_label, confirm_label,
-                    "q");
-            } else if (sdl_touch_only_device_active()) {
-                char prompt_text[160];
-                /* Skills are tap-to-add and long-tap-to-subtract rows. */
-                const char* variants[] = {
-                    "Tap skill +  long tap -  confirm  back",
-                    "Tap +  long tap -  confirm"
-                };
-                terminal_prompt_pick_variant(prompt_text, sizeof(prompt_text),
-                    Term ? Term->wid - QUESTION_COL : 80 - QUESTION_COL,
-                    story_character_enabled(), variants, N_ELEMENTS(variants));
-                Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
-                    prompt_text);
-                birth_register_allocation_prompt_clicks(prompt_row,
-                    prompt_text, QUESTION_COL, "back", "confirm", "q");
-            } else {
-                char prompt_text[160];
-                const char* variants[] = {
-                    "Dir allocate  Esc back  Enter confirm",
-                    "Enter confirm  Esc back"
-                };
-                terminal_prompt_pick_variant(prompt_text, sizeof(prompt_text),
-                    Term ? Term->wid - QUESTION_COL : 80 - QUESTION_COL,
-                    story_character_enabled(), variants, N_ELEMENTS(variants));
-                Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
-                    prompt_text);
-                birth_register_allocation_prompt_clicks(prompt_row,
-                    prompt_text, QUESTION_COL, "Esc", "Enter", "q");
-            }
-
-            if (story_character_enabled()) {
-                sdl_story_font_disable();
-            }
-        }
-
-        (void)sdl_character_sheet_screen_show_birth_skills(old_base,
+        sdl_character_sheet_screen_show_birth_skills(old_base,
             skill_gain, skill_costs, skill, p_ptr->new_exp);
-        (void)Term_set_cursor(false);
-        Term_fresh();
 
         /* First-time players: guided callouts over the real skills screen. */
         birth_coach_show_once(BIRTH_COACH_SKILLS);
@@ -460,7 +167,6 @@ extern NavResult gain_skills(void)
             }
             skill_gain_in_progress = false;
             ui_menu_click_clear();
-            ui_scroll_area_clear();
             sdl_character_sheet_screen_hide();
             return NAV_TO_CHARACTER;
         }
@@ -469,7 +175,6 @@ extern NavResult gain_skills(void)
         if (birth_confirm_input(ch, steamdeck))
         {
             ui_menu_click_clear();
-            ui_scroll_area_clear();
             result = NAV_OK;
             break;
         }
@@ -485,7 +190,6 @@ extern NavResult gain_skills(void)
                     p_ptr->skill_base[i] = old_base[i];
             }
             ui_menu_click_clear();
-            ui_scroll_area_clear();
             result = NAV_BACK;   /* go back to stat allocation */
             break;
         }
@@ -532,7 +236,6 @@ extern NavResult gain_skills(void)
 
     // reset hack global variable
     ui_menu_click_clear();
-    ui_scroll_area_clear();
     sdl_character_sheet_screen_hide();
     skill_gain_in_progress = false;
 

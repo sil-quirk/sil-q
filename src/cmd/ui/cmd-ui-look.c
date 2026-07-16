@@ -933,8 +933,7 @@ static bool unified_look_examine_monster_at(int y, int x, bool use_story_font)
     handle_stuff();
 
     screen_save();
-    if (!screen_roff(m_ptr->r_idx, m_ptr))
-        (void)inkey();
+    (void)screen_roff(m_ptr->r_idx, m_ptr);
     screen_load();
 
     unified_look_resume_pointer_handlers();
@@ -1591,11 +1590,7 @@ void do_cmd_unified_look(void)
                             screen_save();
                             
                             /* Show monster recall */
-                            if (!screen_roff(m_ptr->r_idx, m_ptr))
-                            {
-                                /* Wait for input */
-                                inkey();
-                            }
+                            (void)screen_roff(m_ptr->r_idx, m_ptr);
                             
                             /* Restore screen */
                             screen_load();
@@ -1670,11 +1665,7 @@ void do_cmd_unified_look(void)
                             screen_save();
                             
                             /* Show monster recall */
-                            if (!screen_roff(m_ptr->r_idx, m_ptr))
-                            {
-                                /* Wait for input */
-                                inkey();
-                            }
+                            (void)screen_roff(m_ptr->r_idx, m_ptr);
                             
                             /* Restore screen */
                             screen_load();
@@ -1753,8 +1744,7 @@ void do_cmd_unified_look(void)
                         log_trace("EXAMINATION: Examining visible monster at cursor position");
                         monster_type* m_ptr = &mon_list[cursor_m_idx];
                         screen_save();
-                        if (!screen_roff(m_ptr->r_idx, m_ptr))
-                            inkey();
+                        (void)screen_roff(m_ptr->r_idx, m_ptr);
                         screen_load();
                     }
                     else
@@ -2167,11 +2157,7 @@ command_key:
                             screen_save();
                             
                             /* Show monster recall */
-                            if (!screen_roff(m_ptr->r_idx, m_ptr))
-                            {
-                                /* Wait for input */
-                                inkey();
-                            }
+                            (void)screen_roff(m_ptr->r_idx, m_ptr);
                             
                             /* Restore screen */
                             screen_load();
@@ -2246,11 +2232,7 @@ command_key:
                             screen_save();
                             
                             /* Show monster recall */
-                            if (!screen_roff(m_ptr->r_idx, m_ptr))
-                            {
-                                /* Wait for input */
-                                inkey();
-                            }
+                            (void)screen_roff(m_ptr->r_idx, m_ptr);
                             
                             /* Restore screen */
                             screen_load();
@@ -2329,8 +2311,7 @@ command_key:
                         log_trace("EXAMINATION: Examining visible monster at cursor position");
                         monster_type* m_ptr = &mon_list[cursor_m_idx];
                         screen_save();
-                        if (!screen_roff(m_ptr->r_idx, m_ptr))
-                            inkey();
+                        (void)screen_roff(m_ptr->r_idx, m_ptr);
                         screen_load();
                     }
                     else
@@ -3248,15 +3229,7 @@ void do_cmd_query_symbol(void)
                 /* Recall on screen */
                 recall_key = screen_roff(who[i], NULL);
 
-                if (recall_key)
-                {
-                    query = (char)recall_key;
-                }
-                else
-                {
-                    /* Hack -- Complete the prompt (again) */
-                    Term_addstr(-1, TERM_WHITE, " [(r)ecall, ESC]");
-                }
+                query = (char)recall_key;
             }
 
             /* Command */

@@ -337,8 +337,7 @@ static int monster_recall_screen_capture_view(
 /*
  * Hack -- describe the given monster race at the top of the screen
  *
- * Returns the key that dismissed the scrollable recall view, or zero when
- * the legacy one-screen display was used and the caller should still wait.
+ * Returns the key that dismissed the scrollable recall view.
  */
 int screen_roff(int r_idx, const monster_type* m_ptr)
 {
@@ -363,7 +362,8 @@ int screen_roff(int r_idx, const monster_type* m_ptr)
         return exit_key;
     }
 
-    return 0;
+    log_warn("Unable to build the monster recall overlay for race %d", r_idx);
+    return ESCAPE;
 }
 
 /*

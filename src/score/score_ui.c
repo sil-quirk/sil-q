@@ -1867,19 +1867,6 @@ void show_scores_interactive_highlight_from_file(bool longscore,
     score_file_reset_ctx(&temp_ctx);
 }
 
-#if 0
-static const char* score_run_killer_kind_label(score_killer_kind kind)
-{
-    switch (kind) {
-    case SCORE_KILLER_MONSTER: return "Monster";
-    case SCORE_KILLER_TRAP: return "Trap";
-    case SCORE_KILLER_FALL: return "Fall";
-    case SCORE_KILLER_SELF: return "Self";
-    case SCORE_KILLER_OTHER: return "Other";
-    default: return "Unknown";
-    }
-}
-#endif
 
 static const char* score_run_status_label(score_record_status status)
 {
@@ -1913,14 +1900,6 @@ static const char* run_history_race_name(byte idx)
         return "<unknown>";
     return p_name + p_info[idx].name;
 }
-#if 0
-static const char* run_history_character_name(byte idx)
-{
-    if (!c_info || !c_name || !z_info || idx >= z_info->c_max)
-        return "<unknown>";
-    return c_name + c_info[idx].name;
-}
-#endif
 static const char* run_history_monster_name(u16b r_idx)
 {
     if (!r_info || !r_name || !z_info || r_idx == 0 || r_idx >= z_info->r_max)
@@ -1977,39 +1956,6 @@ static void run_history_build_summary(const char* player,
         SDL_strlcpy(out, "<unknown>", out_len);
     }
 }
-#if 0
-static void run_history_format_flags(byte run_flags, char* out, size_t out_len)
-{
-    if (!out || out_len == 0)
-        return;
-
-    out[0] = '\0';
-    bool first = true;
-
-    #define APPEND_FLAG(label) \
-        do { \
-            if (!first) SDL_strlcat(out, ", ", out_len); \
-            SDL_strlcat(out, (label), out_len); \
-            first = false; \
-        } while (0)
-
-    if (run_flags & SCORE_RUN_FLAG_MORGOTH_SLAIN)
-        APPEND_FLAG("Morgoth slain");
-    if (run_flags & SCORE_RUN_FLAG_ANGBAND_ESCAPED)
-        APPEND_FLAG("Escaped");
-    if (run_flags & SCORE_RUN_FLAG_NOSCORE)
-        APPEND_FLAG("No score");
-    if (run_flags & SCORE_RUN_FLAG_CHEAT)
-        APPEND_FLAG("Cheat");
-    if (run_flags & SCORE_RUN_FLAG_BLITZ)
-        APPEND_FLAG("Blitz");
-
-    #undef APPEND_FLAG
-
-    if (first)
-        SDL_strlcpy(out, "(none)", out_len);
-}
-#endif
 
 static int run_history_compare_date_desc(const void* a, const void* b)
 {
@@ -3385,8 +3331,7 @@ static void run_history_examine_monster(const score_run_detail_block* details,
 
     if (z_info && entry->r_idx > 0 && entry->r_idx < z_info->r_max) {
         screen_save();
-        if (!screen_roff(entry->r_idx, NULL))
-            (void)inkey();
+        (void)screen_roff(entry->r_idx, NULL);
         screen_load();
     } else {
         bell("Monster information not available.");

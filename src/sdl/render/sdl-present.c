@@ -388,8 +388,8 @@ static Uint64 sdl_left_panel_source_hash(const term* source_term,
 }
 
 /*
- * Replace the terminal fallback on the row beneath the player name with a
- * continuous, pixel-accurate health bar in the styled left panel.
+ * Render a continuous, pixel-accurate health bar on the row beneath the
+ * player name in the styled left panel instead of the terminal health row.
  */
 static bool sdl_render_left_panel_player_health_bar(int source_row,
     int source_col, int end_col, int dest_col, int dest_row, float content_x,

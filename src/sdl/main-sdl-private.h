@@ -1898,7 +1898,7 @@ void sdl_welcome_render_intro_canvas(const SDL_Rect* canvas);
 void sdl_welcome_render_status_canvas(const SDL_Rect* canvas);
 void sdl_welcome_render_menu_footer_canvas(const SDL_Rect* canvas);
 void sdl_welcome_screen_render(void);
-bool sdl_death_poetry_screen_begin(cptr title, cptr body, cptr transition,
+void sdl_death_poetry_screen_begin(cptr title, cptr body, cptr transition,
     cptr prompt);
 void sdl_death_poetry_screen_update(bool title_visible, byte title_attr,
     bool body_visible, byte body_attr, bool transition_visible,
@@ -1977,16 +1977,16 @@ bool sdl_character_sheet_birth_swipe_motion(float x, float y, SDL_FingerID finge
 void sdl_character_sheet_screen_render(void);
 bool sdl_character_sheet_screen_active(void);
 void sdl_character_sheet_screen_hide(void);
-bool sdl_character_sheet_screen_begin_live(int focus_choice);
-bool sdl_character_sheet_screen_begin_birth_preview(void);
+void sdl_character_sheet_screen_begin_live(int focus_choice);
+void sdl_character_sheet_screen_begin_birth_preview(void);
 void sdl_character_sheet_screen_add_live_item(int choice, int kind, int skill, int value_kind, cptr label, cptr desc);
-bool sdl_character_sheet_screen_show_birth_stats(const int* stats, const int* costs, int selected_stat, int points_left);
-bool sdl_character_sheet_screen_show_birth_skills(const int* old_base, const int* skill_gain, const int* costs, int selected_skill, int points_left);
+void sdl_character_sheet_screen_show_birth_stats(const int* stats, const int* costs, int selected_stat, int points_left);
+void sdl_character_sheet_screen_show_birth_skills(const int* old_base, const int* skill_gain, const int* costs, int selected_skill, int points_left);
 void sdl_select_page_turn_free(void);
 void sdl_character_sheet_screen_reset_select_page(void);
-bool sdl_character_sheet_screen_begin_select(int focus_choice, cptr title);
+void sdl_character_sheet_screen_begin_select(int focus_choice, cptr title);
 void sdl_character_sheet_screen_set_select_menu_style(bool enabled);
-bool sdl_character_sheet_screen_begin_book(cptr title);
+void sdl_character_sheet_screen_begin_book(cptr title);
 void sdl_character_sheet_screen_add_book_paragraph(cptr text);
 void sdl_character_sheet_screen_break_book_page(void);
 void sdl_character_sheet_screen_highlight_book_paragraph(void);
@@ -2022,7 +2022,7 @@ bool sdl_main_menu_choice_disabled_now(int choice);
 void sdl_main_menu_overlay_reset_nav_input(void);
 bool sdl_main_menu_overlay_hides_supporting_panes(void);
 void sdl_main_menu_overlay_close(void);
-bool sdl_main_menu_overlay_begin(void);
+void sdl_main_menu_overlay_begin(void);
 void sdl_main_menu_overlay_move(int delta);
 void sdl_main_menu_overlay_choose(int choice);
 bool sdl_main_menu_overlay_handle_direction(int dir);

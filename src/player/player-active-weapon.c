@@ -212,7 +212,7 @@ static void mark_active_weapon_changed(void)
     p_ptr->window |= PW_PLAYER_0 | PW_EQUIP;
 }
 
-static bool object_is_one_handed_weapon(const object_type* o_ptr)
+static bool object_allows_quick_throw(const object_type* o_ptr)
 {
     u32b f1 = 0, f2 = 0, f3 = 0;
 
@@ -227,18 +227,16 @@ static bool object_is_one_handed_weapon(const object_type* o_ptr)
     object_flags(o_ptr, &f1, &f2, &f3);
     if (f3 & TR3_TWO_HANDED)
         return false;
-    if (hand_and_a_half_bonus(o_ptr))
-        return false;
 
     return true;
 }
 
-static bool player_has_exactly_one_one_handed_weapon_equipped(void)
+static bool player_has_quick_throw_weapon_equipped(void)
 {
     object_type* main_hand = &inventory[INVEN_WIELD];
     object_type* off_hand = &inventory[INVEN_ARM];
 
-    if (!object_is_one_handed_weapon(main_hand))
+    if (!object_allows_quick_throw(main_hand))
         return false;
     if (off_hand->k_idx && off_hand->tval != TV_SHIELD)
         return false;
@@ -348,7 +346,7 @@ bool player_can_quick_throw_from_quiver(int slot)
         return false;
     if (!p_ptr->active_ability[S_MEL][MEL_THROWING])
         return false;
-    if (!player_has_exactly_one_one_handed_weapon_equipped())
+    if (!player_has_quick_throw_weapon_equipped())
         return false;
 
     o_ptr = &inventory[slot];
@@ -366,7 +364,7 @@ int player_quick_throw_quiver_slot(void)
 
 /*
  * Alchemy lets the player hurl potions at any time, with no requirement to
- * be wielding a single one-handed weapon (unlike quick-throwing daggers).
+ * be wielding a Quick Throw-compatible melee weapon (unlike daggers).
  */
 bool player_can_throw_potions(void)
 {

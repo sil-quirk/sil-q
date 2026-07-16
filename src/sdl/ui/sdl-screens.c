@@ -363,11 +363,11 @@ void sdl_welcome_screen_hide(void)
     sdl_welcome_screen_mark_dirty();
 }
 
-bool sdl_death_poetry_screen_begin(cptr title, cptr body, cptr transition,
+void sdl_death_poetry_screen_begin(cptr title, cptr body, cptr transition,
     cptr prompt)
 {
     if (!sdl_welcome_screen_available())
-        return false;
+        return;
 
     memset(&g_sdl_death_poetry_screen, 0,
         sizeof(g_sdl_death_poetry_screen));
@@ -386,7 +386,6 @@ bool sdl_death_poetry_screen_begin(cptr title, cptr body, cptr transition,
         (prompt && prompt[0]) ? prompt : "[Press any key to continue]",
         sizeof(g_sdl_death_poetry_screen.prompt));
     sdl_welcome_screen_mark_dirty();
-    return true;
 }
 
 void sdl_death_poetry_screen_update(bool title_visible, byte title_attr,
@@ -11086,10 +11085,10 @@ void sdl_character_sheet_screen_hide(void)
     g_state.need_present = true;
 }
 
-bool sdl_character_sheet_screen_begin_live(int focus_choice)
+void sdl_character_sheet_screen_begin_live(int focus_choice)
 {
     if (!g_state.window || !g_state.renderer)
-        return false;
+        return;
 
     if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_LIVE)
     {
@@ -11104,13 +11103,12 @@ bool sdl_character_sheet_screen_begin_live(int focus_choice)
     g_sdl_character_sheet_screen.live_item_count = 0;
     sdl_character_sheet_touch_press_cancel();
     g_state.need_present = true;
-    return true;
 }
 
-bool sdl_character_sheet_screen_begin_birth_preview(void)
+void sdl_character_sheet_screen_begin_birth_preview(void)
 {
     if (!g_state.window || !g_state.renderer)
-        return false;
+        return;
 
     if (g_sdl_character_sheet_screen.context
         != SDL_CHARACTER_SHEET_BIRTH_PREVIEW)
@@ -11127,7 +11125,6 @@ bool sdl_character_sheet_screen_begin_birth_preview(void)
     g_sdl_character_sheet_screen.select_menu_style = false;
     g_sdl_character_sheet_screen.live_item_count = 0;
     g_state.need_present = true;
-    return true;
 }
 
 void sdl_character_sheet_screen_add_live_item(int choice, int kind, int skill,
@@ -11158,11 +11155,11 @@ void sdl_character_sheet_screen_add_live_item(int choice, int kind, int skill,
     SDL_strlcpy(item->desc, desc ? desc : "", sizeof(item->desc));
 }
 
-bool sdl_character_sheet_screen_show_birth_stats(const int* stats,
+void sdl_character_sheet_screen_show_birth_stats(const int* stats,
     const int* costs, int selected_stat, int points_left)
 {
     if (!g_state.window || !g_state.renderer)
-        return false;
+        return;
 
     if (g_sdl_character_sheet_screen.context
         != SDL_CHARACTER_SHEET_BIRTH_STATS)
@@ -11187,15 +11184,14 @@ bool sdl_character_sheet_screen_show_birth_stats(const int* stats,
         g_sdl_character_sheet_screen.stat_costs[i] = costs ? costs[i] : 0;
     }
     g_state.need_present = true;
-    return true;
 }
 
-bool sdl_character_sheet_screen_show_birth_skills(const int* old_base,
+void sdl_character_sheet_screen_show_birth_skills(const int* old_base,
     const int* skill_gain, const int* costs, int selected_skill,
     int points_left)
 {
     if (!g_state.window || !g_state.renderer)
-        return false;
+        return;
 
     if (g_sdl_character_sheet_screen.context
         != SDL_CHARACTER_SHEET_BIRTH_SKILLS)
@@ -11223,7 +11219,6 @@ bool sdl_character_sheet_screen_show_birth_skills(const int* old_base,
         g_sdl_character_sheet_screen.skill_costs[i] = costs ? costs[i] : 0;
     }
     g_state.need_present = true;
-    return true;
 }
 
 /*
@@ -11251,10 +11246,10 @@ void sdl_character_sheet_screen_reset_select_page(void)
     g_sdl_character_sheet_screen.select_page = 0;
 }
 
-bool sdl_character_sheet_screen_begin_select(int focus_choice, cptr title)
+void sdl_character_sheet_screen_begin_select(int focus_choice, cptr title)
 {
     if (!g_state.window || !g_state.renderer)
-        return false;
+        return;
 
     if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_BIRTH_SELECT)
     {
@@ -11306,7 +11301,6 @@ bool sdl_character_sheet_screen_begin_select(int focus_choice, cptr title)
     g_sdl_select_menu_rows_per_column = 0;
     SDL_strlcpy(g_sdl_character_sheet_screen.select_title, title ? title : "",
         sizeof(g_sdl_character_sheet_screen.select_title));
-    return true;
 }
 
 void sdl_character_sheet_screen_set_select_menu_style(bool enabled)
@@ -11332,10 +11326,10 @@ static void sdl_character_sheet_narrative_layout_changed(void)
     g_sdl_character_sheet_screen.narrative_contents_body_px = 0;
 }
 
-bool sdl_character_sheet_screen_begin_book(cptr title)
+void sdl_character_sheet_screen_begin_book(cptr title)
 {
     if (!g_state.window || !g_state.renderer)
-        return false;
+        return;
 
     sdl_select_page_turn_free();
     sdl_character_sheet_birth_swipe_cancel();
@@ -11371,7 +11365,6 @@ bool sdl_character_sheet_screen_begin_book(cptr title)
         title ? title : "",
         sizeof(g_sdl_character_sheet_screen.narrative_title));
     sdl_character_sheet_narrative_layout_changed();
-    return true;
 }
 
 void sdl_character_sheet_screen_add_book_paragraph(cptr text)

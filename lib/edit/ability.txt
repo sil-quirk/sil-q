@@ -66,7 +66,7 @@ T:34:0:99  # Shields
 N:3:Throwing
 I:0:3:4
 D:Recalling the deadly casts of spears by the Sindar in the defense of Doriath's borders. The march-wardens of Thingol were trained to hurl their javelins with lethal accuracy across great distances, striking down intruders before they could set foot beneath the enchanted trees of Neldoreth.
-E:+1 attack when throwing from the quiver. Distance penalties halved. Thrown criticals easier. With one one-handed melee weapon equipped, quivered daggers can be quick-thrown while melee stays active.
+E:+1 attack when throwing from the quiver. Distance penalties halved. Thrown criticals easier. With one one-handed or one-and-a-half-handed melee weapon equipped, quivered daggers can be quick-thrown while melee stays active.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords

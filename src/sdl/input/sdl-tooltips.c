@@ -3325,8 +3325,7 @@ bool sdl_mouse_recall_process_pending(void)
         handle_stuff();
 
         screen_save();
-        if (!screen_roff(m_ptr->r_idx, m_ptr))
-            (void)inkey();
+        (void)screen_roff(m_ptr->r_idx, m_ptr);
         screen_load();
         return true;
     }
