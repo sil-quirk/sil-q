@@ -80,20 +80,11 @@ enum {
     SDL_PLAYER_ACTION_MENU_SECTOR_SEGMENTS = 12
 };
 
-static bool sdl_player_action_menu_set_player_tile(byte* out_attr,
-    char* out_char)
+static bool sdl_player_action_menu_desktop_layout(void)
 {
-    monster_race* player_r_ptr;
-
-    if (!p_ptr)
-        return false;
-
-    player_r_ptr = &r_info[p_ptr->prace];
-    if (out_attr)
-        *out_attr = player_r_ptr->x_attr;
-    if (out_char)
-        *out_char = player_r_ptr->x_char + player_tile_offset();
-    return true;
+    return g_startup_device_class == SDL_STARTUP_DEVICE_DESKTOP
+        || g_startup_device_class == SDL_STARTUP_DEVICE_DESKTOP_CONTROLLER
+        || g_startup_device_class == SDL_STARTUP_DEVICE_DESKTOP_HANDHELD;
 }
 
 static cptr sdl_player_action_menu_description_for_kind(int kind)
@@ -175,85 +166,35 @@ void sdl_player_action_menu_tile_for_kind(int kind, byte* out_attr,
 
     switch (kind) {
     case SDL_PLAYER_ACTION_WAIT:
-        row = 2; col = 29;  /* lantern silhouette reads as a pause icon */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_WAIT;
         break;
     case SDL_PLAYER_ACTION_USE:
-        row = 5; col = 8;   /* flask/oil, a common useable item */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_USE;
         break;
     case SDL_PLAYER_ACTION_STEALTH:
-        row = 5; col = 3;   /* shadow cloak */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_STEALTH;
         break;
     case SDL_PLAYER_ACTION_SING:
-        row = 11; col = 17; /* concentric sound-wave/impact icon */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_SING;
         break;
     case SDL_PLAYER_ACTION_EXCHANGE:
-        if (sdl_player_action_menu_set_player_tile(out_attr, out_char))
-            return;
-        row = 13; col = 0;  /* base player tile fallback */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_EXCHANGE;
         break;
     case SDL_PLAYER_ACTION_FLETCH:
-        row = 5; col = 27;  /* arrows */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_FLETCH;
         break;
     case SDL_PLAYER_ACTION_EXAMINE:
-        row = 12; col = 10; /* question mark */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_DESCRIPTION;
         break;
     case SDL_PLAYER_ACTION_ACTIVATE:
-    {
-        object_type* icon_obj = &inventory[INVEN_STAFF];
-
-        if (icon_obj->k_idx)
-        {
-            if (out_attr)
-                *out_attr = object_attr(icon_obj);
-            if (out_char)
-                *out_char = object_char(icon_obj);
-            return;
-        }
-
-        row = 4; col = 24;  /* silver staff flavor */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_ACTIVATE_STAFF;
         break;
-    }
     case SDL_PLAYER_ACTION_HORN:
-    {
-        object_type* icon_obj = &inventory[INVEN_HORN];
-
-        if (icon_obj->k_idx)
-        {
-            if (out_attr)
-                *out_attr = object_attr(icon_obj);
-            if (out_char)
-                *out_char = object_char(icon_obj);
-            return;
-        }
-
-        row = 2; col = 24;  /* ivory horn flavor */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_BLOW_HORN;
         break;
-    }
     case SDL_PLAYER_ACTION_SHOOT:
-    {
-        object_type* icon_obj = NULL;
-
-        if (p_ptr && player_active_weapon_is_ranged())
-            icon_obj = &inventory[INVEN_WIELD];
-        else if (inventory[INVEN_BOW].k_idx)
-            icon_obj = &inventory[INVEN_BOW];
-        else if (inventory[INVEN_QUIVER1].k_idx)
-            icon_obj = &inventory[INVEN_QUIVER1];
-        else if (inventory[INVEN_QUIVER2].k_idx)
-            icon_obj = &inventory[INVEN_QUIVER2];
-
-        if (icon_obj && icon_obj->k_idx)
-        {
-            if (out_attr)
-                *out_attr = object_attr(icon_obj);
-            if (out_char)
-                *out_char = object_char(icon_obj);
-            return;
-        }
-
-        row = 5; col = 29;  /* shortbow */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_RANGED_ATTACK;
         break;
-    }
     case SDL_PLAYER_ACTION_QUICK_THROW:
     {
         int slot = player_quick_throw_quiver_slot();
@@ -287,12 +228,10 @@ void sdl_player_action_menu_tile_for_kind(int kind, byte* out_attr,
         break;
     }
     case SDL_PLAYER_ACTION_REST:
-        if (sdl_player_action_menu_set_player_tile(out_attr, out_char))
-            return;
-        row = 2; col = 29;  /* pause icon fallback */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_REST;
         break;
     case SDL_PLAYER_ACTION_SWAP_QUIVERS:
-        row = 5; col = 27;  /* crossed arrows when rendered */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_CHANGE_QUIVERS;
         break;
     case SDL_PLAYER_ACTION_CHANGE_STAFF:
     {
@@ -311,10 +250,10 @@ void sdl_player_action_menu_tile_for_kind(int kind, byte* out_attr,
         break;
     }
     case SDL_PLAYER_ACTION_CLOSE_DOOR:
-        row = 0; col = 11;  /* open door (the door you close) */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_CLOSE_DOOR;
         break;
     case SDL_PLAYER_ACTION_BASH_DOOR:
-        row = 0; col = 10;  /* closed door (the door you bash) */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_BASH_DOOR;
         break;
     default:
         break;
@@ -921,6 +860,7 @@ bool sdl_player_action_menu_layout(player_action_menu_entry* entries,
     float icon_size;
     float icon_radius;
     float max_outer;
+    bool desktop_layout;
     float step;
     float first_start;
     int count;
@@ -943,9 +883,11 @@ bool sdl_player_action_menu_layout(player_action_menu_entry* entries,
     if (count <= 0)
         return false;
 
+    desktop_layout = sdl_player_action_menu_desktop_layout();
     max_outer = ((bounds.w < bounds.h) ? bounds.w : bounds.h) * 0.5f - 4.0f;
-    outer_radius = sdl_touch_pane_clampf((float)view->cell_h * 6.7f,
-        124.0f, 236.0f);
+    outer_radius = desktop_layout
+        ? sdl_touch_pane_clampf((float)view->cell_h * 5.4f, 104.0f, 196.0f)
+        : sdl_touch_pane_clampf((float)view->cell_h * 6.7f, 124.0f, 236.0f);
     if (outer_radius > max_outer)
         outer_radius = max_outer;
     if (outer_radius < 44.0f)
@@ -1011,6 +953,7 @@ static bool sdl_player_action_menu_layout_secondary(int owner_kind,
     float ring_width;
     float icon_size;
     float icon_radius;
+    bool desktop_layout;
     float step;
 
     if (!entries || !out_count)
@@ -1035,11 +978,16 @@ static bool sdl_player_action_menu_layout_secondary(int owner_kind,
     if (sec_count <= 0)
         return false;
 
+    desktop_layout = sdl_player_action_menu_desktop_layout();
     ring_inner = owner->outer_radius;
     ring_width = sdl_touch_pane_clampf(
-        (owner->outer_radius - owner->inner_radius) * 0.85f,
-        50.0f, 88.0f);
-    icon_size = sdl_touch_pane_clampf(ring_width * 0.64f, 34.0f, 66.0f);
+        (owner->outer_radius - owner->inner_radius)
+            * (desktop_layout ? 0.72f : 0.85f),
+        desktop_layout ? 42.0f : 50.0f,
+        desktop_layout ? 72.0f : 88.0f);
+    icon_size = sdl_touch_pane_clampf(ring_width * 0.78f, 38.0f, 76.0f);
+    if (icon_size > owner->rect.w)
+        icon_size = owner->rect.w;
     ring_outer = ring_inner + ring_width;
     icon_radius = ring_inner + (ring_outer - ring_inner) * 0.5f;
     step = (owner->end_angle - owner->start_angle) / (float)sec_count;
@@ -2175,28 +2123,6 @@ static void sdl_player_action_menu_render_crossed_icon(
         false, SDL_FLIP_HORIZONTAL);
 }
 
-static void sdl_player_action_menu_render_exchange_icon(
-    const player_action_menu_entry* entry, const SDL_FRect* rect)
-{
-    SDL_FRect actor;
-    float size;
-
-    if (!entry || !rect)
-        return;
-
-    size = SDL_min(rect->w, rect->h) * 0.64f;
-    actor.w = size;
-    actor.h = size;
-    actor.x = rect->x + rect->w * 0.02f;
-    actor.y = rect->y + (rect->h - size) * 0.5f;
-    sdl_draw_tileset_sprite_ex(entry->tile_attr, entry->tile_char, &actor,
-        false, SDL_FLIP_NONE);
-
-    actor.x = rect->x + rect->w - size - rect->w * 0.02f;
-    sdl_draw_tileset_sprite_ex(entry->tile_attr, entry->tile_char, &actor,
-        false, SDL_FLIP_HORIZONTAL);
-}
-
 static void sdl_player_action_menu_render_icon(
     const player_action_menu_entry* entry, bool hover)
 {
@@ -2219,19 +2145,12 @@ static void sdl_player_action_menu_render_icon(
             SDL_SetTextureAlphaMod(g_state.tileset, 255);
         else
             SDL_SetTextureAlphaMod(g_state.tileset, 226);
-        if (entry->kind == SDL_PLAYER_ACTION_EXCHANGE) {
-            sdl_player_action_menu_render_exchange_icon(entry, &rect);
-        } else if (entry->kind == SDL_PLAYER_ACTION_SWAP_QUIVERS
-            || entry->kind == SDL_PLAYER_ACTION_CHANGE_STAFF)
+        if (entry->kind == SDL_PLAYER_ACTION_CHANGE_STAFF)
         {
             sdl_player_action_menu_render_crossed_icon(entry, &rect);
         } else {
             sdl_draw_tileset_sprite(entry->tile_attr, entry->tile_char, &rect,
                 false);
-            if (entry->kind == SDL_PLAYER_ACTION_REST) {
-                sdl_draw_tileset_sprite((byte)(TILE_FLAG | 19),
-                    (char)(TILE_FLAG | 8), &rect, false);
-            }
         }
         sdl_restore_tileset_mod();
     } else {

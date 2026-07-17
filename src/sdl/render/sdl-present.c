@@ -1465,6 +1465,16 @@ bool sdl_render_current_window_frame(void)
     if (g_suppress_layout_refresh_present)
         return false;
 
+    if (sdl_pause_text_screen_active()) {
+        sdl_pause_text_screen_render();
+        return true;
+    }
+
+    if (sdl_tale_screen_active()) {
+        sdl_tale_screen_render();
+        return true;
+    }
+
     if (sdl_death_poetry_screen_active()) {
         sdl_death_poetry_screen_render();
         return true;

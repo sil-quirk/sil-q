@@ -2393,7 +2393,8 @@ enum {
     HINT_MESSAGE_DISPLAY_TEXT_MAX = 256,
     HINT_MESSAGE_DISPLAY_LINES_MAX = 48,
     HINT_MESSAGE_LIST_LINES_MAX = 64,
-    HINT_MESSAGE_DETAIL_DEFAULT_TOP_ROW = 4
+    HINT_MESSAGE_DETAIL_DEFAULT_TOP_ROW = 2,
+    HINT_MESSAGE_DETAIL_LEFT_COL = 2
 };
 
 static int hint_message_wrap_list_text(const char* text, int wrap_cols,
@@ -3086,7 +3087,7 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
     int wid = 80;
     int hgt = 24;
     int row = HINT_MESSAGE_DETAIL_DEFAULT_TOP_ROW;
-    int col = 8;
+    int col = HINT_MESSAGE_DETAIL_LEFT_COL;
     hint_message_display_line lines[HINT_MESSAGE_DISPLAY_LINES_MAX];
     char tip_text[512];
     char ch;
@@ -3179,7 +3180,7 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
     int wid = 80;
     int hgt = 24;
     int row = HINT_MESSAGE_DETAIL_DEFAULT_TOP_ROW;
-    int col = 8;
+    int col = HINT_MESSAGE_DETAIL_LEFT_COL;
     hint_message_display_line display_lines[HINT_MESSAGE_DISPLAY_LINES_MAX];
     char ch;
     hint_message_meta meta;
@@ -3877,7 +3878,7 @@ static hint_message_action thrall_quest_show_internal(int m_idx,
     int wid = 80;
     int hgt = 24;
     int row = HINT_MESSAGE_DETAIL_DEFAULT_TOP_ROW;
-    int col = 8;
+    int col = HINT_MESSAGE_DETAIL_LEFT_COL;
     int line_count;
     char ch;
     char title[96];

@@ -1046,6 +1046,54 @@ void sdl_window_set_position(int x, int y)
     }
 }
 
+bool sdl_window_reassert_fullscreen(cptr reason)
+{
+    SDL_WindowFlags flags;
+
+    if (!g_state.window || !config.fullscreen)
+        return true;
+
+    flags = SDL_GetWindowFlags(g_state.window);
+    if (!(flags & SDL_WINDOW_FULLSCREEN))
+    {
+        log_warn("Fullscreen flag was lost during %s; restoring it",
+            reason ? reason : "window update");
+        if (!SDL_SetWindowFullscreen(g_state.window, true))
+        {
+            log_error("Failed to restore fullscreen during %s: %s",
+                reason ? reason : "window update", SDL_GetError());
+            return false;
+        }
+    }
+
+    /* SDL fullscreen transitions can be asynchronous.  Synchronize before
+     * raising so Windows recognizes this as the foreground fullscreen window
+     * and places the taskbar behind it.  SDL_RaiseWindow does not leave the
+     * game permanently topmost. */
+    if (!SDL_SyncWindow(g_state.window))
+    {
+        log_warn("Fullscreen synchronization timed out during %s: %s",
+            reason ? reason : "window update", SDL_GetError());
+    }
+    if (!SDL_RaiseWindow(g_state.window))
+    {
+        log_warn("Failed to raise fullscreen window during %s: %s",
+            reason ? reason : "window update", SDL_GetError());
+    }
+
+    flags = SDL_GetWindowFlags(g_state.window);
+    if (!(flags & SDL_WINDOW_FULLSCREEN))
+    {
+        log_error("Window is still not fullscreen after %s",
+            reason ? reason : "window update");
+        return false;
+    }
+
+    log_debug("Fullscreen synchronized and raised during %s",
+        reason ? reason : "window update");
+    return true;
+}
+
 void sdl_window_create(int window_width, int window_height, bool fullscreen, bool use_tiles)
 {
     SDL_WindowFlags flags = SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_RESIZABLE;
@@ -1059,6 +1107,9 @@ void sdl_window_create(int window_width, int window_height, bool fullscreen, boo
         log_error("SDL_CreateWindowAndRenderer failed: %s", SDL_GetError());
         quit("could not create SDL window");
     }
+
+    if (fullscreen)
+        (void)sdl_window_reassert_fullscreen("window creation");
 
     // Enable V-SYNC for consistent frame timing across GPU vendors.
     // Without V-SYNC, NVIDIA drivers may buffer commands and return immediately

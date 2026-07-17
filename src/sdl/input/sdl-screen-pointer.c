@@ -971,6 +971,16 @@ bool sdl_pointer_dismiss_any_key_prompt(void)
         Term_keypress('\r');
         return true;
     }
+    if (sdl_pause_text_screen_active())
+    {
+        Term_keypress('\r');
+        return true;
+    }
+    if (sdl_tale_screen_active())
+    {
+        Term_keypress('\r');
+        return true;
+    }
     if (ui_key_wait_dismiss_is_active())
     {
         Term_keypress(ui_key_wait_dismiss_get_key());

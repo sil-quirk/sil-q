@@ -381,52 +381,52 @@ D:Diamond
 
 N:88:56
 G:*:r
-T:1:22
+T:22:3
 D:Ruby
 
 N:89:56
 G:*:b
-T:1:23
+T:22:4
 D:Sapphire
 
 N:90:56
 G:*:g
-T:1:24
+T:22:5
 D:Emerald
 
 N:91:56
 G:*:y
-T:1:25
+T:22:6
 D:Topaz
 
 N:92:56
 G:*:v
-T:1:26
+T:22:7
 D:Amethyst
 
 N:93:56
 G:*:o
-T:1:27
+T:22:8
 D:Opal
 
 N:94:56
 G:*:U
-T:1:28
+T:22:9
 D:Amber
 
 N:95:56
 G:*:w
-T:1:29
+T:22:10
 D:Pearl
 
 N:96:56
 G:*:u
-T:1:30
+T:22:11
 D:Garnet
 
 N:97:56
 G:*:G
-T:1:31
+T:22:12
 D:Jade
 
 ##### Horns #####

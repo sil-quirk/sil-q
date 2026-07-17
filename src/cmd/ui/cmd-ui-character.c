@@ -738,7 +738,7 @@ static void character_sheet_format_value_item(const character_sheet_item* item,
     {
     case CHARACTER_SHEET_VALUE_EXP:
         strnfmt(buf, buflen,
-            "Experience: %ld unspent / %ld total. Spend XP to raise skills and buy abilities.",
+            "Experience: %ld unspent / %ld earned. Unspent XP pays the increasing cost to raise skills and purchase abilities; earned is your lifetime total and does not fall when XP is spent.",
             (long)p_ptr->new_exp, (long)p_ptr->exp);
         break;
     case CHARACTER_SHEET_VALUE_BURDEN:
@@ -750,32 +750,35 @@ static void character_sheet_format_value_item(const character_sheet_item* item,
         character_sheet_format_tenths(limit, sizeof(limit),
             (long)weight_limit());
         strnfmt(buf, buflen,
-            "Burden: %s/%s lb carried. Heavy loads count against movement and stealth.",
+            "Burden: %s/%s lb carried. Strength sets the limit. Exceeding it costs 1 speed; above 150%% you cannot move or pick up more. Inventory, supplies, and lamp oil all count.",
             carried, limit);
         break;
     }
     case CHARACTER_SHEET_VALUE_DEPTH:
         strnfmt(buf, buflen,
-            "Depth c/m: %d ft current / %d ft minimum return depth.",
+            "Depth c/m: %d ft current / %d ft minimum. Current is your location; minimum is the shallowest depth stairs can return you to as time and Deep Call pressure force you deeper.",
             p_ptr->depth * 50, min_depth() * 50);
         break;
     case CHARACTER_SHEET_VALUE_DEEP_CALL:
     {
+        int base = 0;
+        int additional = 0;
         int total = 0;
         int progress = 0;
         int threshold = 0;
 
-        min_depth_timer_status(NULL, NULL, &total, &progress, &threshold);
+        min_depth_timer_status(&base, &additional, &total, &progress,
+            &threshold);
         if (threshold > 0)
         {
             strnfmt(buf, buflen,
-                "Deep Call: minimum-depth pressure. Progress %d/%d; currently advances by %d per turn.",
-                progress, threshold, total);
+                "Deep Call: minimum-depth pressure gains %d per turn (%d base %+d from extra depth, carried Deep Call items, and kills). Progress is %d/%d toward the next 50-ft rise.",
+                total, base, additional, progress, threshold);
         }
         else
         {
             SDL_strlcpy(buf,
-                "Deep Call: minimum-depth pressure from time and certain items.",
+                "Deep Call: minimum-depth pressure from time, extra depth, carried Deep Call items, and kills. Each completed threshold raises the shallowest depth stairs can return you to.",
                 buflen);
         }
         break;
@@ -787,7 +790,7 @@ static void character_sheet_format_value_item(const character_sheet_item* item,
 
         min_depth_timer_status(NULL, NULL, NULL, &progress, &threshold);
         strnfmt(buf, buflen,
-            "Minimum-depth progress: %d/%d toward the next rise in minimum return depth.",
+            "Minimum-depth progress: %d/%d toward the next 50-ft rise. It advances each turn at the Deep Call rate; extra depth, carried Deep Call items, and kills can accelerate it.",
             progress, threshold);
         break;
     }
@@ -795,45 +798,51 @@ static void character_sheet_format_value_item(const character_sheet_item* item,
     {
         char turns[32];
         comma_number(turns, playerturn);
-        strnfmt(buf, buflen, "Turn: %s game turns elapsed.", turns);
+        strnfmt(buf, buflen,
+            "Turn: %s player turns elapsed. This clock drives regeneration, timed effects, and the changing base rate of minimum-depth pressure.",
+            turns);
         break;
     }
     case CHARACTER_SHEET_VALUE_LIGHT:
-        strnfmt(buf, buflen, "Light: radius %d around you.", p_ptr->cur_light);
+        strnfmt(buf, buflen,
+            "Light: radius %d. It illuminates nearby tiles and helps you see, but your light also contributes to how readily monsters notice you.",
+            p_ptr->cur_light);
         break;
     case CHARACTER_SHEET_VALUE_MELEE:
         strnfmt(buf, buflen,
-            "Melee: main hand (%+d,%dd%d): attack bonus and damage dice.",
+            "Melee: main hand (%+d,%dd%d). The first value is your attack score against enemy Evasion; the dice are base weapon damage before protection. Criticals, slays, and abilities may add dice.",
             p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
         break;
     case CHARACTER_SHEET_VALUE_MELEE_X2:
         strnfmt(buf, buflen,
-            "Melee x2: Rapid Attack grants another swing at (%+d,%dd%d).",
+            "Melee x2: Rapid Attack grants a second main-hand attack at (%+d,%dd%d). The first value contests Evasion; the dice are its base damage before protection.",
             p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
         break;
     case CHARACTER_SHEET_VALUE_OFFHAND:
         strnfmt(buf, buflen,
-            "Offhand: secondary attack (%+d,%dd%d).",
+            "Offhand: secondary attack (%+d,%dd%d). The first value contests Evasion; the dice are offhand base damage before protection and may differ from your main hand.",
             p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod,
             p_ptr->mdd2, p_ptr->mds2);
         break;
     case CHARACTER_SHEET_VALUE_BOWS:
         strnfmt(buf, buflen,
-            "Bows: ranged attacks (%+d,%dd%d): attack bonus and damage dice.",
+            "Bows: ranged attacks (%+d,%dd%d). The first value is your attack score against enemy Evasion; the dice are base bow damage before protection. Range, criticals, and abilities may modify a shot.",
             p_ptr->skill_use[S_ARC], p_ptr->add, p_ptr->ads);
         break;
     case CHARACTER_SHEET_VALUE_ARMOR:
         strnfmt(buf, buflen,
-            "Armor: [%+d,%d-%d] = evasion bonus and protection dice.",
+            "Armor: [%+d,%d-%d]. The first value is total Evasion used to avoid attacks; the range is minimum-maximum protection against physical damage after a hit lands.",
             p_ptr->skill_use[S_EVN], p_min(GF_HURT, true),
             p_max(GF_HURT, true));
         break;
     case CHARACTER_SHEET_VALUE_HEALTH:
-        strnfmt(buf, buflen, "Health: %d/%d hit points.",
+        strnfmt(buf, buflen,
+            "Health: %d/%d hit points. Damage removes current Health and reaching 0 is fatal. Constitution sets maximum Health; resting can restore missing Health.",
             MIN(p_ptr->chp, 999), MIN(p_ptr->mhp, 999));
         break;
     case CHARACTER_SHEET_VALUE_VOICE:
-        strnfmt(buf, buflen, "Voice: %d/%d song points.",
+        strnfmt(buf, buflen,
+            "Voice: %d/%d song points. Singing spends current Voice, which does not regenerate while a song is active. Grace sets maximum Voice; resting restores it when you are not singing.",
             MIN(p_ptr->csp, 999), MIN(p_ptr->msp, 999));
         break;
     case CHARACTER_SHEET_VALUE_SONG:
@@ -849,13 +858,21 @@ static void character_sheet_format_value_item(const character_sheet_item* item,
             song1 += 8;
         if (song2 && prefix(song2, "Song of "))
             song2 += 8;
-        if (song1 && song2)
-            strnfmt(buf, buflen, "Song: currently singing %s and %s.",
-                song1, song2);
+        if (item->label && streq(item->label, "Theme") && song2)
+        {
+            strnfmt(buf, buflen,
+                "Theme: %s is the minor theme woven with %s. Minor themes normally use reduced Song skill, still spend their Voice cost, and may form a synergy pair.",
+                song2, song1 ? song1 : "your primary song");
+        }
         else if (song1)
-            strnfmt(buf, buflen, "Song: currently singing %s.", song1);
+        {
+            strnfmt(buf, buflen,
+                "Song: %s is your primary song%s. It uses your full Song skill and spends Voice while maintained; Voice does not regenerate while singing.",
+                song1, song2 ? " with a woven minor theme" : "");
+        }
         else if (song2)
-            strnfmt(buf, buflen, "Song: currently singing %s.", song2);
+            strnfmt(buf, buflen,
+                "Theme: %s is an active woven minor theme. It spends Voice while maintained; Voice does not regenerate while singing.", song2);
         else
             SDL_strlcpy(buf, "Song: no active song.", buflen);
         break;
@@ -984,6 +1001,55 @@ static void character_sheet_format_item_description(
         character_sheet_format_trait_item(item, desc, descsz);
     else
         character_sheet_format_value_item(item, desc, descsz);
+}
+
+/* Share the live character sheet's exact vital explanations with birth-time
+ * attribute/skill allocation.  Those screens display the same live values,
+ * so maintaining a second, abbreviated description table in the SDL renderer
+ * would let the two views drift apart. */
+void character_sheet_format_vital_description(cptr label, char* buf,
+    size_t buflen)
+{
+    character_sheet_item item;
+    int kind = -1;
+
+    if (!buf || buflen == 0)
+        return;
+    buf[0] = '\0';
+    if (!label || !label[0] || !p_ptr)
+        return;
+
+    if (streq(label, "Exp")) kind = CHARACTER_SHEET_VALUE_EXP;
+    else if (streq(label, "Burden")) kind = CHARACTER_SHEET_VALUE_BURDEN;
+    else if (streq(label, "Depth c/m")) kind = CHARACTER_SHEET_VALUE_DEPTH;
+    else if (streq(label, "Depth timer")
+        || streq(label, "Minimum depth progress"))
+    {
+        kind = CHARACTER_SHEET_VALUE_DEPTH_PROGRESS;
+    }
+    else if (streq(label, "Deep Call"))
+        kind = CHARACTER_SHEET_VALUE_DEEP_CALL;
+    else if (streq(label, "Turn")) kind = CHARACTER_SHEET_VALUE_TURN;
+    else if (streq(label, "Light")) kind = CHARACTER_SHEET_VALUE_LIGHT;
+    else if (streq(label, "Melee")) kind = CHARACTER_SHEET_VALUE_MELEE;
+    else if (streq(label, "Melee x2"))
+        kind = CHARACTER_SHEET_VALUE_MELEE_X2;
+    else if (streq(label, "Offhand")) kind = CHARACTER_SHEET_VALUE_OFFHAND;
+    else if (streq(label, "Bows")) kind = CHARACTER_SHEET_VALUE_BOWS;
+    else if (streq(label, "Armor")) kind = CHARACTER_SHEET_VALUE_ARMOR;
+    else if (streq(label, "Health")) kind = CHARACTER_SHEET_VALUE_HEALTH;
+    else if (streq(label, "Voice")) kind = CHARACTER_SHEET_VALUE_VOICE;
+    else if (streq(label, "Song") || streq(label, "Theme"))
+        kind = CHARACTER_SHEET_VALUE_SONG;
+
+    if (kind < 0)
+        return;
+
+    SDL_zero(item);
+    item.kind = CHARACTER_SHEET_ITEM_VALUE;
+    item.value_kind = kind;
+    item.label = label;
+    character_sheet_format_value_item(&item, buf, buflen);
 }
 
 void do_cmd_character_sheet(void)

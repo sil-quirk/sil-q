@@ -4287,6 +4287,18 @@ static bool sdl_touch_top_panel_player_action_icon_for_binding(int binding,
 {
     int kind = sdl_touch_top_panel_player_action_kind_for_binding(binding);
 
+    /* While the floor Description is open, its x footer action is the
+     * contextual Use/Wield verb, not the action that opens Description. */
+    if (binding == 'x' && sdl_touch_thumb_description_open()) {
+        if (out_attr)
+            *out_attr = (byte)(TILE_FLAG | SDL_UI_SYMBOL_ROW);
+        if (out_char)
+            *out_char = (char)(TILE_FLAG | SDL_UI_SYMBOL_USE);
+        if (out_fallback)
+            *out_fallback = "Use";
+        return true;
+    }
+
     if (kind == SDL_PLAYER_ACTION_NONE)
         return false;
 
@@ -4310,56 +4322,56 @@ static bool sdl_touch_top_panel_tile_for_binding(int binding, byte* out_attr,
         return true;
     }
 
+    /* Only Quick Access-only bindings belong here.  Actions shared with the
+     * player wheel must use sdl_player_action_menu_tile_for_kind() above. */
     switch (binding) {
+    case INPUT_BIND_CONFIRM:
+    case ' ':
+    case 'g':
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_PICK; fallback = "Pick";
+        break;
+    case 'o':
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_OPEN_DOOR; fallback = "Open";
+        break;
+    case 'D':
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_DISARM; fallback = "D";
+        break;
     case 'j':
-        row = 1; col = 0; fallback = "S";      /* small wooden chest */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_SUPPLY; fallback = "S";
         break;
     case '0':
-        row = 15; col = 1; fallback = "Sm";    /* forge */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_SMITHING; fallback = "Sm";
         break;
     case 'l':
     case 'M':
     case 'L':
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_VIEW; fallback = "V";
+        break;
     case TOUCH_BIND_MAIN_MENU_KNOWLEDGE:
-        row = 12; col = 30; fallback = "V";    /* seen/view icon */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_LORE; fallback = "Lore";
         break;
     case TOUCH_BIND_MAIN_MENU_HINTS_QUESTS:
-        has_tile = false; fallback = "?";      /* hints/quests notebook */
-        break;
-    case '\t':
-        row = 5; col = 29; fallback = "Wp";    /* active weapon */
+        row = 12; col = 10; fallback = "?";    /* question-mark tile */
         break;
     case 'y':
-        row = 11; col = 27; fallback = "Ab";   /* amulet/ability */
-        break;
-    case 'z':
-    case 'Z':
-        row = 19; col = 8; fallback = "Z";     /* sleep/rest icon */
-        break;
-    case 'a':
-        row = 6; col = 8; fallback = "St";     /* staff */
-        break;
-    case 'p':
-        row = 4; col = 2; fallback = "H";      /* horn */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_ABILITIES; fallback = "Ab";
         break;
     case 'f':
     case 'F':
-    case '-':
-        row = 5; col = 27; fallback = "F";     /* arrows */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_RANGED_ATTACK; fallback = "F";
         break;
     case 'q':
         row = 3; col = 0; fallback = "!";      /* potion */
         break;
     case 'i':
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_INVENTORY; fallback = "I";
+        break;
     case 'e':
-        row = 1; col = 0; fallback = "I";      /* pack / chest */
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_EQUIPPED; fallback = "E";
         break;
     case 'h':
     case '@':
-        row = 13; col = 0; fallback = "Ch";    /* character sheet / player */
-        break;
-    case 's':
-        row = 11; col = 27; fallback = "Song";
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_CHARACTER; fallback = "Ch";
         break;
     case TOUCH_BIND_TOGGLE_TILES:
         has_tile = false; fallback = "@";

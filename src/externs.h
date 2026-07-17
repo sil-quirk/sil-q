@@ -537,7 +537,6 @@ extern void styles_reload_messages_from_text(void);
 extern void styles_clear_display_messages(void);
 extern int p_ptr_depth_proxy(void);
 extern void styles_set_loaded_level_primary(int sidx);
-extern void print_fade_centered(cptr text);
 /* Persisted door-style variant choices for consistency across save/load */
 extern int styles_get_choice_capacity(void);
 extern void styles_copy_level_door_choices(byte* out_buf, int max_n);
@@ -788,6 +787,8 @@ extern void do_cmd_character_sheet(void);
 extern void character_sheet_show_birth_preview(void);
 extern cptr character_sheet_skill_description(int skill);
 extern cptr character_sheet_trait_description(cptr label);
+extern void character_sheet_format_vital_description(cptr label, char* buf,
+    size_t buflen);
 extern void character_sheet_format_stat_hint(int stat, int value,
     bool has_value, char* buf, size_t buflen);
 extern void character_sheet_format_trait_description(cptr label, int skill,
@@ -990,8 +991,6 @@ extern int meta_seek(int i);
 extern int meta_fill(bool);
 extern void print_story_intro(void);
 extern void print_story(int last_parts, bool fade_in);
-/* Generic fade-in line printer for arbitrary text */
-extern void print_fade_line(cptr text, int row, int indent);
 extern const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll);
 extern bool clear_scorefile(void);
 extern bool autoload_alive_from_scores(void);
@@ -1614,6 +1613,22 @@ extern void sdl_death_poetry_screen_update(bool title_visible,
     bool transition_visible, byte transition_attr, bool prompt_visible);
 extern void sdl_death_poetry_screen_hide(void);
 extern bool sdl_death_poetry_screen_active(void);
+extern bool sdl_pause_text_screen_begin(void);
+extern void sdl_pause_text_screen_add_line(cptr text, byte attr, int indent);
+extern void sdl_pause_text_screen_set_visible_lines(int visible_lines);
+extern void sdl_pause_text_screen_hide(void);
+extern bool sdl_pause_text_screen_active(void);
+extern bool sdl_tale_screen_begin(cptr title);
+extern void sdl_tale_screen_add_entry(cptr heading, cptr body);
+extern int sdl_tale_screen_current_page_entry_count(void);
+extern int sdl_tale_screen_current_page_entry_at(int position);
+extern void sdl_tale_screen_set_active_entry(int active_entry, byte alpha);
+extern void sdl_tale_screen_set_prompt(cptr prompt, bool visible,
+    bool final);
+extern bool sdl_tale_screen_advance_page(void);
+extern bool sdl_tale_screen_is_last_page(void);
+extern void sdl_tale_screen_hide(void);
+extern bool sdl_tale_screen_active(void);
 extern bool sdl_character_sheet_screen_active(void);
 extern void sdl_character_sheet_screen_hide(void);
 extern void sdl_character_sheet_screen_begin_live(int focus_choice);

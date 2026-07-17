@@ -1177,6 +1177,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
     } else if (ev->type == SDL_EVENT_MOUSE_MOTION) {
         if (ev->motion.which == SDL_TOUCH_MOUSEID)
             return;
+        if (sdl_tale_screen_handle_hover_pointer((float)ev->motion.x,
+            (float)ev->motion.y))
+        {
+            return;
+        }
         if (sdl_welcome_screen_handle_pointer_motion((float)ev->motion.x,
             (float)ev->motion.y))
         {
@@ -1377,6 +1382,17 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             }
             if (sdl_pointer_activate_welcome_screen_at((float)ev->button.x,
                 (float)ev->button.y))
+            {
+                return;
+            }
+            if (sdl_tale_screen_handle_pointer((float)ev->button.x,
+                (float)ev->button.y))
+            {
+                return;
+            }
+            if ((sdl_pause_text_screen_active()
+                    || sdl_death_poetry_screen_active())
+                && sdl_pointer_dismiss_any_key_prompt())
             {
                 return;
             }
@@ -1787,6 +1803,14 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         }
         if (sdl_welcome_touch_handle_pointer_down(x, y,
             ev->tfinger.fingerID))
+        {
+            return;
+        }
+        if (sdl_tale_screen_handle_pointer(x, y))
+            return;
+        if ((sdl_pause_text_screen_active()
+                || sdl_death_poetry_screen_active())
+            && sdl_pointer_dismiss_any_key_prompt())
         {
             return;
         }
@@ -2647,10 +2671,20 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         log_warn("Renderer device/targets reset detected - recreating textures");
         sdl_handle_renderer_reset();
     }
-    // Handle window restored (after minimize/alt-tab on some systems)
+    // Restore fullscreen stacking after startup, minimize, or Alt+Tab.  A
+    // redraw alone leaves a display-sized window underneath the taskbar on
+    // Windows even though SDL still reports SDL_WINDOW_FULLSCREEN.
     else if (ev->type == SDL_EVENT_WINDOW_RESTORED ||
+             ev->type == SDL_EVENT_WINDOW_FOCUS_GAINED ||
              ev->type == SDL_EVENT_WINDOW_EXPOSED) {
-        log_debug("Window restored/exposed - forcing redraw");
+        if (config.fullscreen
+            && ev->type != SDL_EVENT_WINDOW_EXPOSED)
+        {
+            (void)sdl_window_reassert_fullscreen(
+                ev->type == SDL_EVENT_WINDOW_RESTORED
+                    ? "window restore" : "focus gain");
+        }
+        log_debug("Window restored/focused/exposed - forcing redraw");
         g_state.need_present = true;
         Term_redraw();
     }

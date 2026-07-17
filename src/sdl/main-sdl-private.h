@@ -483,6 +483,7 @@ typedef struct sdl_character_sheet_live_item {
 typedef struct sdl_character_sheet_hit {
     SDL_FRect rect;
     int choice;
+    byte attr;
     char desc[256];
 } sdl_character_sheet_hit;
 
@@ -1079,6 +1080,38 @@ enum {
     SDL_PLAYER_ACTION_BASH_DOOR,
     SDL_PLAYER_ACTION_MAX = 17,
     SDL_PLAYER_EXCHANGE_MAX_TARGETS = 8,
+};
+
+/* Dedicated UI symbols in the final row of the 16x16 atlas.  Keep these
+ * columns centralized: both the player action wheel and Quick Access use
+ * them, so their icons must not drift apart again. */
+enum {
+    SDL_UI_SYMBOL_ROW = 32,
+    SDL_UI_SYMBOL_DESCRIPTION = 0,
+    SDL_UI_SYMBOL_PICK = 1,
+    SDL_UI_SYMBOL_WAIT = 2,
+    SDL_UI_SYMBOL_REST = 3,
+    SDL_UI_SYMBOL_STEALTH = 4,
+    SDL_UI_SYMBOL_DISARM = 5,
+    SDL_UI_SYMBOL_OPEN_DOOR = 6,
+    SDL_UI_SYMBOL_CLOSE_DOOR = 7,
+    SDL_UI_SYMBOL_BASH_DOOR = 8,
+    SDL_UI_SYMBOL_FLETCH = 9,
+    SDL_UI_SYMBOL_EXCHANGE = 10,
+    SDL_UI_SYMBOL_ACTIVATE_STAFF = 11,
+    SDL_UI_SYMBOL_BLOW_HORN = 12,
+    SDL_UI_SYMBOL_RANGED_ATTACK = 13,
+    SDL_UI_SYMBOL_CHANGE_QUIVERS = 14,
+    SDL_UI_SYMBOL_INVENTORY = 15,
+    SDL_UI_SYMBOL_EQUIPPED = 16,
+    SDL_UI_SYMBOL_SUPPLY = 17,
+    SDL_UI_SYMBOL_ABILITIES = 18,
+    SDL_UI_SYMBOL_CHARACTER = 19,
+    SDL_UI_SYMBOL_SMITHING = 20,
+    SDL_UI_SYMBOL_VIEW = 21,
+    SDL_UI_SYMBOL_LORE = 22,
+    SDL_UI_SYMBOL_USE = 23,
+    SDL_UI_SYMBOL_SING = 24,
 };
 
 typedef struct player_action_menu_entry {
@@ -1906,6 +1939,25 @@ void sdl_death_poetry_screen_update(bool title_visible, byte title_attr,
 void sdl_death_poetry_screen_hide(void);
 bool sdl_death_poetry_screen_active(void);
 void sdl_death_poetry_screen_render(void);
+bool sdl_pause_text_screen_begin(void);
+void sdl_pause_text_screen_add_line(cptr text, byte attr, int indent);
+void sdl_pause_text_screen_set_visible_lines(int visible_lines);
+void sdl_pause_text_screen_hide(void);
+bool sdl_pause_text_screen_active(void);
+void sdl_pause_text_screen_render(void);
+bool sdl_tale_screen_begin(cptr title);
+void sdl_tale_screen_add_entry(cptr heading, cptr body);
+int sdl_tale_screen_current_page_entry_count(void);
+int sdl_tale_screen_current_page_entry_at(int position);
+void sdl_tale_screen_set_active_entry(int active_entry, byte alpha);
+void sdl_tale_screen_set_prompt(cptr prompt, bool visible, bool final);
+bool sdl_tale_screen_advance_page(void);
+bool sdl_tale_screen_is_last_page(void);
+void sdl_tale_screen_hide(void);
+bool sdl_tale_screen_active(void);
+bool sdl_tale_screen_handle_pointer(float x, float y);
+bool sdl_tale_screen_handle_hover_pointer(float x, float y);
+void sdl_tale_screen_render(void);
 float sdl_char_sheet_clampf(float value, float min_value, float max_value);
 int sdl_char_sheet_clampi(int value, int min_value, int max_value);
 int sdl_char_sheet_text_width(TTF_Font* font, cptr text);
@@ -1919,7 +1971,7 @@ bool sdl_char_sheet_choice_is_valid(int choice);
 bool sdl_char_sheet_prompt_choice_is_valid(int choice);
 void sdl_char_sheet_clear_hits(void);
 bool sdl_char_sheet_panel_rect(cptr heading, SDL_FRect* out);
-void sdl_char_sheet_add_hit(SDL_FRect rect, int choice, cptr desc);
+void sdl_char_sheet_add_hit(SDL_FRect rect, int choice, cptr desc, byte attr);
 void sdl_char_sheet_add_prompt_hit(SDL_FRect rect, int choice);
 void sdl_char_sheet_add_select_button_hit(SDL_FRect rect, int choice);
 const sdl_character_sheet_hit* sdl_char_sheet_hit_at(float x, float y);
@@ -1951,7 +2003,7 @@ void sdl_char_sheet_draw_history(TTF_Font* font, cptr text, float x, float y, fl
 bool sdl_char_sheet_split_first_paragraph(cptr text, char* first, size_t first_len, cptr* rest);
 void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x, float y, float w, float h);
 bool sdl_char_sheet_birth_context(void);
-cptr sdl_char_sheet_hover_desc(SDL_FRect* out_rect);
+cptr sdl_char_sheet_hover_desc(SDL_FRect* out_rect, byte* out_attr);
 void sdl_char_sheet_render_hover_tooltip(void);
 float sdl_char_sheet_sample_panel_natural_w(TTF_Font* font, cptr heading, cptr sample, float label_fraction);
 int sdl_char_sheet_target_ncols(float content_w, float screen_h);
@@ -3070,6 +3122,7 @@ SDL_Texture* sdl_try_load_ttf_font_cells(const char* font_path, int cell_width, 
 SDL_Texture* sdl_load_ttf_font_cells(const char* font_path, int cell_width, int cell_height, int* actual_font_size);
 void sdl_window_set_position(int x, int y);
 void sdl_window_create(int window_width, int window_height, bool fullscreen, bool use_tiles);
+bool sdl_window_reassert_fullscreen(cptr reason);
 bool sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font_size, int scale, int margin);
 TTF_Font* sdl_load_font_with_fallback(const char* font_path, int font_size, const char* fallback_path);
 void sdl_load_story_fonts(void);

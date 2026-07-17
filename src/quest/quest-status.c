@@ -5,6 +5,7 @@
 #include "metarun.h"
 #include "sdl-config.h"
 #include "quest/quest-internal.h"
+#include "ui/story_font.h"
 
 /* Forward declarations for quest text helpers used before their definitions */
 static cptr get_quest_title(int quest_idx);
@@ -768,6 +769,7 @@ static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
     bool any_quests = false;
     int wid, hgt;
     hint_quest_page next_page = HINT_QUEST_PAGE_EXIT;
+    story_font_term_state story_state;
 
     log_trace("QUEST STATUS: do_cmd_quest_status() called");
 
@@ -786,6 +788,8 @@ static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
         screen_save();
         screen_push_supporting_panes_hidden();
     }
+    story_font_term_push_slot(true, false, STORY_FONT_SLOT_SECONDARY,
+        &story_state);
     quest_status_tabs_active = tabbed;
     quest_status_hover_tab = 0;
     quest_status_tabs_focus = tabbed;
@@ -1397,6 +1401,7 @@ static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
     quest_status_hover_tab = 0;
     quest_status_tabs_focus = false;
     quest_status_touch_active = false;
+    story_font_term_pop(&story_state);
     if (manage_screen)
     {
         screen_pop_supporting_panes_hidden();
