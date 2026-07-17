@@ -1086,6 +1086,59 @@ static bool sdl_question_overlay_consume_pointer(const SDL_Event* ev)
     }
 }
 
+/* The full-window poetry choice screen owns pointer input while its choices
+ * are live.  Mouse hover follows the keyboard highlight; a click/tap is fed
+ * through the shared menu-click channel so the game-side chooser remains the
+ * single authority for selection. */
+static bool sdl_poetry_screen_consume_pointer(const SDL_Event* ev)
+{
+    float x;
+    float y;
+
+    switch (ev->type)
+    {
+    case SDL_EVENT_MOUSE_MOTION:
+        if (ev->motion.which != SDL_TOUCH_MOUSEID)
+        {
+            (void)sdl_poetry_screen_handle_hover_pointer(
+                (float)ev->motion.x, (float)ev->motion.y);
+        }
+        return true;
+
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        if (ev->button.which != SDL_TOUCH_MOUSEID)
+        {
+            int action = (ev->button.button == SDL_BUTTON_RIGHT)
+                ? UI_MENU_CLICK_SECONDARY : UI_MENU_CLICK_PRIMARY;
+            (void)sdl_poetry_screen_handle_pointer((float)ev->button.x,
+                (float)ev->button.y, action);
+        }
+        return true;
+
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+    case SDL_EVENT_MOUSE_WHEEL:
+    case SDL_EVENT_FINGER_DOWN:
+    case SDL_EVENT_FINGER_MOTION:
+    case SDL_EVENT_FINGER_CANCELED:
+        return true;
+
+    case SDL_EVENT_FINGER_UP:
+        if (ev->tfinger.windowID == SDL_GetWindowID(g_state.window))
+        {
+            sdl_note_touch_event_device(ev->tfinger.touchID);
+            if (sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
+            {
+                (void)sdl_poetry_screen_handle_pointer(x, y,
+                    UI_MENU_CLICK_PRIMARY);
+            }
+        }
+        return true;
+
+    default:
+        return false;
+    }
+}
+
 void sdl_handle_event(sdl_state* st, SDL_Event* ev)
 {
     (void)st;
@@ -1168,6 +1221,9 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
     } else if (sdl_narrative_banner_handle_pointer_event(ev)) {
         return;
     } else if (sdl_screen_back_gesture_handle_event(ev)) {
+        return;
+    } else if (sdl_poetry_screen_captures_pointer()
+        && sdl_poetry_screen_consume_pointer(ev)) {
         return;
     } else if (sdl_question_menu_captures_pointer()
         && sdl_question_overlay_consume_pointer(ev)) {
@@ -1391,7 +1447,7 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
                 return;
             }
             if ((sdl_pause_text_screen_active()
-                    || sdl_death_poetry_screen_active())
+                    || sdl_poetry_screen_active())
                 && sdl_pointer_dismiss_any_key_prompt())
             {
                 return;
@@ -1809,7 +1865,7 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         if (sdl_tale_screen_handle_pointer(x, y))
             return;
         if ((sdl_pause_text_screen_active()
-                || sdl_death_poetry_screen_active())
+                || sdl_poetry_screen_active())
             && sdl_pointer_dismiss_any_key_prompt())
         {
             return;

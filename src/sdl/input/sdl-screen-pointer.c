@@ -812,6 +812,8 @@ bool sdl_welcome_screen_handle_pointer_motion(float x, float y)
     if (!sdl_welcome_screen_active())
         return false;
 
+    (void)sdl_welcome_screen_transform_pointer(&x, &y);
+
     hover_continue = (g_sdl_welcome_screen.mode == SDL_WELCOME_SCREEN_MENU)
         && sdl_point_in_frect(&g_sdl_welcome_screen.continue_rect, x, y);
     hover_quit = (g_sdl_welcome_screen.mode == SDL_WELCOME_SCREEN_MENU)
@@ -839,6 +841,8 @@ bool sdl_pointer_activate_welcome_screen_at(float x, float y)
 
     if (sdl_touch_pane_point_to_slot(x, y, &slot) && slot >= 0)
         return false;
+
+    (void)sdl_welcome_screen_transform_pointer(&x, &y);
 
     if (g_sdl_welcome_screen.mode == SDL_WELCOME_SCREEN_MENU
         && sdl_point_in_frect(&g_sdl_welcome_screen.quit_rect, x, y))
@@ -870,6 +874,8 @@ bool sdl_welcome_touch_handle_pointer_down(float x, float y,
     if (sdl_touch_pane_point_to_slot(x, y, &slot) && slot >= 0)
         return false;
 
+    (void)sdl_welcome_screen_transform_pointer(&x, &y);
+
     sdl_welcome_touch_cancel_press();
     g_welcome_touch_press.active = true;
     g_welcome_touch_press.finger_id = finger_id;
@@ -890,12 +896,15 @@ bool sdl_welcome_touch_handle_pointer_motion(float x, float y,
     float start_x;
     float start_y;
     int dir;
+    bool portrait;
 
     if (!g_welcome_touch_press.active
         || g_welcome_touch_press.finger_id != finger_id)
     {
         return false;
     }
+
+    portrait = sdl_welcome_screen_transform_pointer(&x, &y);
 
     raw_dx = x - g_welcome_touch_press.start_x;
     raw_dy = y - g_welcome_touch_press.start_y;
@@ -915,6 +924,8 @@ bool sdl_welcome_touch_handle_pointer_motion(float x, float y,
         Term_keypress((dir == 4) ? '\r' : ESCAPE);
         return true;
     }
+    if (portrait)
+        return true;
     if (sdl_touch_swipe_handle_pointer_down(start_x, start_y, finger_id))
         (void)sdl_touch_swipe_handle_pointer_motion(x, y, finger_id);
     return true;
@@ -933,6 +944,8 @@ bool sdl_welcome_touch_handle_pointer_up(float x, float y,
     {
         return false;
     }
+
+    (void)sdl_welcome_screen_transform_pointer(&x, &y);
 
     dx = x - g_welcome_touch_press.start_x;
     dy = y - g_welcome_touch_press.start_y;
@@ -966,7 +979,7 @@ bool sdl_pointer_dismiss_any_key_prompt(void)
         return true;
     if (!g_sdl_blocking_key_wait)
         return false;
-    if (sdl_death_poetry_screen_active())
+    if (sdl_poetry_screen_active())
     {
         Term_keypress('\r');
         return true;

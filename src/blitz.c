@@ -183,17 +183,12 @@ void blitz_runtime_restore(const int8_t* stacks, u64b seen)
     g_blitz_end_summary_shown = false;
 }
 
-void blitz_show_end_summary(byte sil_count)
+static void blitz_present_end_summary(byte sil_count)
 {
     int wid = 80;
     int hgt = 24;
     int row = 4;
     char result_line[64];
-
-    if (g_blitz_end_summary_shown)
-        return;
-
-    g_blitz_end_summary_shown = true;
 
     Term_get_size(&wid, &hgt);
     if (wid < 1)
@@ -202,20 +197,40 @@ void blitz_show_end_summary(byte sil_count)
         hgt = 24;
 
     screen_save();
-    Term_clear();
-
-    c_put_str(TERM_YELLOW, "Blitz Result", 1, MAX((wid - 12) / 2, 0));
-
     if (sil_count == 1)
         SDL_strlcpy(result_line, "1 Silmaril was stolen.", sizeof(result_line));
     else
         strnfmt(result_line, sizeof(result_line), "%u Silmarils were stolen.",
             (unsigned)sil_count);
 
-    c_put_str(TERM_L_WHITE, result_line, row,
-        MAX((wid - utf8_display_width_n(result_line, (int)strlen(result_line))) / 2, 0));
-    c_put_str(TERM_L_BLUE, "Press any key to continue.", MIN(row + 3, hgt - 1), 2);
-    Term_fresh();
-    (void)inkey();
+    if (!metarun_show_poetry_scene("Blitz Result", TERM_YELLOW,
+            result_line, TERM_L_WHITE, "", TERM_L_BLUE,
+            "[Press any key to continue]"))
+    {
+        Term_clear();
+        c_put_str(TERM_YELLOW, "Blitz Result", 1,
+            MAX((wid - 12) / 2, 0));
+        c_put_str(TERM_L_WHITE, result_line, row,
+            MAX((wid - utf8_display_width_n(result_line,
+                    (int)strlen(result_line))) / 2, 0));
+        c_put_str(TERM_L_BLUE, "Press any key to continue.",
+            MIN(row + 3, hgt - 1), 2);
+        Term_fresh();
+        (void)inkey();
+    }
     screen_load();
+}
+
+void blitz_show_end_summary(byte sil_count)
+{
+    if (g_blitz_end_summary_shown)
+        return;
+
+    g_blitz_end_summary_shown = true;
+    blitz_present_end_summary(sil_count);
+}
+
+void blitz_debug_show_end_summary(byte sil_count)
+{
+    blitz_present_end_summary(sil_count);
 }

@@ -43,6 +43,248 @@ void metarun_wait_hidden(void)
     (void)metarun_inkey_hidden();
 }
 
+typedef enum metarun_poetry_fade_part {
+    METARUN_POETRY_FADE_TITLE,
+    METARUN_POETRY_FADE_BODY,
+    METARUN_POETRY_FADE_TRANSITION
+} metarun_poetry_fade_part;
+
+static bool metarun_poetry_fade_alpha(metarun_poetry_fade_part part,
+    int duration_ms, bool allow_skip)
+{
+    const int frame_ms = 16;
+
+    for (int elapsed = 0; elapsed < duration_ms; elapsed += frame_ms)
+    {
+        byte alpha = (byte)((elapsed * 255) / MAX(1, duration_ms));
+        int delay_ms = MIN(frame_ms, duration_ms - elapsed);
+
+        if (allow_skip)
+        {
+            char ch;
+
+            if (Term_inkey(&ch, false, false) == 0 && ch == ESCAPE)
+                return false;
+        }
+
+        if (part == METARUN_POETRY_FADE_TITLE)
+            sdl_poetry_screen_set_alpha(alpha, 0, 0, 0);
+        else if (part == METARUN_POETRY_FADE_BODY)
+            sdl_poetry_screen_set_alpha(255, alpha, 0, 0);
+        else
+            sdl_poetry_screen_set_alpha(255, 255, alpha, 0);
+        Term_fresh();
+        Term_xtra(TERM_XTRA_DELAY, delay_ms);
+    }
+
+    return true;
+}
+
+static bool metarun_poetry_fade_block(int block, byte final_attr,
+    bool outcome_colour_reveal, int duration_ms, bool allow_skip)
+{
+    const int frame_ms = 16;
+
+    /* The old terminal animation used several palette entries to imitate a
+     * fade, then changed once to the roll's result colour.  SDL supplies the
+     * real alpha fade; retain only that final semantic colour change. */
+    sdl_poetry_screen_set_block_attr(block,
+        outcome_colour_reveal ? TERM_L_GREEN : final_attr);
+
+    for (int elapsed = 0; elapsed < duration_ms; elapsed += frame_ms)
+    {
+        byte alpha = (byte)((elapsed * 255) / MAX(1, duration_ms));
+        int delay_ms = MIN(frame_ms, duration_ms - elapsed);
+
+        if (allow_skip)
+        {
+            char ch;
+
+            if (Term_inkey(&ch, false, false) == 0 && ch == ESCAPE)
+                return false;
+        }
+
+        sdl_poetry_screen_set_block_alpha(block, alpha);
+        Term_fresh();
+        Term_xtra(TERM_XTRA_DELAY, delay_ms);
+    }
+
+    if (outcome_colour_reveal)
+    {
+        /* Present one fully opaque pre-result frame before the single outcome
+         * colour change.  Without this hold, the final Term_fresh() replaces
+         * the almost-opaque green frame before the eye can register it. */
+        sdl_poetry_screen_set_block_alpha(block, 255);
+        Term_fresh();
+        Term_xtra(TERM_XTRA_DELAY, 500);
+    }
+
+    return true;
+}
+
+/* Present a full-window poetic interlude with semantic pixel layout.  The
+ * caller supplies semantic colours and prose; SDL owns wrapping and placement.
+ * Return false when no SDL renderer is available so legacy frontends can use
+ * their terminal fallback. */
+bool metarun_show_poetry_scene(cptr title, byte title_attr, cptr body,
+    byte body_attr, cptr transition, byte transition_attr, cptr prompt)
+{
+    bool body_fast_forward = false;
+    bool transition_fast_forward = false;
+
+    sdl_poetry_screen_begin(title, body, transition, prompt);
+    if (!sdl_poetry_screen_active())
+        return false;
+
+    sdl_story_font_enable();
+
+    sdl_poetry_screen_update(true, title_attr, false, body_attr,
+        false, transition_attr, false);
+    sdl_poetry_screen_set_alpha(0, 0, 0, 0);
+    (void)metarun_poetry_fade_alpha(METARUN_POETRY_FADE_TITLE, 450,
+        false);
+    sdl_poetry_screen_set_alpha(255, 0, 0, 0);
+    Term_fresh();
+    Term_xtra(TERM_XTRA_DELAY, 500);
+
+    if (body && body[0])
+    {
+        sdl_poetry_screen_update(true, title_attr, true, body_attr,
+            false, transition_attr, false);
+        body_fast_forward = !metarun_poetry_fade_alpha(
+            METARUN_POETRY_FADE_BODY, 500, true);
+    }
+    sdl_poetry_screen_update(true, title_attr, body && body[0], body_attr,
+        false, transition_attr, false);
+    sdl_poetry_screen_set_alpha(255, 255, 0, 0);
+    Term_fresh();
+    if (!body_fast_forward)
+        Term_xtra(TERM_XTRA_DELAY, 1000);
+
+    if (transition && transition[0])
+    {
+        sdl_poetry_screen_update(true, title_attr,
+            body && body[0], body_attr, true, transition_attr, false);
+        transition_fast_forward = !metarun_poetry_fade_alpha(
+            METARUN_POETRY_FADE_TRANSITION, 500, true);
+    }
+    sdl_poetry_screen_update(true, title_attr, body && body[0], body_attr,
+        transition && transition[0], transition_attr, false);
+    sdl_poetry_screen_set_alpha(255, 255, 255, 0);
+    Term_fresh();
+    if (transition && transition[0] && !transition_fast_forward)
+        Term_xtra(TERM_XTRA_DELAY, 1000);
+
+    sdl_poetry_screen_update(true, title_attr, body && body[0], body_attr,
+        transition && transition[0], transition_attr, true);
+    sdl_poetry_screen_set_alpha(255, 255, 255, 255);
+    Term_fresh();
+    ui_key_wait_dismiss_begin('\r');
+    metarun_wait_hidden();
+    ui_key_wait_dismiss_clear();
+
+    sdl_poetry_screen_hide();
+    sdl_story_font_disable();
+    return true;
+}
+
+/* Present one of the original multi-paragraph epilogue screens.  Ordinary
+ * prose keeps its semantic colour while fading by alpha.  Treachery and
+ * kinslaying rolls fade naturally in the old pre-result colour, then settle
+ * once on their pass/fail colour. */
+bool metarun_show_poetry_blocks(cptr title, byte title_attr,
+    cptr blocks[], const byte block_attrs[],
+    const bool block_outcome_reveals[], int block_count, cptr prompt,
+    int hold_ms, bool wait_for_key, bool immediate, bool* fast_forward)
+{
+    bool skip_remaining = fast_forward && *fast_forward;
+
+    if (!blocks || !block_attrs || block_count < 1)
+        return false;
+    if (!sdl_poetry_screen_begin_blocks(title, prompt))
+        return false;
+
+    for (int i = 0; i < block_count; i++)
+    {
+        if (sdl_poetry_screen_add_block(blocks[i], block_attrs[i]) < 0)
+        {
+            sdl_poetry_screen_hide();
+            return false;
+        }
+    }
+
+    sdl_story_font_enable();
+    if (immediate)
+    {
+        sdl_poetry_screen_update(true, title_attr, false, TERM_WHITE, false,
+            TERM_WHITE, false);
+        sdl_poetry_screen_set_alpha(255, 0, 0, 0);
+        for (int i = 0; i < block_count; i++)
+        {
+            sdl_poetry_screen_set_block_visible(i, true);
+            sdl_poetry_screen_set_block_attr(i, block_attrs[i]);
+            sdl_poetry_screen_set_block_alpha(i, 255);
+        }
+        Term_fresh();
+    }
+    else
+    {
+        sdl_poetry_screen_update(true, title_attr, false, TERM_WHITE, false,
+            TERM_WHITE, false);
+        sdl_poetry_screen_set_alpha(0, 0, 0, 0);
+        (void)metarun_poetry_fade_alpha(METARUN_POETRY_FADE_TITLE, 450,
+            false);
+        sdl_poetry_screen_set_alpha(255, 0, 0, 0);
+        Term_fresh();
+        Term_xtra(TERM_XTRA_DELAY, 500);
+
+        for (int i = 0; i < block_count; i++)
+        {
+            bool completed_fade = false;
+
+            sdl_poetry_screen_set_block_visible(i, true);
+            if (!skip_remaining)
+            {
+                completed_fade = metarun_poetry_fade_block(i,
+                    block_attrs[i],
+                    block_outcome_reveals && block_outcome_reveals[i],
+                    500, true);
+            }
+            sdl_poetry_screen_set_block_attr(i, block_attrs[i]);
+            sdl_poetry_screen_set_block_alpha(i, 255);
+            Term_fresh();
+
+            if (!skip_remaining && !completed_fade)
+            {
+                skip_remaining = true;
+                if (fast_forward)
+                    *fast_forward = true;
+            }
+            else if (!skip_remaining)
+            {
+                Term_xtra(TERM_XTRA_DELAY, 1000);
+            }
+        }
+    }
+
+    if (hold_ms > 0)
+        Term_xtra(TERM_XTRA_DELAY, hold_ms);
+
+    if (wait_for_key)
+    {
+        sdl_poetry_screen_set_prompt(prompt, true);
+        sdl_poetry_screen_set_alpha(255, 0, 0, 255);
+        Term_fresh();
+        ui_key_wait_dismiss_begin('\r');
+        metarun_wait_hidden();
+        ui_key_wait_dismiss_clear();
+    }
+
+    sdl_poetry_screen_hide();
+    sdl_story_font_disable();
+    return true;
+}
+
 void print_heading_fade(cptr title, byte final_attr)
 {
     const byte fade_cols[] = { TERM_L_DARK, TERM_SLATE, final_attr };

@@ -1475,8 +1475,8 @@ bool sdl_render_current_window_frame(void)
         return true;
     }
 
-    if (sdl_death_poetry_screen_active()) {
-        sdl_death_poetry_screen_render();
+    if (sdl_poetry_screen_active()) {
+        sdl_poetry_screen_render();
         return true;
     }
 

@@ -179,6 +179,16 @@ void set_sdl_mobile_starting_zoom_offset(int value)
     config.mobile_starting_zoom_offset = value;
 }
 
+bool get_sdl_android_welcome_portrait_layout(void)
+{
+    return config.android_welcome_portrait_layout;
+}
+
+void set_sdl_android_welcome_portrait_layout(bool value)
+{
+    config.android_welcome_portrait_layout = value;
+}
+
 int get_sdl_min_main_view_scale(void)
 {
     return sdl_main_view_scale_floor();
@@ -3056,4 +3066,3 @@ void sdl_request_redraw(void)
     g_state.need_present = true;
     Term_redraw();
 }
-

@@ -161,6 +161,22 @@ void metarun_update_on_exit(bool died,
  * the run ends and persists everything.                              */
 
 void check_run_end(void);                        /* Check win/loss conditions */
+bool metarun_show_poetry_scene(cptr title, byte title_attr, cptr body,
+                               byte body_attr, cptr transition,
+                               byte transition_attr, cptr prompt);
+bool metarun_show_poetry_blocks(cptr title, byte title_attr,
+                                cptr blocks[], const byte block_attrs[],
+                                const bool block_outcome_reveals[],
+                                int block_count, cptr prompt, int hold_ms,
+                                bool wait_for_key, bool immediate,
+                                bool *fast_forward);
+void metarun_debug_show_run_result(bool victory, int silmarils, int alive,
+                                   int required_survivors);
+void metarun_debug_show_run_summary(int silmarils, int stolen_silmarils,
+                                    bool show_treachery,
+                                    int kinslaying_attempt);
+int metarun_debug_preview_curse_menu(void);
+int metarun_debug_choose_escape_curses(int n, int out[4]);
 void metarun_increment_deaths(void);             /* Shortcut: +1 death      */
 void metarun_gain_silmarils(byte n);             /* Shortcut: +n Silmarils  */
 

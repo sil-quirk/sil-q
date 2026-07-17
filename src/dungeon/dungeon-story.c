@@ -3,23 +3,31 @@
 #include "angband.h"
 #include "dungeon-internal.h"
 
-static bool story_intro_skip_requested(void)
+enum
 {
-    char check_key;
+    STORY_INTRO_TYPE_DELAY_MS = 23,
+    STORY_INTRO_FRAME_DELAY_MS = 16,
+    STORY_INTRO_PASSAGE_HOLD_MS = 720
+};
 
-    if (Term_inkey(&check_key, false, false) == 0)
-    {
-        Term_inkey(&check_key, false, true);
-        if (check_key == ESCAPE || check_key == '\n' || check_key == '\r'
-            || check_key == ' ' || check_key == (char)INPUT_BIND_CONFIRM)
-            return true;
-        if (steamdeck_controls_active()
-            && (check_key == steamdeck_confirm_key()
-                || check_key == steamdeck_back_key()))
-            return true;
-    }
+enum story_intro_input
+{
+    STORY_INTRO_INPUT_NONE = 0,
+    STORY_INTRO_INPUT_REVEAL,
+    STORY_INTRO_INPUT_SKIP
+};
 
-    return false;
+enum story_intro_prompt
+{
+    STORY_INTRO_PROMPT_WRITING = 0,
+    STORY_INTRO_PROMPT_TURN_PAGE,
+    STORY_INTRO_PROMPT_FINISH
+};
+
+static bool story_intro_back_key(int ch)
+{
+    return steamdeck_controls_active() && ch == steamdeck_back_key()
+        && ch != steamdeck_confirm_key();
 }
 
 static void story_intro_prompt_label(int binding, const char* fallback,
@@ -28,446 +36,277 @@ static void story_intro_prompt_label(int binding, const char* fallback,
     morgoth_prompt_controller_label(binding, fallback, buf, buflen);
 }
 
-static bool story_intro_back_key(int ch)
+static int story_intro_poll_input(void)
 {
-    return steamdeck_controls_active() && ch == steamdeck_back_key()
-        && ch != steamdeck_confirm_key();
+    char ch;
+
+    if (Term_inkey(&ch, false, false) != 0)
+        return STORY_INTRO_INPUT_NONE;
+    (void)Term_inkey(&ch, false, true);
+    if (ch == ESCAPE || ch == 'S' || story_intro_back_key(ch))
+        return STORY_INTRO_INPUT_SKIP;
+    return STORY_INTRO_INPUT_REVEAL;
 }
 
-static void story_intro_touch_confirm_begin(int h)
+static int story_intro_wait_delay(int delay_ms)
 {
-    if (h < 1)
-        return;
+    int elapsed = 0;
 
-    ui_menu_click_begin();
-    ui_menu_click_set_outside_cancel_enabled(true);
-    for (int row = 0; row < h; row++)
-        ui_menu_click_add_full_row('\r', row);
-}
-
-static void story_intro_touch_confirm_end(void)
-{
-    ui_menu_click_clear();
-}
-
-enum
-{
-    STORY_INTRO_CLICK_FINISH = '\r'
-};
-
-static int story_intro_prompt_hit_width(cptr text)
-{
-    int width = text ? (int)strlen(text) : 0;
-
-    if (width < 1)
-        return 1;
-
-    if (sdl_is_story_font_enabled() && !sdl_is_story_font_grid())
+    while (elapsed < delay_ms)
     {
-        int cell_width = sdl_get_cell_width();
-        int pixel_width = sdl_story_font_text_width(text, width);
+        int input = story_intro_poll_input();
+        int frame_delay;
 
-        if (cell_width > 0 && pixel_width > 0)
+        if (input != STORY_INTRO_INPUT_NONE)
+            return input;
+        frame_delay = MIN(STORY_INTRO_FRAME_DELAY_MS, delay_ms - elapsed);
+        Term_xtra(TERM_XTRA_DELAY, frame_delay);
+        elapsed += frame_delay;
+    }
+    return STORY_INTRO_INPUT_NONE;
+}
+
+static int story_intro_character_delay(int ch, int visible_characters)
+{
+    switch (ch)
+    {
+    case '.':
+    case '!':
+    case '?':
+        return 150;
+    case ',':
+    case ';':
+    case ':':
+        return 72;
+    case '-':
+    case 0x2014: /* em dash */
+        return 92;
+    case ' ':
+        return 13;
+    default:
+        /* A tiny, regular hitch keeps the cadence mechanical without making
+         * it feel like a uniform progress bar. */
+        return STORY_INTRO_TYPE_DELAY_MS
+            + ((visible_characters % 7 == 0) ? 5 : 0);
+    }
+}
+
+static int story_intro_write_passage(int entry)
+{
+    int total_characters = sdl_tale_screen_entry_character_count(entry);
+
+    sdl_tale_screen_set_typewriter_entry(entry, 0, true);
+    Term_fresh();
+    for (int visible = 1; visible <= total_characters; visible++)
+    {
+        int input = story_intro_poll_input();
+        int ch;
+
+        if (input == STORY_INTRO_INPUT_SKIP)
+            return input;
+        if (input == STORY_INTRO_INPUT_REVEAL)
         {
-            int story_width = (pixel_width + cell_width - 1) / cell_width;
+            sdl_tale_screen_set_typewriter_entry(entry, total_characters,
+                false);
+            Term_fresh();
+            return input;
+        }
 
-            if (story_width > width)
-                width = story_width;
+        sdl_tale_screen_set_typewriter_entry(entry, visible, true);
+        Term_fresh();
+        ch = sdl_tale_screen_entry_character_at(entry, visible - 1);
+        input = story_intro_wait_delay(story_intro_character_delay(ch,
+            visible));
+        if (input == STORY_INTRO_INPUT_SKIP)
+            return input;
+        if (input == STORY_INTRO_INPUT_REVEAL)
+        {
+            sdl_tale_screen_set_typewriter_entry(entry, total_characters,
+                false);
+            Term_fresh();
+            return input;
         }
     }
 
-    return width;
+    sdl_tale_screen_set_typewriter_entry(entry, total_characters, false);
+    Term_fresh();
+    return STORY_INTRO_INPUT_NONE;
 }
 
-static void story_intro_final_prompt_put(int choice, int col, int row,
-    cptr text, bool highlighted)
+static void story_intro_prompt_text(enum story_intro_prompt prompt,
+    char* buf, size_t buflen)
 {
-    Term_putstr(col, row, -1, highlighted ? TERM_L_BLUE : TERM_L_WHITE, text);
-    ui_menu_click_add(choice, col, row, story_intro_prompt_hit_width(text));
-}
+    cptr action = prompt == STORY_INTRO_PROMPT_WRITING
+        ? "finish passage" : "turn the page";
 
-static void story_intro_final_prompt_draw(int h)
-{
-    int finish_row = (h >= 1) ? h - 1 : 0;
-    int hover_choice = 0;
-
-    ui_menu_click_begin();
-    ui_menu_click_set_hover_enabled(true);
-    ui_menu_click_set_outside_cancel_enabled(true);
-    ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
-    (void)ui_menu_click_get_hover_choice(&hover_choice);
-
-    Term_erase(0, finish_row, 255);
-
+    if (!buf || buflen == 0)
+        return;
+    if (sdl_touch_only_device_active())
+    {
+        if (prompt == STORY_INTRO_PROMPT_FINISH)
+            SDL_strlcpy(buf, "[Tap to close the chronicle]", buflen);
+        else
+            strnfmt(buf, buflen, "[Tap to %s]  *  [Skip intro]", action);
+        return;
+    }
     if (steamdeck_controls_active())
     {
         char confirm_label[16];
-        char prompt_buf[96];
+        char back_label[16];
 
-        story_intro_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
-            sizeof(confirm_label));
-        strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] finish", confirm_label);
-        story_intro_final_prompt_put(STORY_INTRO_CLICK_FINISH, 15, finish_row,
-            prompt_buf, hover_choice == STORY_INTRO_CLICK_FINISH);
-    }
-    else if (sdl_touch_only_device_active())
-    {
-        story_intro_final_prompt_put(STORY_INTRO_CLICK_FINISH, 15, finish_row,
-            "Tap here to finish",
-            hover_choice == STORY_INTRO_CLICK_FINISH);
-    }
-    else
-    {
-        story_intro_final_prompt_put(STORY_INTRO_CLICK_FINISH, 15, finish_row,
-            "(press any key to finish)",
-            hover_choice == STORY_INTRO_CLICK_FINISH);
-    }
-
-    Term_fresh();
-}
-
-static char story_intro_final_prompt_inkey(int h)
-{
-    char key;
-
-    while (true)
-    {
-        int clicked_choice = 0;
-        int click_action = UI_MENU_CLICK_PRIMARY;
-        bool saved_hide_cursor = hide_cursor;
-
-        story_intro_final_prompt_draw(h);
-
-        hide_cursor = true;
-        key = inkey();
-        hide_cursor = saved_hide_cursor;
-
-        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        story_intro_prompt_label(steamdeck_confirm_key(), "A",
+            confirm_label, sizeof(confirm_label));
+        if (prompt == STORY_INTRO_PROMPT_FINISH)
         {
-            ui_menu_click_clear();
-            if (click_action == UI_MENU_CLICK_HOVER)
-                continue;
-
-            key = (char)clicked_choice;
-        }
-        else if (key == UI_MENU_CLICK_WAKE_KEY)
-        {
-            ui_menu_click_clear();
-            continue;
+            strnfmt(buf, buflen, "[%s] close the chronicle",
+                confirm_label);
         }
         else
         {
-            ui_menu_click_clear();
+            story_intro_prompt_label(steamdeck_back_key(), "B", back_label,
+                sizeof(back_label));
+            strnfmt(buf, buflen, "[%s] %s  *  [%s] skip intro",
+                confirm_label, action, back_label);
         }
-
-        return key;
+        return;
     }
+
+    if (prompt == STORY_INTRO_PROMPT_FINISH)
+        SDL_strlcpy(buf, "[Press any key to close the chronicle]", buflen);
+    else
+        strnfmt(buf, buflen, "[Enter] %s  *  [Esc] skip intro", action);
 }
 
-static int story_intro_count_paragraph_rows(cptr text, int wrap_width)
+static int story_intro_wait_for_key(void)
 {
-    int rows = 0;
-    int col = 0;
-    bool line_has_content = false;
-    bool pending_space = false;
-    cptr s = text ? text : "";
+    char ch = inkey();
 
-    if (wrap_width < 1)
-        wrap_width = 1;
-
-    while (*s)
-    {
-        int word_len = 0;
-
-        if (*s == '\n')
-        {
-            col = 0;
-            line_has_content = false;
-            pending_space = false;
-            s++;
-            continue;
-        }
-
-        if (*s == ' ' || *s == '\t')
-        {
-            pending_space = line_has_content;
-            s++;
-            continue;
-        }
-
-        while (s[word_len] && s[word_len] != ' ' && s[word_len] != '\t' && s[word_len] != '\n')
-            word_len++;
-
-        if (pending_space && line_has_content)
-        {
-            if (col + 1 + word_len > wrap_width)
-            {
-                col = 0;
-                line_has_content = false;
-            }
-            else
-            {
-                col++;
-            }
-            pending_space = false;
-        }
-
-        for (int i = 0; i < word_len; ++i)
-        {
-            if (col >= wrap_width)
-            {
-                col = 0;
-                line_has_content = false;
-            }
-
-            if (!line_has_content)
-            {
-                rows++;
-                line_has_content = true;
-            }
-
-            col++;
-        }
-
-        s += word_len;
-    }
-
-    return (rows > 0) ? rows : 1;
-}
-
-static void story_intro_putch(int x, int y, char ch, bool *skipped)
-{
-    if (!*skipped && story_intro_skip_requested())
-        *skipped = true;
-
-    Term_putch(x, y, TERM_WHITE, ch);
-
-    if (!*skipped)
-    {
-        Term_fresh();
-        Term_xtra(TERM_XTRA_DELAY, 30);
-    }
-}
-
-static bool story_intro_render_paragraph(cptr text, int indent, int wrap_width, int *row)
-{
-    int col = 0;
-    bool line_has_content = false;
-    bool pending_space = false;
-    bool skipped = false;
-    cptr s = text ? text : "";
-
-    if (!row)
-        return false;
-
-    if (wrap_width < 1)
-        wrap_width = 1;
-
-    while (*s)
-    {
-        int word_len = 0;
-
-        if (*s == '\n')
-        {
-            (*row)++;
-            col = 0;
-            line_has_content = false;
-            pending_space = false;
-            s++;
-            continue;
-        }
-
-        if (*s == ' ' || *s == '\t')
-        {
-            pending_space = line_has_content;
-            s++;
-            continue;
-        }
-
-        while (s[word_len] && s[word_len] != ' ' && s[word_len] != '\t' && s[word_len] != '\n')
-            word_len++;
-
-        if (pending_space && line_has_content)
-        {
-            if (col + 1 + word_len > wrap_width)
-            {
-                (*row)++;
-                col = 0;
-                line_has_content = false;
-            }
-            else
-            {
-                story_intro_putch(indent + col, *row, ' ', &skipped);
-                col++;
-            }
-            pending_space = false;
-        }
-
-        for (int i = 0; i < word_len; ++i)
-        {
-            if (col >= wrap_width)
-            {
-                (*row)++;
-                col = 0;
-                line_has_content = false;
-            }
-
-            story_intro_putch(indent + col, *row, s[i], &skipped);
-            col++;
-            line_has_content = true;
-        }
-
-        s += word_len;
-    }
-
-    if (skipped)
-        Term_fresh();
-
-    return skipped;
+    if (ch == ESCAPE || ch == 'S' || story_intro_back_key(ch))
+        return STORY_INTRO_INPUT_SKIP;
+    return STORY_INTRO_INPUT_REVEAL;
 }
 
 /**
- * Introductory narrative display, one paragraph per prompt.
- * Implemented as a static function to restrict linkage.
+ * Introductory narrative display.  The engine supplies semantic passages;
+ * SDL owns pixel wrapping, manuscript layout, pagination, and glyph reveal.
  */
 void print_story_intro(void)
 {
-    bool story_intro_story_font = true;
+    static cptr intro_texts[] = {
+        "You awaken in darkness. No name. No memory. Only a quiet ache of "
+        "courage deep inside you, like embers buried beneath ash.",
+
+        "Far below, Morgoth waits upon his throne\xE2\x80\x94" "iron-dark and "
+        "crowned in flame. Upon his brow shine three Silmarils, stolen stars. "
+        "He senses your stirring. He knows you will come.",
+
+        "Far above, beyond the shadows of Angband, the Valar watch silently. "
+        "They offer no guidance, yet their presence fills you with "
+        "strength\xE2\x80\x94" "and dread.",
+
+        "You will return many times, each death and rebirth etched into the "
+        "endless stone halls of Mandos. Each fall will draw your spirit "
+        "deeper into shadow, closer to a doom from which you cannot escape.",
+
+        "Yet each victory\xE2\x80\x94" "each Silmaril wrested from Morgoth's "
+        "crown\xE2\x80\x94" "will brighten the Valar's hope, even as your soul "
+        "grows thinner, your strength fading with every triumph.",
+
+        "You envy the Edain, whose Gift from Il\xC3\xBA" "vatar frees them from "
+        "the bonds of Mandos and the world. Yet you do not know if such "
+        "release can ever be yours. You do not know who\xE2\x80\x94" "or even "
+        "what\xE2\x80\x94" "you truly are.",
+
+        "For each time you awaken, you will carry the names of heroes beloved "
+        "and feared\xE2\x80\x94" "bright spirits, fiery hearts, proud kings and "
+        "exiles, wanderers beneath sun and stars, whose courage you borrow, "
+        "but whose fates are not your own.",
+
+        "This is the trial set by the Valar: to walk the narrow way between "
+        "shadow and light, to bear the borrowed glory of the great, and to "
+        "win back at last the name that was taken from you.",
+
+        "Now the path before you opens, and your trial begins."
+    };
+    bool saved_cursor_state = false;
+    bool saved_hide_cursor;
+    char prompt[128];
+    int total = (int)N_ELEMENTS(intro_texts);
+    bool panes_hidden = false;
+
+    sdl_music_play_main_full();
+    if (!sdl_tale_screen_begin("THE NAMELESS CHRONICLE"))
+    {
+        log_error("Unable to open the SDL story-intro manuscript");
+        return;
+    }
+    sdl_tale_screen_set_manuscript(true);
+    for (int i = 0; i < total; i++)
+        sdl_tale_screen_add_entry("", intro_texts[i]);
+
     screen_push_supporting_panes_hidden();
     screen_push_touch_pane_hidden();
-    sdl_story_font_enable();
-    sdl_story_font_set_slot(STORY_FONT_SLOT_SECONDARY);
-    sdl_music_play_main_full();
-    int wid, h;
-    const int indent = 2;
-
-    /* Narrative paragraphs as valid C string literals with embedded \n */
-    cptr intro_texts[] = {
-        "You awaken in darkness.\n"
-        "No name. No memory.\n"
-        "Only a quiet ache of courage deep inside you,\n"
-        "like embers buried beneath ash.\n",
-
-        "Far below, Morgoth waits upon his throne-\n"
-        "iron-dark and crowned in flame.\n"
-        "Upon his brow shine three Silmarils, stolen stars.\n"
-        "He senses your stirring. He knows you will come.\n",
-
-        "Far above, beyond the shadows of Angband,\n"
-        "the Valar watch silently.\n"
-        "They offer no guidance, yet their presence\n"
-        "fills you with strength-and dread.\n",
-
-        "You will return many times, each death and rebirth\n"
-        "etched into the endless stone halls of Mandos.\n"
-        "Each fall will draw your spirit deeper into shadow,\n"
-        "closer to a doom from which you cannot escape.\n",
-
-        "Yet each victory-each Silmaril wrested from Morgoth's crown-\n"
-        "will brighten the Valar's hope,\n"
-        "even as your soul grows thinner,\n"
-        "your strength fading with every triumph.\n",
-
-        "You envy the Edain, whose Gift from Ilúvatar\n"
-        "frees them from the bonds of Mandos and the world.\n"
-        "Yet you do not know if such release can ever be yours.\n"
-        "You do not know who-or even what-you truly are.\n",
-
-        "For each time you awaken,\n"
-        "you will carry the names of heroes beloved and feared-\n"
-        "bright spirits, fiery hearts, proud kings and exiles,\n"
-        "wanderers beneath sun and stars,\n"
-        "whose courage you borrow, but whose fates are not your own.\n",
-
-        "This is the trial set by the Valar:\n"
-        "to walk the narrow way between shadow and light,\n"
-        "to bear the borrowed glory of the great,\n"
-        "and to win back at last\n"
-        "the name that was taken from you.\n",
-
-        "Now the path before you opens,\nand your trial begins.\n"
-    };
-
-    int total = sizeof(intro_texts) / sizeof(intro_texts[0]);
-    Term_get_size(&wid, &h);
-    int wrap_width = wid - indent;
-
-    /* Start on a blank screen */
+    panes_hidden = true;
     Term_clear();
-    int row = 1;
+    (void)Term_get_cursor(&saved_cursor_state);
+    saved_hide_cursor = hide_cursor;
+    hide_cursor = true;
+    (void)Term_set_cursor(false);
+    sdl_tale_screen_set_active_entry(-1, 0);
 
-    for (int idx = 0; idx < total; idx++) {
-        const char *s = intro_texts[idx];
-        int lines_needed = story_intro_count_paragraph_rows(s, wrap_width) + 1;
-        bool skipped;
+    for (;;)
+    {
+        int page_entries = sdl_tale_screen_current_page_entry_count();
 
-        /* Check if we have enough space for the whole paragraph */
-        if (row + lines_needed >= h - 1) {
-            if (steamdeck_controls_active())
-            {
-                char confirm_label[16];
-                char back_label[16];
-                char prompt_buf[80];
+        for (int position = 0; position < page_entries; position++)
+        {
+            int entry = sdl_tale_screen_current_page_entry_at(position);
+            int input;
 
-                story_intro_prompt_label(steamdeck_confirm_key(), "A",
-                    confirm_label, sizeof(confirm_label));
-                story_intro_prompt_label(steamdeck_back_key(), "B",
-                    back_label, sizeof(back_label));
-                strnfmt(prompt_buf, sizeof(prompt_buf),
-                    "[%s] continue  [%s] skip", confirm_label, back_label);
-                Term_putstr(15, h - 1, -1, TERM_L_WHITE, prompt_buf);
-            }
-            else if (sdl_touch_only_device_active())
-            {
-                Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(Tap to continue)");
-            }
-            else
-            {
-                Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
-            }
-            hide_cursor = true;
-            {
-                story_intro_touch_confirm_begin(h);
-                char k = inkey();
-                story_intro_touch_confirm_end();
-                if (k == 'S' || story_intro_back_key(k)) { /* Capital S skips the intro entirely */
-                    Term_clear();
-                    goto cleanup_intro;
-                }
-            }
-            Term_clear();
-            row = 1;
+            if (entry < 0)
+                continue;
+            story_intro_prompt_text(STORY_INTRO_PROMPT_WRITING, prompt,
+                sizeof(prompt));
+            sdl_tale_screen_set_prompt(prompt, true, false);
+            input = story_intro_write_passage(entry);
+            if (input == STORY_INTRO_INPUT_SKIP)
+                goto cleanup_intro;
+
+            input = story_intro_wait_delay(STORY_INTRO_PASSAGE_HOLD_MS);
+            if (input == STORY_INTRO_INPUT_SKIP)
+                goto cleanup_intro;
         }
 
-        story_intro_touch_confirm_begin(h);
-        skipped = story_intro_render_paragraph(s, indent, wrap_width, &row);
-        story_intro_touch_confirm_end();
+        if (sdl_tale_screen_is_last_page())
+            break;
 
-        /* Leave one blank line after each paragraph */
-        row++;
-
-        /* 1 second pause after paragraph (skip if we already skipped typewriter) */
-        if (!skipped) {
-            Term_xtra(TERM_XTRA_DELAY, 1000);
-        }
+        story_intro_prompt_text(STORY_INTRO_PROMPT_TURN_PAGE, prompt,
+            sizeof(prompt));
+        sdl_tale_screen_set_prompt(prompt, true, false);
+        Term_fresh();
+        if (story_intro_wait_for_key() == STORY_INTRO_INPUT_SKIP)
+            goto cleanup_intro;
+        if (!sdl_tale_screen_advance_page())
+            break;
+        sdl_tale_screen_set_active_entry(-1, 0);
     }
 
-    /* Handle final input */
-    char key = story_intro_final_prompt_inkey(h);
-    if (key == 'S' || story_intro_back_key(key)) {
-        Term_clear();
-        goto cleanup_intro;
-    }
-    Term_clear();
-
-    /* Flush any queued keypresses that accumulated during the intro */
-    Term_flush();
+    story_intro_prompt_text(STORY_INTRO_PROMPT_FINISH, prompt,
+        sizeof(prompt));
+    sdl_tale_screen_set_prompt(prompt, true, true);
+    Term_fresh();
+    (void)story_intro_wait_for_key();
 
 cleanup_intro:
-    screen_pop_touch_pane_hidden();
-    screen_pop_supporting_panes_hidden();
-    if (story_intro_story_font)
-        sdl_story_font_reset();
-    
-    return;
+    Term_flush();
+    sdl_tale_screen_hide();
+    Term_clear();
+    if (panes_hidden)
+    {
+        screen_pop_touch_pane_hidden();
+        screen_pop_supporting_panes_hidden();
+    }
+    (void)Term_set_cursor(saved_cursor_state);
+    hide_cursor = saved_hide_cursor;
+    log_debug("Story intro completed (SDL semantic manuscript layout)");
 }

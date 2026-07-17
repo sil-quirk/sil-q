@@ -1606,13 +1606,29 @@ extern bool sdl_welcome_screen_set_status(cptr status);
 extern bool sdl_welcome_screen_show_loading(cptr status);
 extern void sdl_welcome_screen_hide(void);
 extern bool sdl_welcome_screen_active(void);
-extern void sdl_death_poetry_screen_begin(cptr title, cptr body,
+extern void sdl_poetry_screen_begin(cptr title, cptr body,
     cptr transition, cptr prompt);
-extern void sdl_death_poetry_screen_update(bool title_visible,
+extern void sdl_poetry_sequence_layout_begin(void);
+extern void sdl_poetry_sequence_layout_end(void);
+extern bool sdl_poetry_screen_begin_choices(cptr title);
+extern bool sdl_poetry_screen_begin_blocks(cptr title, cptr prompt);
+extern int sdl_poetry_screen_add_block(cptr text, byte attr);
+extern void sdl_poetry_screen_set_block_visible(int block, bool visible);
+extern void sdl_poetry_screen_set_block_alpha(int block, byte alpha);
+extern void sdl_poetry_screen_set_block_attr(int block, byte attr);
+extern void sdl_poetry_screen_add_choice(int choice, cptr label, cptr body);
+extern void sdl_poetry_screen_set_choice_visible(int choice, bool visible,
+    byte label_attr, byte body_attr);
+extern void sdl_poetry_screen_set_choice_alpha(int choice, byte alpha);
+extern void sdl_poetry_screen_set_highlight(int choice);
+extern void sdl_poetry_screen_set_prompt(cptr prompt, bool visible);
+extern void sdl_poetry_screen_set_alpha(byte title_alpha, byte body_alpha,
+    byte transition_alpha, byte prompt_alpha);
+extern void sdl_poetry_screen_update(bool title_visible,
     byte title_attr, bool body_visible, byte body_attr,
     bool transition_visible, byte transition_attr, bool prompt_visible);
-extern void sdl_death_poetry_screen_hide(void);
-extern bool sdl_death_poetry_screen_active(void);
+extern void sdl_poetry_screen_hide(void);
+extern bool sdl_poetry_screen_active(void);
 extern bool sdl_pause_text_screen_begin(void);
 extern void sdl_pause_text_screen_add_line(cptr text, byte attr, int indent);
 extern void sdl_pause_text_screen_set_visible_lines(int visible_lines);
@@ -1620,9 +1636,14 @@ extern void sdl_pause_text_screen_hide(void);
 extern bool sdl_pause_text_screen_active(void);
 extern bool sdl_tale_screen_begin(cptr title);
 extern void sdl_tale_screen_add_entry(cptr heading, cptr body);
+extern void sdl_tale_screen_set_manuscript(bool enabled);
 extern int sdl_tale_screen_current_page_entry_count(void);
 extern int sdl_tale_screen_current_page_entry_at(int position);
+extern int sdl_tale_screen_entry_character_count(int entry);
+extern int sdl_tale_screen_entry_character_at(int entry, int position);
 extern void sdl_tale_screen_set_active_entry(int active_entry, byte alpha);
+extern void sdl_tale_screen_set_typewriter_entry(int active_entry,
+    int visible_characters, bool cursor_visible);
 extern void sdl_tale_screen_set_prompt(cptr prompt, bool visible,
     bool final);
 extern bool sdl_tale_screen_advance_page(void);
@@ -2210,6 +2231,8 @@ extern int get_sdl_terminal_menu_scale_offset(void);
 extern void set_sdl_terminal_menu_scale_offset(int value);
 extern int get_sdl_mobile_starting_zoom_offset(void);
 extern void set_sdl_mobile_starting_zoom_offset(int value);
+extern bool get_sdl_android_welcome_portrait_layout(void);
+extern void set_sdl_android_welcome_portrait_layout(bool value);
 extern bool sdl_prepare_first_gameplay_main_view_zoom(void);
 extern int get_sdl_min_main_view_scale(void);
 extern int get_sdl_platform_max_main_view_scale(void);

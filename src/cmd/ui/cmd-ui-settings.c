@@ -2852,6 +2852,9 @@ void do_cmd_pane_settings(void)
         PANE_SETTING_MAIN_VIEW_SCALE,
         PANE_SETTING_TERMINAL_MENU_SCALE_OFFSET,
         PANE_SETTING_MOBILE_STARTING_ZOOM_OFFSET,
+#if defined(__ANDROID__)
+        PANE_SETTING_ANDROID_WELCOME_PORTRAIT_LAYOUT,
+#endif
         PANE_SETTING_ENABLE_SIDE_PANES,
         PANE_SETTING_ENABLE_BOTTOM_PANES,
         PANE_SETTING_FULLSCREEN,
@@ -2952,6 +2955,21 @@ void do_cmd_pane_settings(void)
             value_buf, row_width, 4);
         ADD_PANE_SETTING_ROW(PANE_SETTING_MOBILE_STARTING_ZOOM_OFFSET, 3, a,
             buf);
+
+#if defined(__ANDROID__)
+        /* Rotate only welcome rendering; do not change Android orientation. */
+        a = (k == PANE_SETTING_ANDROID_WELCOME_PORTRAIT_LAYOUT)
+            ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Vertical Welcome Screen",
+                "Vertical Welcome",
+                "Vertical Welcome"),
+            get_sdl_android_welcome_portrait_layout() ? "yes" : "no",
+            row_width, 3);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_ANDROID_WELCOME_PORTRAIT_LAYOUT, 4,
+            a, buf);
+#endif
 
         /* Option 4: Enable Side Panes */
         a = (k == PANE_SETTING_ENABLE_SIDE_PANES) ? TERM_L_BLUE : TERM_WHITE;
@@ -3107,6 +3125,12 @@ void do_cmd_pane_settings(void)
                     "Extra zoom steps applied when gameplay starts on mobile. "
                     "Set to 0 to start at the configured main-map scale. The "
                     "result is limited to what the screen can display.",
+#if defined(__ANDROID__)
+                [PANE_SETTING_ANDROID_WELCOME_PORTRAIT_LAYOUT] =
+                    "Rotate a full portrait welcome screen so it is upright "
+                    "when the phone is held vertically. Android itself stays "
+                    "in landscape mode.",
+#endif
                 [PANE_SETTING_ENABLE_SIDE_PANES] =
                     "Show panes to the side of the map (inventory, monster "
                     "list, and more). Also toggled in play with Alt+I.",
@@ -3195,6 +3219,12 @@ void do_cmd_pane_settings(void)
                         set_sdl_mobile_starting_zoom_offset(
                             def.mobile_starting_zoom_offset);
                         break;
+#if defined(__ANDROID__)
+                    case PANE_SETTING_ANDROID_WELCOME_PORTRAIT_LAYOUT:
+                        set_sdl_android_welcome_portrait_layout(
+                            def.android_welcome_portrait_layout);
+                        break;
+#endif
                     case PANE_SETTING_ENABLE_SIDE_PANES:
                         set_sdl_enable_right_panes(def.enable_right_panes);
                         break;
@@ -3365,6 +3395,14 @@ void do_cmd_pane_settings(void)
                 settings_changed = true;
                 sdl_apply_config();
             }
+#if defined(__ANDROID__)
+            else if (k == PANE_SETTING_ANDROID_WELCOME_PORTRAIT_LAYOUT)
+            {
+                set_sdl_android_welcome_portrait_layout(
+                    !get_sdl_android_welcome_portrait_layout());
+                settings_changed = true;
+            }
+#endif
             else if (k == PANE_SETTING_FULLSCREEN)
             {
                 set_sdl_fullscreen(!get_sdl_fullscreen());
@@ -3474,6 +3512,16 @@ void do_cmd_pane_settings(void)
                     settings_changed = true;
                 }
             }
+#if defined(__ANDROID__)
+            else if (k == PANE_SETTING_ANDROID_WELCOME_PORTRAIT_LAYOUT)
+            {
+                if (!get_sdl_android_welcome_portrait_layout())
+                {
+                    set_sdl_android_welcome_portrait_layout(true);
+                    settings_changed = true;
+                }
+            }
+#endif
             else if (k == PANE_SETTING_ENABLE_SIDE_PANES) /* Enable Side Panes */
             {
                 set_sdl_enable_right_panes(true);
@@ -3576,6 +3624,16 @@ void do_cmd_pane_settings(void)
                     settings_changed = true;
                 }
             }
+#if defined(__ANDROID__)
+            else if (k == PANE_SETTING_ANDROID_WELCOME_PORTRAIT_LAYOUT)
+            {
+                if (get_sdl_android_welcome_portrait_layout())
+                {
+                    set_sdl_android_welcome_portrait_layout(false);
+                    settings_changed = true;
+                }
+            }
+#endif
             else if (k == PANE_SETTING_ENABLE_SIDE_PANES) /* Enable Side Panes */
             {
                 set_sdl_enable_right_panes(false);

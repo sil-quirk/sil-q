@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "blitz.h"
 #include "externs.h"
 #include "log/log.h"
 #include "mem/alloc.h"
@@ -27,6 +28,7 @@ static void do_cmd_debug_orome_status(void);
 static void do_cmd_debug_quest_texts(void);
 static void do_cmd_debug_spawn_quest_valar(void);
 static void do_cmd_debug_identify_all_items(void);
+static void do_cmd_debug_run_results(void);
 static char do_cmd_debug_choose(void);
 static void do_cmd_debug_execute(char cmd);
 
@@ -2936,6 +2938,139 @@ static void do_cmd_debug_quest_texts(void)
     }
 }
 
+static bool debug_overlay_choose_preview_number(cptr title, cptr desc,
+    int minimum, int maximum, int* out)
+{
+    debug_menu_entry entries[10];
+    char labels[10][32];
+    int count = 0;
+    int choice;
+
+    if (!out || minimum < 0 || maximum > 9 || maximum < minimum)
+        return false;
+
+    for (int value = minimum; value <= maximum; value++)
+    {
+        strnfmt(labels[count], sizeof(labels[count]), "%d", value);
+        entries[count].key = (char)('0' + value);
+        entries[count].command = 0;
+        entries[count].label = labels[count];
+        entries[count].attr = TERM_L_WHITE;
+        count++;
+    }
+
+    choice = debug_overlay_choose_index(title, desc, entries, count);
+    if (choice < 0)
+        return false;
+    *out = minimum + choice;
+    return true;
+}
+
+static void do_cmd_debug_run_results(void)
+{
+    static const debug_menu_entry result_entries[] = {
+        { 'r', 'r', "Completed-run epilogue", TERM_YELLOW },
+        { 'b', 'b', "Blitz result", TERM_L_BLUE },
+        { 'v', 'v', "Tale victory", TERM_L_GREEN },
+        { 'd', 'd', "Tale defeat", TERM_L_RED },
+    };
+    int choice = debug_overlay_choose_index("End-game Run Results",
+        "Choose a production result screen, then configure the state shown. No run state will be changed.",
+        result_entries, (int)N_ELEMENTS(result_entries));
+
+    if (choice == 0)
+    {
+        static const debug_menu_entry treachery_entries[] = {
+            { 'n', 'n', "No treachery trial", TERM_SLATE },
+            { 'r', 'r', "Temptation resisted", TERM_L_GREEN },
+            { 't', 't', "Treachery occurs", TERM_L_RED },
+        };
+        static const debug_menu_entry kinslaying_entries[] = {
+            { 'n', 'n', "No kinslaying echoes", TERM_SLATE },
+            { 'r', 'r', "Echoes resisted", TERM_L_GREEN },
+            { 'k', 'k', "Kinslaying occurs", TERM_L_RED },
+        };
+        int silmarils;
+        int stolen = 0;
+        int treachery_choice;
+        int kinslaying_choice;
+        int kinslaying_attempt = -1;
+
+        if (!debug_overlay_choose_preview_number("Silmarils Recovered",
+                "Choose how many Silmarils were carried out of Angband.",
+                1, 3, &silmarils))
+            return;
+
+        treachery_choice = debug_overlay_choose_index("Treachery State",
+            "Choose whether the original Temptation screen appears and how it ends.",
+            treachery_entries, (int)N_ELEMENTS(treachery_entries));
+        if (treachery_choice < 0)
+            return;
+        if (treachery_choice == 2
+            && !debug_overlay_choose_preview_number("Silmarils Withheld",
+                "Choose how many recovered jewels are lost to treachery.",
+                1, silmarils, &stolen))
+        {
+            return;
+        }
+
+        kinslaying_choice = debug_overlay_choose_index("Kinslaying State",
+            "Choose whether the original Echoes and blood-price screens appear.",
+            kinslaying_entries, (int)N_ELEMENTS(kinslaying_entries));
+        if (kinslaying_choice < 0)
+            return;
+        if (kinslaying_choice == 1)
+            kinslaying_attempt = 0;
+        else if (kinslaying_choice == 2
+            && !debug_overlay_choose_preview_number("Fatal Echo",
+                "Choose which Silmaril's echo first leads to kinslaying.",
+                1, silmarils, &kinslaying_attempt))
+        {
+            return;
+        }
+
+        metarun_debug_show_run_summary(silmarils, stolen,
+            treachery_choice != 0, kinslaying_attempt);
+    }
+    else if (choice == 1)
+    {
+        int silmarils;
+
+        if (debug_overlay_choose_preview_number("Blitz Silmarils",
+                "Choose the number of stolen Silmarils shown.", 0, 4,
+                &silmarils))
+        {
+            blitz_debug_show_end_summary((byte)silmarils);
+        }
+    }
+    else if (choice == 2)
+    {
+        int silmarils;
+
+        if (debug_overlay_choose_preview_number("Tale Victory",
+                "Choose the number of reclaimed Silmarils shown.", 1, 9,
+                &silmarils))
+        {
+            metarun_debug_show_run_result(true, silmarils, 0, 1);
+        }
+    }
+    else if (choice == 3)
+    {
+        int alive;
+        int required;
+
+        if (!debug_overlay_choose_preview_number("Surviving Heroes",
+                "Choose how many heroes remain.", 0, 6, &alive)
+            || !debug_overlay_choose_preview_number("Required Heroes",
+                "Choose how many heroes must endure.", MAX(1, alive + 1),
+                9, &required))
+        {
+            return;
+        }
+        metarun_debug_show_run_result(false, 0, alive, required);
+    }
+}
+
 static const debug_menu_entry debug_menu_character[] = {
     { 'a', 'a', "Cure all maladies (a)", TERM_L_GREEN },
     { 'e', 'e', "Edit character (e)", TERM_L_WHITE },
@@ -2983,6 +3118,8 @@ static const debug_menu_entry debug_menu_system[] = {
     { '2', '2', "Complete current quest (2)", TERM_L_RED },
     { '3', '3', "Check Orome quest status (3)", TERM_L_WHITE },
     { '4', '4', "Spawn all quest Valar for tile inspection (4)", TERM_ORANGE },
+    { 'E', 'E', "Preview end-game curse selection (E)", TERM_L_RED },
+    { 'R', 'R', "Preview end-game run results (R)", TERM_YELLOW },
 #ifdef ALLOW_SPOILERS
     { '"', '"', "Generate spoilers (\")", TERM_YELLOW },
 #endif
@@ -3243,6 +3380,20 @@ static void do_cmd_debug_execute(char cmd)
         screen_save();
         do_cmd_options_aux(6, "Debug Options");
         screen_load();
+        break;
+    }
+
+    /* Preview the production end-game curse chooser without applying it. */
+    case 'E':
+    {
+        (void)metarun_debug_preview_curse_menu();
+        break;
+    }
+
+    /* Preview run-result screens without ending or rolling over the run. */
+    case 'R':
+    {
+        do_cmd_debug_run_results();
         break;
     }
 

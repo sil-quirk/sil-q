@@ -1930,15 +1930,35 @@ void sdl_welcome_compose_menu_line(char* menu_line, size_t menu_size, char* quit
 void sdl_welcome_render_intro_canvas(const SDL_Rect* canvas);
 void sdl_welcome_render_status_canvas(const SDL_Rect* canvas);
 void sdl_welcome_render_menu_footer_canvas(const SDL_Rect* canvas);
+bool sdl_welcome_screen_transform_pointer(float* x, float* y);
 void sdl_welcome_screen_render(void);
-void sdl_death_poetry_screen_begin(cptr title, cptr body, cptr transition,
+void sdl_poetry_screen_begin(cptr title, cptr body, cptr transition,
     cptr prompt);
-void sdl_death_poetry_screen_update(bool title_visible, byte title_attr,
+void sdl_poetry_sequence_layout_begin(void);
+void sdl_poetry_sequence_layout_end(void);
+bool sdl_poetry_screen_begin_choices(cptr title);
+bool sdl_poetry_screen_begin_blocks(cptr title, cptr prompt);
+int sdl_poetry_screen_add_block(cptr text, byte attr);
+void sdl_poetry_screen_set_block_visible(int block, bool visible);
+void sdl_poetry_screen_set_block_alpha(int block, byte alpha);
+void sdl_poetry_screen_set_block_attr(int block, byte attr);
+void sdl_poetry_screen_add_choice(int choice, cptr label, cptr body);
+void sdl_poetry_screen_set_choice_visible(int choice, bool visible,
+    byte label_attr, byte body_attr);
+void sdl_poetry_screen_set_choice_alpha(int choice, byte alpha);
+void sdl_poetry_screen_set_highlight(int choice);
+void sdl_poetry_screen_set_prompt(cptr prompt, bool visible);
+void sdl_poetry_screen_set_alpha(byte title_alpha, byte body_alpha,
+    byte transition_alpha, byte prompt_alpha);
+void sdl_poetry_screen_update(bool title_visible, byte title_attr,
     bool body_visible, byte body_attr, bool transition_visible,
     byte transition_attr, bool prompt_visible);
-void sdl_death_poetry_screen_hide(void);
-bool sdl_death_poetry_screen_active(void);
-void sdl_death_poetry_screen_render(void);
+void sdl_poetry_screen_hide(void);
+bool sdl_poetry_screen_active(void);
+bool sdl_poetry_screen_captures_pointer(void);
+bool sdl_poetry_screen_handle_pointer(float x, float y, int action);
+bool sdl_poetry_screen_handle_hover_pointer(float x, float y);
+void sdl_poetry_screen_render(void);
 bool sdl_pause_text_screen_begin(void);
 void sdl_pause_text_screen_add_line(cptr text, byte attr, int indent);
 void sdl_pause_text_screen_set_visible_lines(int visible_lines);
@@ -1947,9 +1967,14 @@ bool sdl_pause_text_screen_active(void);
 void sdl_pause_text_screen_render(void);
 bool sdl_tale_screen_begin(cptr title);
 void sdl_tale_screen_add_entry(cptr heading, cptr body);
+void sdl_tale_screen_set_manuscript(bool enabled);
 int sdl_tale_screen_current_page_entry_count(void);
 int sdl_tale_screen_current_page_entry_at(int position);
+int sdl_tale_screen_entry_character_count(int entry);
+int sdl_tale_screen_entry_character_at(int entry, int position);
 void sdl_tale_screen_set_active_entry(int active_entry, byte alpha);
+void sdl_tale_screen_set_typewriter_entry(int active_entry,
+    int visible_characters, bool cursor_visible);
 void sdl_tale_screen_set_prompt(cptr prompt, bool visible, bool final);
 bool sdl_tale_screen_advance_page(void);
 bool sdl_tale_screen_is_last_page(void);
@@ -3161,6 +3186,8 @@ int get_sdl_terminal_menu_scale_offset(void);
 void set_sdl_terminal_menu_scale_offset(int value);
 int get_sdl_mobile_starting_zoom_offset(void);
 void set_sdl_mobile_starting_zoom_offset(int value);
+bool get_sdl_android_welcome_portrait_layout(void);
+void set_sdl_android_welcome_portrait_layout(bool value);
 int get_sdl_min_terminal_mode(void);
 void set_sdl_min_terminal_mode(int value);
 void set_sdl_main_view_scale(int value);

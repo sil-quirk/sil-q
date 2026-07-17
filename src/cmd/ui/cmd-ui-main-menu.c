@@ -45,7 +45,7 @@ cptr main_menu_title(int choice)
     case MAIN_MENU_HALLS_OF_MANDOS: return "Halls of Mandos";
     case MAIN_MENU_MAP: return "Map";
     case MAIN_MENU_LOG_HISTORY: return "Log & combat history";
-    case MAIN_MENU_STORY: return "The story so far";
+    case MAIN_MENU_STORY: return "The tale so far";
     case MAIN_MENU_STORY_STATS: return "Tale statistics";
     case MAIN_MENU_BLITZ: return "Blitz";
     case MAIN_MENU_OPTIONS: return "Options";
@@ -1509,7 +1509,7 @@ static bool do_cmd_main_menu_execute_choice_impl(int actiontype,
         do_cmd_log_history_menu();
         return true;
     }
-    case MAIN_MENU_STORY: // The story so far (y)
+    case MAIN_MENU_STORY: // The tale so far (y)
     {
         /* Save screen before showing story */
         screen_save();
