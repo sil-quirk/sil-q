@@ -32,7 +32,6 @@ static void wait_prompt(prompt_t id) {         /* tiny wrapper */
 typedef struct run_scene_block {
     cptr text;
     byte attr;
-    int terminal_row;
     bool outcome_colour_reveal;
 } run_scene_block;
 
@@ -43,7 +42,6 @@ static void show_run_scene(cptr title, byte title_attr,
     cptr texts[8];
     byte attrs[8];
     bool outcome_reveals[8];
-    bool skip_remaining = fast_forward && *fast_forward;
 
     if (!blocks || block_count < 1 || block_count > (int)N_ELEMENTS(texts))
         return;
@@ -56,57 +54,9 @@ static void show_run_scene(cptr title, byte title_attr,
     }
 
     Term_clear();
-    if (metarun_show_poetry_blocks(title, title_attr, texts, attrs,
-            outcome_reveals, block_count, prompt, hold_ms, wait_for_key,
-            immediate, fast_forward))
-    {
-        return;
-    }
-
-    if (immediate)
-    {
-        int width;
-        int height;
-        int start_col;
-
-        Term_get_size(&width, &height);
-        (void)height;
-        start_col = MAX(1, (width - (int)strlen(title)) / 2);
-        sdl_story_font_enable();
-        c_prt(title_attr, title, 2, start_col);
-        sdl_story_font_disable();
-        for (int i = 0; i < block_count; i++)
-        {
-            Term_gotoxy(2, blocks[i].terminal_row);
-            print_paragraph(blocks[i].text, blocks[i].attr);
-        }
-        Term_fresh();
-    }
-    else
-    {
-        print_heading_fade(title, title_attr);
-        for (int i = 0; i < block_count; i++)
-        {
-            if (!skip_remaining
-                && !print_paragraph_fade(blocks[i].text, blocks[i].attr,
-                    blocks[i].terminal_row))
-            {
-                skip_remaining = true;
-                if (fast_forward)
-                    *fast_forward = true;
-            }
-            else if (skip_remaining)
-            {
-                Term_gotoxy(2, blocks[i].terminal_row);
-                print_paragraph(blocks[i].text, blocks[i].attr);
-            }
-        }
-    }
-
-    if (hold_ms > 0)
-        Term_xtra(TERM_XTRA_DELAY, hold_ms);
-    if (wait_for_key)
-        wait_for_keypress_with_prompt(prompt);
+    metarun_show_poetry_blocks(title, title_attr, texts, attrs,
+        outcome_reveals, block_count, prompt, hold_ms, wait_for_key,
+        immediate, fast_forward);
 }
 
 static void show_run_summary_screen(int final_sils,
@@ -125,7 +75,6 @@ static void show_run_summary_screen(int final_sils,
 
     block.text = summary;
     block.attr = TERM_L_GREEN;
-    block.terminal_row = 4;
     block.outcome_colour_reveal = false;
     show_run_scene("The Tale Concludes", TERM_YELLOW, &block, 1, prompt,
         hold_ms, wait_for_key, false, fast_forward);
@@ -144,7 +93,6 @@ static void show_run_binding_screen(int chosen_count, const int chosen[4],
             curse_display_name(chosen[i]));
         blocks[i].text = text[i];
         blocks[i].attr = TERM_RED;
-        blocks[i].terminal_row = 4 + i * 2;
         blocks[i].outcome_colour_reveal = false;
     }
     if (chosen_count > 0)
@@ -174,7 +122,7 @@ static void show_run_victory_screen(int sil_count, bool allow_treachery,
     bool* fast_forward)
 {
     run_scene_block block = {
-        run_victory_text(sil_count), TERM_WHITE, 4, false
+        run_victory_text(sil_count), TERM_WHITE, false
     };
 
     show_run_scene("Victory Amid Shadow", TERM_YELLOW, &block, 1,
@@ -211,15 +159,13 @@ static void show_run_treachery_screen(int sil_count, const bool failed[3],
     for (int i = 0; i < count; i++)
     {
         blocks[i].text = run_treachery_text(i, failed[i]);
-        blocks[i].attr = failed[i] ? TERM_RED : TERM_WHITE;
-        blocks[i].terminal_row = 4 + i * 3;
+        blocks[i].attr = failed[i] ? TERM_RED : TERM_L_GREEN;
         blocks[i].outcome_colour_reveal = true;
     }
     if (stolen > 0 && count < (int)N_ELEMENTS(blocks))
     {
         blocks[count].text = shadow_text;
         blocks[count].attr = TERM_L_DARK;
-        blocks[count].terminal_row = 4 + count * 3;
         blocks[count].outcome_colour_reveal = false;
         count++;
     }
@@ -254,7 +200,6 @@ static void show_run_weight_screen(int sil_count, int final_sils,
     run_scene_block block = {
         run_weight_text(sil_count, final_sils, treachery_occurred),
         treachery_occurred ? TERM_RED : TERM_L_WHITE,
-        4,
         false
     };
 
@@ -292,8 +237,7 @@ static void show_run_kinslaying_screen(int sil_count, const bool failed[3],
     for (int i = 0; i < MIN(sil_count, 3); i++)
     {
         blocks[count].text = run_kinslaying_text(i, failed[i]);
-        blocks[count].attr = failed[i] ? TERM_RED : TERM_L_WHITE;
-        blocks[count].terminal_row = 4 + i * 4;
+        blocks[count].attr = failed[i] ? TERM_RED : TERM_L_GREEN;
         blocks[count].outcome_colour_reveal = true;
         count++;
         if (failed[i])
@@ -303,7 +247,6 @@ static void show_run_kinslaying_screen(int sil_count, const bool failed[3],
     {
         blocks[count].text = doom_text;
         blocks[count].attr = TERM_L_DARK;
-        blocks[count].terminal_row = 4 + (count - 1) * 4 + 4;
         blocks[count].outcome_colour_reveal = false;
         count++;
     }
@@ -322,7 +265,6 @@ static void show_run_price_screen(int victims, bool* fast_forward)
         victims, (victims == 1) ? "" : "s");
     block.text = text;
     block.attr = TERM_RED;
-    block.terminal_row = 4;
     block.outcome_colour_reveal = false;
     show_run_scene("The Price of Blood", TERM_RED, &block, 1,
         prompt_text[PROMPT_WITNESS_CONSEQUENCES], 0, true, true,
@@ -342,7 +284,6 @@ static void show_run_blood_demanded_screen(cptr fallen_names[], int count,
             "A hero %s has fallen beneath your blade.", fallen_names[i]);
         blocks[i].text = text[i];
         blocks[i].attr = TERM_RED;
-        blocks[i].terminal_row = 4 + i * 3;
         blocks[i].outcome_colour_reveal = false;
     }
     if (count > 0)
@@ -432,8 +373,7 @@ void metarun_debug_show_run_summary(int silmarils, int stolen_silmarils,
  *   6.  Final pause -> apply deferred effects
  *   7.  Persist silmaril/death counters, check run end, save
  *
- *  All narrative helpers (print_heading(), print_paragraph(),
- *  choose_escape_curses_ui(), kinslayer_try_kill(), etc.) are reused.
+ *  The SDL narrative helpers, curse chooser, and kinslaying flow are reused.
  * ------------------------------------------------------------------ */
 static void announce_blessing_gain(int previous_points)
 {
@@ -593,15 +533,9 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
                     "The hero whose mantle you took has fallen, their tale ends in shadow. "
                     "Yet your spirit returns, for the Valar's trial is not yet complete.");
 
-            if (!metarun_show_poetry_scene(title, TERM_RED, text,
-                    TERM_WHITE, transition_text, TERM_L_BLUE,
-                    prompt_text[PROMPT_RETURN_MIDDLE_EARTH]))
-            {
-                print_heading_fade(title, TERM_RED);
-                print_paragraph_fade(text, TERM_WHITE, 4);
-                print_paragraph_fade(transition_text, TERM_L_BLUE, 10);
-                wait_prompt(PROMPT_RETURN_MIDDLE_EARTH);
-            }
+            metarun_show_poetry_scene(title, TERM_RED, text, TERM_WHITE,
+                transition_text, TERM_L_BLUE,
+                prompt_text[PROMPT_RETURN_MIDDLE_EARTH]);
         }
 
         screen_pop_touch_pane_hidden();
@@ -833,16 +767,8 @@ static void show_run_result_screen(bool victory, int alive,
     }
 
     screen_save();
-    if (!metarun_show_poetry_scene("The Trial's End", title_attr,
-            body, body_attr, note, TERM_L_DARK, prompt))
-    {
-        Term_clear();
-        print_heading_fade("The Trial's End", title_attr);
-        print_paragraph_fade(body, body_attr, 4);
-        if (note[0])
-            print_paragraph_fade(note, TERM_L_DARK, 8);
-        wait_for_keypress_with_prompt(prompt);
-    }
+    metarun_show_poetry_scene("The Trial's End", title_attr, body,
+        body_attr, note, TERM_L_DARK, prompt);
     screen_load();
 }
 

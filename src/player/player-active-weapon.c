@@ -1,9 +1,11 @@
 #include "angband.h"
 #include "externs.h"
 #include "log/log.h"
+#include "ui/question.h"
 
 static byte last_ranged_weapon_mode = PLAYER_ACTIVE_WEAPON_RANGED_1;
 static byte pending_active_weapon_mode = PLAYER_ACTIVE_WEAPON_NONE;
+static bool pending_ranged_quiver_only = false;
 
 bool player_active_weapon_mode_is_ranged(int mode)
 {
@@ -60,6 +62,18 @@ int player_last_ranged_weapon_mode(void)
     mode = normalize_active_weapon_mode(last_ranged_weapon_mode);
     return player_active_weapon_mode_is_ranged(mode)
         ? mode : PLAYER_ACTIVE_WEAPON_RANGED_1;
+}
+
+int player_selected_ranged_quiver_number(void)
+{
+    return (player_last_ranged_weapon_mode()
+        == PLAYER_ACTIVE_WEAPON_RANGED_2) ? 2 : 1;
+}
+
+int player_opposite_active_weapon_mode(void)
+{
+    return player_active_weapon_is_ranged()
+        ? PLAYER_ACTIVE_WEAPON_MELEE : player_last_ranged_weapon_mode();
 }
 
 int player_active_weapon_quiver_slot(void)
@@ -202,6 +216,30 @@ static bool confirm_active_weapon_switch(int new_mode)
     active_weapon_mode_prompt_name(target, sizeof(target), new_mode);
     strnfmt(prompt, sizeof(prompt), "Change active weapon to %s? ", target);
     return get_check(prompt);
+}
+
+static int confirm_active_weapon_switch_to_ranged(int default_mode)
+{
+    const ui_question_option options[] = {
+        { '1', "Quiver 1", TERM_L_WHITE },
+        { '2', "Quiver 2", TERM_L_WHITE },
+        { 'n', "No", TERM_SLATE }
+    };
+    int default_index = (default_mode == PLAYER_ACTIVE_WEAPON_RANGED_2)
+        ? 1 : 0;
+    int choice;
+
+    msg_print("Switching between melee and ranged takes one turn; inactive weapon attack, damage, evasion, and armour bonuses do not apply.");
+    msg_print("This confirmation can be removed in Gameplay Options.");
+    choice = ui_question_ask("Change active weapon to ranged?",
+        "Choose the quiver to ready.", options, N_ELEMENTS(options),
+        UI_QUESTION_GLOBAL, UI_QUESTION_GLOBAL, default_index);
+
+    if (choice == 0)
+        return PLAYER_ACTIVE_WEAPON_RANGED_1;
+    if (choice == 1)
+        return PLAYER_ACTIVE_WEAPON_RANGED_2;
+    return PLAYER_ACTIVE_WEAPON_NONE;
 }
 
 static void mark_active_weapon_changed(void)
@@ -571,21 +609,46 @@ bool player_set_active_weapon_mode(int mode, bool confirm, bool take_turn)
     return true;
 }
 
+static void player_select_ranged_quiver_mode(int mode)
+{
+    int old_mode = player_active_weapon_mode();
+
+    mode = normalize_active_weapon_mode(mode);
+    if (!player_active_weapon_mode_is_ranged(mode))
+        return;
+
+    if (player_active_weapon_mode_is_ranged(old_mode))
+    {
+        (void)player_set_active_weapon_mode(mode, false, false);
+        return;
+    }
+
+    if (last_ranged_weapon_mode == mode)
+        return;
+
+    last_ranged_weapon_mode = (byte)mode;
+    msg_format("Your ranged weapon will use the %s quiver.",
+        (mode == PLAYER_ACTIVE_WEAPON_RANGED_2) ? "2nd" : "1st");
+    p_ptr->redraw |= PR_ARC | PR_QUIVER;
+    p_ptr->window |= PW_PLAYER_0;
+    handle_stuff();
+}
+
 void do_cmd_toggle_active_weapon(void)
 {
     int old_mode = player_active_weapon_mode();
-    int new_mode;
+    int new_mode = player_opposite_active_weapon_mode();
 
     /* Tab toggles between melee and ranged. */
-    if (player_active_weapon_mode_is_ranged(old_mode))
+    if (old_mode == PLAYER_ACTIVE_WEAPON_MELEE
+        && active_weapon_switch_confirm)
     {
-        new_mode = PLAYER_ACTIVE_WEAPON_MELEE;
-    }
-    else
-    {
-        new_mode = normalize_active_weapon_mode(last_ranged_weapon_mode);
+        new_mode = confirm_active_weapon_switch_to_ranged(new_mode);
         if (!player_active_weapon_mode_is_ranged(new_mode))
-            new_mode = PLAYER_ACTIVE_WEAPON_RANGED_1;
+            return;
+
+        (void)player_set_active_weapon_mode(new_mode, false, true);
+        return;
     }
 
     (void)player_set_active_weapon_mode(new_mode, true, true);
@@ -595,18 +658,36 @@ void player_queue_active_weapon_mode(int mode)
 {
     mode = normalize_active_weapon_mode(mode);
     pending_active_weapon_mode = (byte)mode;
+    pending_ranged_quiver_only = false;
     if (player_active_weapon_mode_is_ranged(mode))
         last_ranged_weapon_mode = (byte)mode;
+}
+
+void player_queue_ranged_quiver_mode(int mode)
+{
+    mode = normalize_active_weapon_mode(mode);
+    if (!player_active_weapon_mode_is_ranged(mode))
+        return;
+
+    pending_active_weapon_mode = (byte)mode;
+    pending_ranged_quiver_only = true;
 }
 
 void do_cmd_pending_active_weapon_mode(void)
 {
     int mode;
+    bool quiver_only;
 
     if (pending_active_weapon_mode == PLAYER_ACTIVE_WEAPON_NONE)
         return;
 
     mode = normalize_active_weapon_mode(pending_active_weapon_mode);
+    quiver_only = pending_ranged_quiver_only;
     pending_active_weapon_mode = PLAYER_ACTIVE_WEAPON_NONE;
-    (void)player_set_active_weapon_mode(mode, true, true);
+    pending_ranged_quiver_only = false;
+
+    if (quiver_only)
+        player_select_ranged_quiver_mode(mode);
+    else
+        (void)player_set_active_weapon_mode(mode, true, true);
 }

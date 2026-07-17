@@ -124,6 +124,18 @@ bool sdl_pointer_attack_panel_mode_highlighted(int mode)
         && sdl_pointer_attack_panel_display_mode() == mode;
 }
 
+bool sdl_pointer_attack_panel_quiver_highlighted(int mode)
+{
+    int display_mode = sdl_pointer_attack_panel_display_mode();
+
+    if (!sdl_pointer_attack_mode_is_ranged(mode))
+        return false;
+    if (sdl_pointer_attack_mode_is_ranged(display_mode))
+        return display_mode == mode;
+
+    return player_last_ranged_weapon_mode() == mode;
+}
+
 const char* sdl_pointer_attack_mode_name(int mode)
 {
     switch (mode) {
@@ -202,6 +214,34 @@ void sdl_pointer_attack_set_mode(int mode)
     }
     else
         msg_format("%s pointer mode.", sdl_pointer_attack_mode_name(mode));
+    sdl_pointer_attack_refresh_mode_display(true);
+}
+
+void sdl_pointer_attack_activate_panel_choice(int mode, bool quiver_only)
+{
+    if (!sdl_pointer_attack_input_context_active())
+        return;
+
+    g_pointer_attack.panel_hover_mode = SDL_POINTER_ATTACK_NONE;
+    sdl_pointer_attack_clear_pending();
+    sdl_pointer_attack_clear_hover();
+    sdl_pointer_attack_clear_touch_selection();
+    sdl_pointer_attack_cancel_touch_press();
+    sdl_mouse_path_cancel();
+
+    if (quiver_only)
+    {
+        if (!sdl_pointer_attack_mode_is_ranged(mode))
+            return;
+        player_queue_ranged_quiver_mode(mode);
+        sdl_enqueue_bypassed_command(CMD_ACTIVE_WEAPON_MODE);
+    }
+    else
+    {
+        /* Both combat rows are one melee/ranged toggle. */
+        sdl_enqueue_bypassed_command('\t');
+    }
+
     sdl_pointer_attack_refresh_mode_display(true);
 }
 

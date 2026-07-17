@@ -161,10 +161,10 @@ void metarun_update_on_exit(bool died,
  * the run ends and persists everything.                              */
 
 void check_run_end(void);                        /* Check win/loss conditions */
-bool metarun_show_poetry_scene(cptr title, byte title_attr, cptr body,
+void metarun_show_poetry_scene(cptr title, byte title_attr, cptr body,
                                byte body_attr, cptr transition,
                                byte transition_attr, cptr prompt);
-bool metarun_show_poetry_blocks(cptr title, byte title_attr,
+void metarun_show_poetry_blocks(cptr title, byte title_attr,
                                 cptr blocks[], const byte block_attrs[],
                                 const bool block_outcome_reveals[],
                                 int block_count, cptr prompt, int hold_ms,

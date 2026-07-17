@@ -53,6 +53,7 @@ byte g_hidden_left_panel_overlay_start_row = 0;
 byte g_hidden_left_panel_overlay_start_cols[16] = { 0 };
 byte g_hidden_left_panel_overlay_widths[16] = { 0 };
 byte g_hidden_left_panel_overlay_attack_modes[16] = { 0 };
+bool g_hidden_left_panel_overlay_attack_quivers[16] = { false };
 byte g_hidden_left_panel_overlay_attack_start_cols[16] = { 0 };
 byte g_hidden_left_panel_overlay_attack_end_cols[16] = { 0 };
 byte g_hidden_left_panel_overlay_click_actions[16] = { 0 };
@@ -107,14 +108,14 @@ static byte pointer_attack_panel_bg_attr(int mode)
 
 static byte pointer_attack_quiver_panel_attr(int mode, byte base_attr)
 {
-    return sdl_pointer_attack_panel_mode_highlighted(mode)
+    return sdl_pointer_attack_panel_quiver_highlighted(mode)
         ? left_panel_selected_quiver_attr()
         : base_attr;
 }
 
 static byte pointer_attack_quiver_panel_bg_attr(int mode)
 {
-    return sdl_pointer_attack_panel_mode_highlighted(mode)
+    return sdl_pointer_attack_panel_quiver_highlighted(mode)
         ? left_panel_selected_quiver_attr()
         : 0;
 }
@@ -1508,6 +1509,7 @@ static void hidden_left_panel_add_line_mode(hidden_overlay_line* lines,
     lines[*count].icon_attr = TERM_WHITE;
     lines[*count].icon_char = ' ';
     lines[*count].pointer_attack_mode = (byte)pointer_attack_mode;
+    lines[*count].pointer_attack_quiver = false;
     lines[*count].click_action = SDL_PANEL_CLICK_NONE;
     lines[*count].health_m_idx = 0;
     (*count)++;
@@ -1541,6 +1543,7 @@ static void hidden_left_panel_add_icon_line_mode(hidden_overlay_line* lines,
     lines[*count].icon_attr = icon_attr;
     lines[*count].icon_char = icon_char;
     lines[*count].pointer_attack_mode = (byte)pointer_attack_mode;
+    lines[*count].pointer_attack_quiver = false;
     lines[*count].click_action = SDL_PANEL_CLICK_NONE;
     lines[*count].health_m_idx = 0;
     (*count)++;
@@ -1559,16 +1562,20 @@ static void hidden_left_panel_add_quiver_line(hidden_overlay_line* lines,
 {
     char buf[32];
     byte attr;
+    int old_count;
 
     if (!q_ptr || !q_ptr->k_idx || q_ptr->number <= 0)
         return;
 
     strnfmt(buf, sizeof(buf), "%d", q_ptr->number);
     attr = pointer_attack_quiver_panel_attr(pointer_attack_mode, TERM_L_WHITE);
+    old_count = *count;
 
     hidden_left_panel_add_icon_line_mode(lines, count, max_lines, attr,
         buf, buf, object_attr(q_ptr), object_char(q_ptr),
         pointer_attack_mode);
+    if (*count > old_count)
+        lines[*count - 1].pointer_attack_quiver = true;
 }
 
 static int hidden_left_panel_line_width(const hidden_overlay_line* line,
@@ -1782,6 +1789,7 @@ int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines)
 
     {
         const object_type* icon_obj = left_panel_melee_display_object();
+        int toggle_mode = player_opposite_active_weapon_mode();
         int main_dd;
         int main_ds;
 
@@ -1800,12 +1808,12 @@ int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines)
                     pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE,
                         TERM_L_WHITE),
                     buf, short_buf, object_attr(icon_obj), object_char(icon_obj),
-                    SDL_POINTER_ATTACK_MELEE);
+                    toggle_mode);
             else
                 hidden_left_panel_add_line_mode(lines, &count, max_lines,
                     pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE,
                         TERM_L_WHITE),
-                    buf, SDL_POINTER_ATTACK_MELEE);
+                    buf, toggle_mode);
             if (count > old_count)
                 SDL_strlcpy(lines[count - 1].short_text, short_buf,
                     sizeof(lines[count - 1].short_text));
@@ -1833,12 +1841,12 @@ int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines)
                         pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE,
                             TERM_L_WHITE),
                         buf, short_buf, object_attr(offhand_icon),
-                        object_char(offhand_icon), SDL_POINTER_ATTACK_MELEE);
+                        object_char(offhand_icon), toggle_mode);
                 else
                     hidden_left_panel_add_line_mode(lines, &count, max_lines,
                         pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE,
                             TERM_L_WHITE),
-                        buf, SDL_POINTER_ATTACK_MELEE);
+                        buf, toggle_mode);
                 if (count > old_count)
                     SDL_strlcpy(lines[count - 1].short_text, short_buf,
                         sizeof(lines[count - 1].short_text));
@@ -1847,6 +1855,7 @@ int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines)
     }
 
     {
+        int toggle_mode = player_opposite_active_weapon_mode();
         int arc_attack = 0;
         int arc_dd = 0;
         int arc_ds = 0;
@@ -1871,11 +1880,11 @@ int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines)
                             max_lines,
                             pointer_attack_ranged_panel_attr(TERM_UMBER),
                             buf, short_buf, object_attr(icon_obj),
-                            object_char(icon_obj), SDL_POINTER_ATTACK_RANGED_1);
+                            object_char(icon_obj), toggle_mode);
                     else
                         hidden_left_panel_add_line_mode(lines, &count, max_lines,
                             pointer_attack_ranged_panel_attr(TERM_UMBER),
-                            buf, SDL_POINTER_ATTACK_RANGED_1);
+                            buf, toggle_mode);
                     if (count > old_count)
                         SDL_strlcpy(lines[count - 1].short_text, short_buf,
                             sizeof(lines[count - 1].short_text));
@@ -2026,6 +2035,7 @@ bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int line_coun
         byte new_start_col = 0;
         byte new_width = 0;
         byte new_mode = SDL_POINTER_ATTACK_NONE;
+        bool new_quiver = false;
         byte new_start = 0;
         byte new_end = 0;
         byte new_click_action = SDL_PANEL_CLICK_NONE;
@@ -2057,6 +2067,7 @@ bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int line_coun
                 && text_start < width)
             {
                 new_mode = lines[i].pointer_attack_mode;
+                new_quiver = lines[i].pointer_attack_quiver;
                 new_start = (byte)MIN(start_col + text_start, 255);
                 new_end = (byte)MIN(start_col + width, 255);
             }
@@ -2071,6 +2082,7 @@ bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int line_coun
         g_hidden_left_panel_overlay_start_cols[i] = new_start_col;
         g_hidden_left_panel_overlay_widths[i] = new_width;
         g_hidden_left_panel_overlay_attack_modes[i] = new_mode;
+        g_hidden_left_panel_overlay_attack_quivers[i] = new_quiver;
         g_hidden_left_panel_overlay_attack_start_cols[i] = new_start;
         g_hidden_left_panel_overlay_attack_end_cols[i] = new_end;
         g_hidden_left_panel_overlay_click_actions[i] = new_click_action;
@@ -2083,6 +2095,7 @@ bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int line_coun
         g_hidden_left_panel_overlay_start_cols[i] = 0;
         g_hidden_left_panel_overlay_widths[i] = 0;
         g_hidden_left_panel_overlay_attack_modes[i] = SDL_POINTER_ATTACK_NONE;
+        g_hidden_left_panel_overlay_attack_quivers[i] = false;
         g_hidden_left_panel_overlay_attack_start_cols[i] = 0;
         g_hidden_left_panel_overlay_attack_end_cols[i] = 0;
         g_hidden_left_panel_overlay_click_actions[i] = SDL_PANEL_CLICK_NONE;

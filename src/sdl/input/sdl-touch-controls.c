@@ -1042,14 +1042,14 @@ static void sdl_touch_context_label_for_binding(int binding, char* buf,
             return;
         }
         SDL_strlcpy(buf,
-            (player_active_weapon_quiver_number() == 2) ? "Fire 2nd quiver"
-                                                        : "Fire 1st quiver",
+            (player_selected_ranged_quiver_number() == 2)
+                ? "Fire 2nd quiver" : "Fire 1st quiver",
             buflen);
         return;
     }
     if (binding == SDL_TOUCH_THUMB_BIND_CHANGE_QUIVER) {
         SDL_strlcpy(buf,
-            (player_active_weapon_quiver_number() == 2)
+            (player_selected_ranged_quiver_number() == 2)
                 ? "Change to 1st quiver"
                 : "Change to 2nd quiver",
             buflen);
@@ -1177,9 +1177,9 @@ void sdl_touch_thumb_cancel_press(void)
 
 static void sdl_touch_thumb_queue_quiver_change(void)
 {
-    int next_quiver = (player_active_weapon_quiver_number() == 2) ? 1 : 2;
+    int next_quiver = (player_selected_ranged_quiver_number() == 2) ? 1 : 2;
 
-    player_queue_active_weapon_mode(
+    player_queue_ranged_quiver_mode(
         player_active_weapon_mode_for_quiver(next_quiver));
     sdl_enqueue_bypassed_command(CMD_ACTIVE_WEAPON_MODE);
 }
@@ -1195,7 +1195,8 @@ static bool sdl_touch_thumb_send_internal_binding(int binding)
         sdl_touch_pane_send_binding(key, false, false);
         return true;
     case SDL_TOUCH_THUMB_BIND_FIRE_SELECTED:
-        Term_keypress((player_active_weapon_quiver_number() == 2) ? 'F' : 'f');
+        Term_keypress(
+            (player_selected_ranged_quiver_number() == 2) ? 'F' : 'f');
         return true;
     case SDL_TOUCH_THUMB_BIND_CHANGE_QUIVER:
         sdl_touch_thumb_queue_quiver_change();

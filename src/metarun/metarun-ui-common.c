@@ -85,11 +85,10 @@ static bool metarun_poetry_fade_block(int block, byte final_attr,
 {
     const int frame_ms = 16;
 
-    /* The old terminal animation used several palette entries to imitate a
-     * fade, then changed once to the roll's result colour.  SDL supplies the
-     * real alpha fade; retain only that final semantic colour change. */
+    /* Reveal an unresolved roll in white, then change once to its semantic
+     * result colour after the fully opaque white state has been readable. */
     sdl_poetry_screen_set_block_attr(block,
-        outcome_colour_reveal ? TERM_L_GREEN : final_attr);
+        outcome_colour_reveal ? TERM_WHITE : final_attr);
 
     for (int elapsed = 0; elapsed < duration_ms; elapsed += frame_ms)
     {
@@ -111,9 +110,8 @@ static bool metarun_poetry_fade_block(int block, byte final_attr,
 
     if (outcome_colour_reveal)
     {
-        /* Present one fully opaque pre-result frame before the single outcome
-         * colour change.  Without this hold, the final Term_fresh() replaces
-         * the almost-opaque green frame before the eye can register it. */
+        /* Hold the fully opaque unresolved result before the single outcome
+         * colour change. */
         sdl_poetry_screen_set_block_alpha(block, 255);
         Term_fresh();
         Term_xtra(TERM_XTRA_DELAY, 500);
@@ -123,10 +121,8 @@ static bool metarun_poetry_fade_block(int block, byte final_attr,
 }
 
 /* Present a full-window poetic interlude with semantic pixel layout.  The
- * caller supplies semantic colours and prose; SDL owns wrapping and placement.
- * Return false when no SDL renderer is available so legacy frontends can use
- * their terminal fallback. */
-bool metarun_show_poetry_scene(cptr title, byte title_attr, cptr body,
+ * caller supplies semantic colours and prose; SDL owns wrapping and placement. */
+void metarun_show_poetry_scene(cptr title, byte title_attr, cptr body,
     byte body_attr, cptr transition, byte transition_attr, cptr prompt)
 {
     bool body_fast_forward = false;
@@ -134,7 +130,10 @@ bool metarun_show_poetry_scene(cptr title, byte title_attr, cptr body,
 
     sdl_poetry_screen_begin(title, body, transition, prompt);
     if (!sdl_poetry_screen_active())
-        return false;
+    {
+        log_error("Unable to open mandatory SDL poetry screen");
+        return;
+    }
 
     sdl_story_font_enable();
 
@@ -185,14 +184,13 @@ bool metarun_show_poetry_scene(cptr title, byte title_attr, cptr body,
 
     sdl_poetry_screen_hide();
     sdl_story_font_disable();
-    return true;
 }
 
 /* Present one of the original multi-paragraph epilogue screens.  Ordinary
  * prose keeps its semantic colour while fading by alpha.  Treachery and
- * kinslaying rolls fade naturally in the old pre-result colour, then settle
- * once on their pass/fail colour. */
-bool metarun_show_poetry_blocks(cptr title, byte title_attr,
+ * kinslaying rolls fade naturally in white, then settle once on their
+ * pass/fail colour. */
+void metarun_show_poetry_blocks(cptr title, byte title_attr,
     cptr blocks[], const byte block_attrs[],
     const bool block_outcome_reveals[], int block_count, cptr prompt,
     int hold_ms, bool wait_for_key, bool immediate, bool* fast_forward)
@@ -200,16 +198,20 @@ bool metarun_show_poetry_blocks(cptr title, byte title_attr,
     bool skip_remaining = fast_forward && *fast_forward;
 
     if (!blocks || !block_attrs || block_count < 1)
-        return false;
-    if (!sdl_poetry_screen_begin_blocks(title, prompt))
-        return false;
+        return;
+    sdl_poetry_screen_begin_blocks(title, prompt);
+    if (!sdl_poetry_screen_active())
+    {
+        log_error("Unable to open mandatory SDL poetry-block screen");
+        return;
+    }
 
     for (int i = 0; i < block_count; i++)
     {
         if (sdl_poetry_screen_add_block(blocks[i], block_attrs[i]) < 0)
         {
             sdl_poetry_screen_hide();
-            return false;
+            return;
         }
     }
 
@@ -282,7 +284,6 @@ bool metarun_show_poetry_blocks(cptr title, byte title_attr,
 
     sdl_poetry_screen_hide();
     sdl_story_font_disable();
-    return true;
 }
 
 void print_heading_fade(cptr title, byte final_attr)
@@ -347,21 +348,6 @@ bool print_paragraph_fade(cptr txt, byte final_attr, int row)
 
     sdl_story_font_disable();
     return true;
-}
-
-void print_paragraph(cptr txt, byte attr)
-{
-    text_out_hook   = text_out_to_screen;
-    text_out_indent = 1;
-    text_out_wrap   = metarun_term_width() - 2;
-
-    sdl_story_font_enable();
-
-    Term_addstr(0, attr, "");
-    text_out_c(attr, txt);
-    text_out("\n");
-
-    sdl_story_font_disable();
 }
 
 void wait_for_keypress_with_prompt(cptr prompt)

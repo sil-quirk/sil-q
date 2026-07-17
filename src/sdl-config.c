@@ -2795,11 +2795,17 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
         }
 
         item = cJSON_GetObjectItemCaseSensitive(sdl,
-            "androidWelcomePortraitLayout");
+            "androidNarrativePortraitLayout");
+        if (!cJSON_IsBool(item))
+        {
+            /* Preserve the original welcome-only setting when upgrading. */
+            item = cJSON_GetObjectItemCaseSensitive(sdl,
+                "androidWelcomePortraitLayout");
+        }
         if (cJSON_IsBool(item)) {
-            config->android_welcome_portrait_layout = cJSON_IsTrue(item);
-            log_debug("Loaded androidWelcomePortraitLayout: %s",
-                config->android_welcome_portrait_layout ? "true" : "false");
+            config->android_narrative_portrait_layout = cJSON_IsTrue(item);
+            log_debug("Loaded androidNarrativePortraitLayout: %s",
+                config->android_narrative_portrait_layout ? "true" : "false");
         }
         
         item = cJSON_GetObjectItemCaseSensitive(sdl, "auxViewFontSize");
@@ -3898,8 +3904,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
         config->terminal_menu_scale_offset);
     cJSON_AddNumberToObject(sdl, "mobileStartingZoomOffset",
         config->mobile_starting_zoom_offset);
-    cJSON_AddBoolToObject(sdl, "androidWelcomePortraitLayout",
-        config->android_welcome_portrait_layout);
+    cJSON_AddBoolToObject(sdl, "androidNarrativePortraitLayout",
+        config->android_narrative_portrait_layout);
     cJSON_AddNumberToObject(sdl, "auxViewFontSize", config->aux_view_font_size);
     cJSON_AddNumberToObject(sdl, "margin", config->margin);
     cJSON_AddBoolToObject(sdl, "fullscreen", config->fullscreen);
@@ -4474,7 +4480,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
         SDL_TERMINAL_MENU_SCALE_OFFSET_DEFAULT;
     config->mobile_starting_zoom_offset =
         SDL_MOBILE_STARTING_ZOOM_OFFSET_DEFAULT;
-    config->android_welcome_portrait_layout = false;
+    config->android_narrative_portrait_layout = false;
     config->aux_view_font_size = 0;
     config->margin = 4;
     config->fullscreen = true;

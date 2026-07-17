@@ -159,9 +159,9 @@ struct sdl_config {
     int terminal_menu_scale_offset;
     // Extra scale steps applied when mobile gameplay first appears.
     int mobile_starting_zoom_offset;
-    // On Android, render the welcome screen as a rotated full-screen portrait
-    // page without changing the window or device orientation.
-    bool android_welcome_portrait_layout;
+    // On Android, render narrative screens as rotated full-screen portrait
+    // pages without changing the window or device orientation.
+    bool android_narrative_portrait_layout;
     // Default supporting-pane font size. Zero means auto from the configured
     // main view scale, independent of temporary main-map zoom.
     int aux_view_font_size;

@@ -11,6 +11,7 @@ typedef struct hidden_overlay_line {
     byte icon_attr;
     char icon_char;
     byte pointer_attack_mode;
+    bool pointer_attack_quiver;
     byte click_action;
     s16b health_m_idx;
 } hidden_overlay_line;

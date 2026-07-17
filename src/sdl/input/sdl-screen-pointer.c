@@ -812,7 +812,7 @@ bool sdl_welcome_screen_handle_pointer_motion(float x, float y)
     if (!sdl_welcome_screen_active())
         return false;
 
-    (void)sdl_welcome_screen_transform_pointer(&x, &y);
+    (void)sdl_narrative_portrait_transform_pointer(&x, &y);
 
     hover_continue = (g_sdl_welcome_screen.mode == SDL_WELCOME_SCREEN_MENU)
         && sdl_point_in_frect(&g_sdl_welcome_screen.continue_rect, x, y);
@@ -842,7 +842,7 @@ bool sdl_pointer_activate_welcome_screen_at(float x, float y)
     if (sdl_touch_pane_point_to_slot(x, y, &slot) && slot >= 0)
         return false;
 
-    (void)sdl_welcome_screen_transform_pointer(&x, &y);
+    (void)sdl_narrative_portrait_transform_pointer(&x, &y);
 
     if (g_sdl_welcome_screen.mode == SDL_WELCOME_SCREEN_MENU
         && sdl_point_in_frect(&g_sdl_welcome_screen.quit_rect, x, y))
@@ -874,7 +874,7 @@ bool sdl_welcome_touch_handle_pointer_down(float x, float y,
     if (sdl_touch_pane_point_to_slot(x, y, &slot) && slot >= 0)
         return false;
 
-    (void)sdl_welcome_screen_transform_pointer(&x, &y);
+    (void)sdl_narrative_portrait_transform_pointer(&x, &y);
 
     sdl_welcome_touch_cancel_press();
     g_welcome_touch_press.active = true;
@@ -904,7 +904,7 @@ bool sdl_welcome_touch_handle_pointer_motion(float x, float y,
         return false;
     }
 
-    portrait = sdl_welcome_screen_transform_pointer(&x, &y);
+    portrait = sdl_narrative_portrait_transform_pointer(&x, &y);
 
     raw_dx = x - g_welcome_touch_press.start_x;
     raw_dy = y - g_welcome_touch_press.start_y;
@@ -945,7 +945,7 @@ bool sdl_welcome_touch_handle_pointer_up(float x, float y,
         return false;
     }
 
-    (void)sdl_welcome_screen_transform_pointer(&x, &y);
+    (void)sdl_narrative_portrait_transform_pointer(&x, &y);
 
     dx = x - g_welcome_touch_press.start_x;
     dy = y - g_welcome_touch_press.start_y;
@@ -3185,6 +3185,21 @@ int sdl_hidden_left_panel_attack_mode_at_cell(int col, int row)
     return g_hidden_left_panel_overlay_attack_modes[row];
 }
 
+bool sdl_hidden_left_panel_attack_is_quiver_at_cell(int col, int row)
+{
+    if (!get_sdl_hide_left_panel() || col < 0 || row < 0)
+        return false;
+
+    row -= g_hidden_left_panel_overlay_start_row;
+    if (row < 0 || row >= g_hidden_left_panel_overlay_rows || row >= 16)
+        return false;
+    if (!g_hidden_left_panel_overlay_attack_quivers[row])
+        return false;
+
+    return col >= g_hidden_left_panel_overlay_attack_start_cols[row]
+        && col < g_hidden_left_panel_overlay_attack_end_cols[row];
+}
+
 int sdl_left_panel_quiver_attack_mode_at_col(int col)
 {
     bool has_any_span = false;
@@ -3249,9 +3264,9 @@ int sdl_visible_character_panel_attack_mode_at_cell(int col, int row)
         && inventory[INVEN_ARM].tval != TV_SHIELD;
 
     if (row == ROW_MEL || (melee_uses_two_rows && row == ROW_MEL - 1))
-        return SDL_POINTER_ATTACK_MELEE;
+        return player_opposite_active_weapon_mode();
     if (row == ROW_ARC)
-        return SDL_POINTER_ATTACK_RANGED_1;
+        return player_opposite_active_weapon_mode();
     if (row == ROW_QUIVER)
         return sdl_left_panel_quiver_attack_mode_at_col(col);
 
@@ -3267,9 +3282,9 @@ static int sdl_combat_overlay_attack_mode_at_cell(int col, int row)
 
     melee_uses_two_rows = sdl_combat_overlay_melee_uses_offhand_row();
     if (row == ROW_MEL || (melee_uses_two_rows && row == ROW_MEL - 1))
-        return SDL_POINTER_ATTACK_MELEE;
+        return player_opposite_active_weapon_mode();
     if (row == ROW_ARC)
-        return SDL_POINTER_ATTACK_RANGED_1;
+        return player_opposite_active_weapon_mode();
     if (row == ROW_QUIVER)
         return sdl_left_panel_quiver_attack_mode_at_col(col);
 
@@ -3387,16 +3402,24 @@ cptr sdl_character_panel_click_tooltip_text(int click_action)
     }
 }
 
-cptr sdl_character_panel_attack_tooltip_text(int attack_mode)
+cptr sdl_character_panel_attack_tooltip_text(int attack_mode, bool quiver_only)
 {
+    if (quiver_only)
+    {
+        if (attack_mode == SDL_POINTER_ATTACK_RANGED_2)
+            return "Click: select Quiver 2 for ranged attacks.";
+        if (attack_mode == SDL_POINTER_ATTACK_RANGED_1)
+            return "Click: select Quiver 1 for ranged attacks.";
+        return NULL;
+    }
+
     switch (attack_mode)
     {
     case SDL_POINTER_ATTACK_MELEE:
-        return "Click: select melee attack mode.";
+        return "Click: change to melee.";
     case SDL_POINTER_ATTACK_RANGED_1:
-        return "Click: select ranged attack mode.";
     case SDL_POINTER_ATTACK_RANGED_2:
-        return "Click: select second-quiver ranged attack mode.";
+        return "Click: change to ranged.";
     default:
         return NULL;
     }
@@ -3474,7 +3497,7 @@ void sdl_character_panel_tooltip_span(int col, int row,
 }
 
 void sdl_character_panel_show_hover_tooltip(int col, int row,
-    int attack_mode, int click_action, bool touch)
+    int attack_mode, bool quiver_only, int click_action, bool touch)
 {
     cptr text = NULL;
     int anchor_col = 0;
@@ -3482,7 +3505,8 @@ void sdl_character_panel_show_hover_tooltip(int col, int row,
     int anchor_row = row;
 
     if (attack_mode != SDL_POINTER_ATTACK_NONE)
-        text = sdl_character_panel_attack_tooltip_text(attack_mode);
+        text = sdl_character_panel_attack_tooltip_text(attack_mode,
+            quiver_only);
     if (!text && click_action != SDL_PANEL_CLICK_NONE)
         text = sdl_character_panel_click_tooltip_text(click_action);
     if (!text)
@@ -3508,9 +3532,10 @@ void sdl_character_panel_show_hover_tooltip(int col, int row,
 }
 
 static void sdl_combat_overlay_show_hover_tooltip(int col, int row,
-    int attack_mode, bool touch)
+    int attack_mode, bool quiver_only, bool touch)
 {
-    cptr text = sdl_character_panel_attack_tooltip_text(attack_mode);
+    cptr text = sdl_character_panel_attack_tooltip_text(attack_mode,
+        quiver_only);
     int anchor_col = 0;
     int anchor_cols = PANE_COMBAT_OVERLAY_COLS;
     SDL_FRect rect;
@@ -3578,6 +3603,7 @@ bool sdl_main_screen_handle_character_panel_hover_pointer(float x, float y)
     int row = 0;
     bool active = sdl_main_screen_click_shortcuts_active();
     bool combat_hit = false;
+    bool attack_quiver = false;
     int attack_mode = SDL_POINTER_ATTACK_NONE;
     int click_action = SDL_PANEL_CLICK_NONE;
 
@@ -3586,6 +3612,7 @@ bool sdl_main_screen_handle_character_panel_hover_pointer(float x, float y)
         && sdl_combat_overlay_point_to_cell(x, y, &col, &row))
     {
         attack_mode = sdl_combat_overlay_attack_mode_at_cell(col, row);
+        attack_quiver = (row == ROW_QUIVER);
         combat_hit = true;
     }
     else if (active
@@ -3606,12 +3633,15 @@ bool sdl_main_screen_handle_character_panel_hover_pointer(float x, float y)
         if (get_sdl_hide_left_panel())
         {
             attack_mode = sdl_hidden_left_panel_attack_mode_at_cell(col, row);
+            attack_quiver = sdl_hidden_left_panel_attack_is_quiver_at_cell(col,
+                row);
             click_action = sdl_hidden_left_panel_click_action_at_cell(col, row);
         }
         else
         {
             attack_mode = sdl_visible_character_panel_attack_mode_at_cell(col,
                 row);
+            attack_quiver = (row == ROW_QUIVER);
             click_action = sdl_visible_character_panel_click_action_at_cell(col,
                 row);
         }
@@ -3624,10 +3654,10 @@ bool sdl_main_screen_handle_character_panel_hover_pointer(float x, float y)
         sdl_pointer_attack_set_panel_hover_mode(attack_mode);
         if (combat_hit)
             sdl_combat_overlay_show_hover_tooltip(col, row, attack_mode,
-                false);
+                attack_quiver, false);
         else
             sdl_character_panel_show_hover_tooltip(col, row, attack_mode,
-                SDL_PANEL_CLICK_NONE, false);
+                attack_quiver, SDL_PANEL_CLICK_NONE, false);
         return true;
     }
 
@@ -3636,7 +3666,7 @@ bool sdl_main_screen_handle_character_panel_hover_pointer(float x, float y)
         click_action, click_action != SDL_PANEL_CLICK_NONE ? row : -1, active);
     if (click_action != SDL_PANEL_CLICK_NONE)
         sdl_character_panel_show_hover_tooltip(col, row,
-            SDL_POINTER_ATTACK_NONE, click_action, false);
+            SDL_POINTER_ATTACK_NONE, false, click_action, false);
 
     return click_action != SDL_PANEL_CLICK_NONE;
 }
@@ -3671,6 +3701,7 @@ bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
     int col = 0;
     int row = 0;
     int attack_mode = SDL_POINTER_ATTACK_NONE;
+    bool attack_quiver = false;
     int click_action = SDL_PANEL_CLICK_NONE;
 
     if (!sdl_main_screen_click_shortcuts_active())
@@ -3679,12 +3710,14 @@ bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
         return false;
     if (sdl_combat_overlay_point_to_cell(x, y, &col, &row)) {
         attack_mode = sdl_combat_overlay_attack_mode_at_cell(col, row);
+        attack_quiver = (row == ROW_QUIVER);
         if (attack_mode != SDL_POINTER_ATTACK_NONE
             && sdl_pointer_attack_input_context_active())
         {
             sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
                 SDL_PANEL_CLICK_NONE, -1, false);
-            sdl_pointer_attack_set_mode(attack_mode);
+            sdl_pointer_attack_activate_panel_choice(attack_mode,
+                attack_quiver);
         }
         return true;
     }
@@ -3708,9 +3741,12 @@ bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
 
     if (get_sdl_hide_left_panel()) {
         attack_mode = sdl_hidden_left_panel_attack_mode_at_cell(col, row);
+        attack_quiver = sdl_hidden_left_panel_attack_is_quiver_at_cell(col,
+            row);
         click_action = sdl_hidden_left_panel_click_action_at_cell(col, row);
     } else {
         attack_mode = sdl_visible_character_panel_attack_mode_at_cell(col, row);
+        attack_quiver = (row == ROW_QUIVER);
         click_action = sdl_visible_character_panel_click_action_at_cell(col, row);
     }
 
@@ -3719,7 +3755,7 @@ bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
     {
         sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
             SDL_PANEL_CLICK_NONE, -1, false);
-        sdl_pointer_attack_set_mode(attack_mode);
+        sdl_pointer_attack_activate_panel_choice(attack_mode, attack_quiver);
         return true;
     }
 
@@ -3743,6 +3779,7 @@ bool sdl_main_screen_show_character_panel_popup(float x, float y, bool touch)
     int col = 0;
     int row = 0;
     int attack_mode = SDL_POINTER_ATTACK_NONE;
+    bool attack_quiver = false;
     int click_action = SDL_PANEL_CLICK_NONE;
     bool shown = false;
 
@@ -3753,10 +3790,12 @@ bool sdl_main_screen_show_character_panel_popup(float x, float y, bool touch)
 
     if (sdl_combat_overlay_point_to_cell(x, y, &col, &row)) {
         attack_mode = sdl_combat_overlay_attack_mode_at_cell(col, row);
+        attack_quiver = (row == ROW_QUIVER);
         if (attack_mode != SDL_POINTER_ATTACK_NONE) {
             sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
                 SDL_PANEL_CLICK_NONE, -1, true);
-            sdl_combat_overlay_show_hover_tooltip(col, row, attack_mode, touch);
+            sdl_combat_overlay_show_hover_tooltip(col, row, attack_mode,
+                attack_quiver, touch);
             shown = true;
         }
         sdl_object_tooltip_end_persistent();
@@ -3768,10 +3807,13 @@ bool sdl_main_screen_show_character_panel_popup(float x, float y, bool touch)
     {
         if (get_sdl_hide_left_panel()) {
             attack_mode = sdl_hidden_left_panel_attack_mode_at_cell(col, row);
+            attack_quiver = sdl_hidden_left_panel_attack_is_quiver_at_cell(col,
+                row);
             click_action = sdl_hidden_left_panel_click_action_at_cell(col, row);
         } else {
             attack_mode = sdl_visible_character_panel_attack_mode_at_cell(col,
                 row);
+            attack_quiver = (row == ROW_QUIVER);
             click_action = sdl_visible_character_panel_click_action_at_cell(col,
                 row);
         }
@@ -3783,7 +3825,7 @@ bool sdl_main_screen_show_character_panel_popup(float x, float y, bool touch)
                 click_action, click_action != SDL_PANEL_CLICK_NONE ? row : -1,
                 true);
             sdl_character_panel_show_hover_tooltip(col, row, attack_mode,
-                click_action, touch);
+                attack_quiver, click_action, touch);
             shown = true;
         }
     }

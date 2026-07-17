@@ -2853,7 +2853,7 @@ void do_cmd_pane_settings(void)
         PANE_SETTING_TERMINAL_MENU_SCALE_OFFSET,
         PANE_SETTING_MOBILE_STARTING_ZOOM_OFFSET,
 #if defined(__ANDROID__)
-        PANE_SETTING_ANDROID_WELCOME_PORTRAIT_LAYOUT,
+        PANE_SETTING_ANDROID_NARRATIVE_PORTRAIT_LAYOUT,
 #endif
         PANE_SETTING_ENABLE_SIDE_PANES,
         PANE_SETTING_ENABLE_BOTTOM_PANES,
@@ -2957,17 +2957,17 @@ void do_cmd_pane_settings(void)
             buf);
 
 #if defined(__ANDROID__)
-        /* Rotate only welcome rendering; do not change Android orientation. */
-        a = (k == PANE_SETTING_ANDROID_WELCOME_PORTRAIT_LAYOUT)
+        /* Rotate narrative rendering; do not change Android orientation. */
+        a = (k == PANE_SETTING_ANDROID_NARRATIVE_PORTRAIT_LAYOUT)
             ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf),
             settings_ui_pick_label(label_hint,
-                "Vertical Welcome Screen",
-                "Vertical Welcome",
-                "Vertical Welcome"),
-            get_sdl_android_welcome_portrait_layout() ? "yes" : "no",
+                "Vertical Narrative Screens",
+                "Vertical Narratives",
+                "Vertical Stories"),
+            get_sdl_android_narrative_portrait_layout() ? "yes" : "no",
             row_width, 3);
-        ADD_PANE_SETTING_ROW(PANE_SETTING_ANDROID_WELCOME_PORTRAIT_LAYOUT, 4,
+        ADD_PANE_SETTING_ROW(PANE_SETTING_ANDROID_NARRATIVE_PORTRAIT_LAYOUT, 4,
             a, buf);
 #endif
 
@@ -3126,10 +3126,11 @@ void do_cmd_pane_settings(void)
                     "Set to 0 to start at the configured main-map scale. The "
                     "result is limited to what the screen can display.",
 #if defined(__ANDROID__)
-                [PANE_SETTING_ANDROID_WELCOME_PORTRAIT_LAYOUT] =
-                    "Rotate a full portrait welcome screen so it is upright "
-                    "when the phone is held vertically. Android itself stays "
-                    "in landscape mode.",
+                [PANE_SETTING_ANDROID_NARRATIVE_PORTRAIT_LAYOUT] =
+                    "Rotate full portrait narrative screens so welcome, "
+                    "story, tale, poetry, and book pages are upright when "
+                    "the phone is held vertically. Android itself stays in "
+                    "landscape mode.",
 #endif
                 [PANE_SETTING_ENABLE_SIDE_PANES] =
                     "Show panes to the side of the map (inventory, monster "
@@ -3220,9 +3221,9 @@ void do_cmd_pane_settings(void)
                             def.mobile_starting_zoom_offset);
                         break;
 #if defined(__ANDROID__)
-                    case PANE_SETTING_ANDROID_WELCOME_PORTRAIT_LAYOUT:
-                        set_sdl_android_welcome_portrait_layout(
-                            def.android_welcome_portrait_layout);
+                    case PANE_SETTING_ANDROID_NARRATIVE_PORTRAIT_LAYOUT:
+                        set_sdl_android_narrative_portrait_layout(
+                            def.android_narrative_portrait_layout);
                         break;
 #endif
                     case PANE_SETTING_ENABLE_SIDE_PANES:
@@ -3396,10 +3397,10 @@ void do_cmd_pane_settings(void)
                 sdl_apply_config();
             }
 #if defined(__ANDROID__)
-            else if (k == PANE_SETTING_ANDROID_WELCOME_PORTRAIT_LAYOUT)
+            else if (k == PANE_SETTING_ANDROID_NARRATIVE_PORTRAIT_LAYOUT)
             {
-                set_sdl_android_welcome_portrait_layout(
-                    !get_sdl_android_welcome_portrait_layout());
+                set_sdl_android_narrative_portrait_layout(
+                    !get_sdl_android_narrative_portrait_layout());
                 settings_changed = true;
             }
 #endif
@@ -3513,11 +3514,11 @@ void do_cmd_pane_settings(void)
                 }
             }
 #if defined(__ANDROID__)
-            else if (k == PANE_SETTING_ANDROID_WELCOME_PORTRAIT_LAYOUT)
+            else if (k == PANE_SETTING_ANDROID_NARRATIVE_PORTRAIT_LAYOUT)
             {
-                if (!get_sdl_android_welcome_portrait_layout())
+                if (!get_sdl_android_narrative_portrait_layout())
                 {
-                    set_sdl_android_welcome_portrait_layout(true);
+                    set_sdl_android_narrative_portrait_layout(true);
                     settings_changed = true;
                 }
             }
@@ -3625,11 +3626,11 @@ void do_cmd_pane_settings(void)
                 }
             }
 #if defined(__ANDROID__)
-            else if (k == PANE_SETTING_ANDROID_WELCOME_PORTRAIT_LAYOUT)
+            else if (k == PANE_SETTING_ANDROID_NARRATIVE_PORTRAIT_LAYOUT)
             {
-                if (get_sdl_android_welcome_portrait_layout())
+                if (get_sdl_android_narrative_portrait_layout())
                 {
-                    set_sdl_android_welcome_portrait_layout(false);
+                    set_sdl_android_narrative_portrait_layout(false);
                     settings_changed = true;
                 }
             }

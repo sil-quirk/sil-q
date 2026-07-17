@@ -185,16 +185,7 @@ void blitz_runtime_restore(const int8_t* stacks, u64b seen)
 
 static void blitz_present_end_summary(byte sil_count)
 {
-    int wid = 80;
-    int hgt = 24;
-    int row = 4;
     char result_line[64];
-
-    Term_get_size(&wid, &hgt);
-    if (wid < 1)
-        wid = 80;
-    if (hgt < 1)
-        hgt = 24;
 
     screen_save();
     if (sil_count == 1)
@@ -203,21 +194,9 @@ static void blitz_present_end_summary(byte sil_count)
         strnfmt(result_line, sizeof(result_line), "%u Silmarils were stolen.",
             (unsigned)sil_count);
 
-    if (!metarun_show_poetry_scene("Blitz Result", TERM_YELLOW,
-            result_line, TERM_L_WHITE, "", TERM_L_BLUE,
-            "[Press any key to continue]"))
-    {
-        Term_clear();
-        c_put_str(TERM_YELLOW, "Blitz Result", 1,
-            MAX((wid - 12) / 2, 0));
-        c_put_str(TERM_L_WHITE, result_line, row,
-            MAX((wid - utf8_display_width_n(result_line,
-                    (int)strlen(result_line))) / 2, 0));
-        c_put_str(TERM_L_BLUE, "Press any key to continue.",
-            MIN(row + 3, hgt - 1), 2);
-        Term_fresh();
-        (void)inkey();
-    }
+    metarun_show_poetry_scene("Blitz Result", TERM_YELLOW,
+        result_line, TERM_L_WHITE, "", TERM_L_BLUE,
+        "[Press any key to continue]");
     screen_load();
 }
 
