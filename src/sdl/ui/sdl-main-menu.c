@@ -316,7 +316,6 @@ bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
     int font_px;
     int text_w;
     float pad_x;
-    float pad_y;
     float panel_w;
     float panel_h;
     cptr label = "Menu";
@@ -324,13 +323,12 @@ bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
     if (out)
         *out = (SDL_FRect){ 0 };
 
-    if (!sdl_main_menu_pane_context_visible())
+    if (!get_sdl_show_main_menu_button()
+        || !sdl_main_menu_pane_context_visible())
         return false;
 
     screen = sdl_get_layout_screen_rect();
-    if (sdl_mobile_portrait_layout_active()) {
-        anchor = screen;
-    } else if (!sdl_overlay_pane_anchor_rect(PANE_MAIN, &anchor)) {
+    if (!sdl_overlay_pane_anchor_rect(PANE_MAIN, &anchor)) {
         return false;
     }
 
@@ -342,11 +340,8 @@ bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
         return false;
 
     pad_x = (float)font_px * 0.78f;
-    pad_y = (float)font_px * 0.34f;
     if (pad_x < 8.0f)
         pad_x = 8.0f;
-    if (pad_y < 4.0f)
-        pad_y = 4.0f;
 
     panel_w = (float)text_w + pad_x * 2.0f;
     if (panel_w < (float)font_px * 4.4f)
@@ -354,25 +349,14 @@ bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
     if (panel_w > (float)screen.w)
         panel_w = (float)screen.w;
 
-    panel_h = (float)font_px * 1.16f + pad_y * 2.0f;
-    if (panel_h < (float)font_px * 1.45f)
-        panel_h = (float)font_px * 1.45f;
-    if (panel_h > (float)screen.h * 0.18f)
-        panel_h = (float)screen.h * 0.18f;
+    panel_h = (float)sdl_main_menu_button_height_for_screen(&screen);
+    if (panel_h <= 0.0f)
+        return false;
 
     if (out) {
-        if (sdl_mobile_portrait_layout_active()) {
-            *out = (SDL_FRect){
-                .x = (float)screen.x + ((float)screen.w - panel_w) * 0.5f,
-                .y = (float)screen.y,
-                .w = panel_w,
-                .h = panel_h,
-            };
-        } else {
-            *out = sdl_overlay_panel_rect(&anchor, PLACE_TOP_CENTER,
-                (int)panel_w, (int)panel_h, &screen);
-            out->y = (float)screen.y;
-        }
+        *out = sdl_overlay_panel_rect(&anchor, PLACE_TOP_CENTER,
+            (int)panel_w, (int)panel_h, &screen);
+        out->y = (float)screen.y;
     }
 
     return true;
@@ -918,14 +902,14 @@ static bool sdl_popup_notification_layout(SDL_FRect* out_panel,
     float panel_h;
     float max_panel_w;
     SDL_FRect panel;
+    bool menu_button_visible;
 
     if (!g_popup_notification.active || g_main_menu_overlay_active
         || !sdl_main_menu_pane_context_visible())
     {
         return false;
     }
-    if (!sdl_main_menu_pane_button_rect(&menu_rect))
-        return false;
+    menu_button_visible = sdl_main_menu_pane_button_rect(&menu_rect);
 
     screen = sdl_get_layout_screen_rect();
     font_px = sdl_main_menu_pane_font_px();
@@ -942,7 +926,7 @@ static bool sdl_popup_notification_layout(SDL_FRect* out_panel,
     pad_y = sdl_touch_pane_clampf((float)font_px * 0.28f, 4.0f, 12.0f);
     gap = sdl_touch_pane_clampf((float)font_px * 0.22f, 3.0f, 9.0f);
     panel_w = (float)text_w + pad_x * 2.0f;
-    if (panel_w < menu_rect.w)
+    if (menu_button_visible && panel_w < menu_rect.w)
         panel_w = menu_rect.w;
 
     max_panel_w = (float)screen.w - (float)sdl_overlay_margin_px() * 2.0f;
@@ -952,12 +936,14 @@ static bool sdl_popup_notification_layout(SDL_FRect* out_panel,
         panel_w = max_panel_w;
 
     panel_h = (float)font_px * 1.10f + pad_y * 2.0f;
-    panel = (SDL_FRect){
-        .x = menu_rect.x + (menu_rect.w - panel_w) * 0.5f,
-        .y = menu_rect.y + menu_rect.h + gap,
-        .w = panel_w,
-        .h = panel_h,
-    };
+    panel = (SDL_FRect){ .w = panel_w, .h = panel_h };
+    if (menu_button_visible) {
+        panel.x = menu_rect.x + (menu_rect.w - panel_w) * 0.5f;
+        panel.y = menu_rect.y + menu_rect.h + gap;
+    } else {
+        panel.x = (float)screen.x + ((float)screen.w - panel_w) * 0.5f;
+        panel.y = (float)screen.y + gap;
+    }
 
     if (panel.x < (float)screen.x + (float)sdl_overlay_margin_px())
         panel.x = (float)screen.x + (float)sdl_overlay_margin_px();

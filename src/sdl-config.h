@@ -93,17 +93,28 @@
 #define SDL_TOUCH_CORNER_ACTION_BOTTOM_LONG_TAP 3
 #define SDL_TOUCH_CORNER_ACTION_BINDING_COUNT 4
 #define SDL_TOUCH_TOP_PANEL_BUTTON_COUNT 16
-#define SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_MIN 0
-#define SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT 8
-#define SDL_TOUCH_TOP_PANEL_TILE_SCALE_MIN 1
-#define SDL_TOUCH_TOP_PANEL_TILE_SCALE_MAX 8
+#define SDL_TOUCH_TOP_PANEL_CELL_COUNT_MIN 0
+#define SDL_TOUCH_TOP_PANEL_CELL_COUNT_MAX SDL_TOUCH_TOP_PANEL_BUTTON_COUNT
+#define SDL_TOUCH_TOP_PANEL_CELL_COUNT_DEFAULT 8
+#define SDL_TOUCH_TOP_PANEL_COLUMNS_MIN 0
+#define SDL_TOUCH_TOP_PANEL_COLUMNS_MAX SDL_TOUCH_TOP_PANEL_BUTTON_COUNT
+#define SDL_TOUCH_TOP_PANEL_ROWS_MIN 1
+#define SDL_TOUCH_TOP_PANEL_ROWS_MAX 2
+#define SDL_TOUCH_TOP_PANEL_ROWS_DEFAULT 1
+#define SDL_TOUCH_TOP_PANEL_SIZE_STRETCH 0.0f
+#define SDL_TOUCH_TOP_PANEL_SIZE_MIN 1.0f
+#define SDL_TOUCH_TOP_PANEL_SIZE_MAX 8.0f
+#define SDL_TOUCH_TOP_PANEL_SIZE_STEP 0.25f
 #if defined(__ANDROID__) || defined(SIL_IOS)
-#define SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT 3
+#define SDL_TOUCH_TOP_PANEL_SIZE_DEFAULT 3.0f
 #else
-#define SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT 6
+#define SDL_TOUCH_TOP_PANEL_SIZE_DEFAULT 6.0f
 #endif
 #define SDL_TOUCH_THUMB_BUTTON_COUNT 2
-#define SDL_PANE_PROFILE_COUNT 2
+#define SDL_MIN_TERMINAL_MODE_COUNT 2
+#define SDL_PANE_ORIENTATION_COUNT 2
+#define SDL_PANE_PROFILE_COUNT \
+    (SDL_MIN_TERMINAL_MODE_COUNT * SDL_PANE_ORIENTATION_COUNT)
 #define SDL_LEFT_PANEL_COMPACT_COLUMN 0
 #define SDL_LEFT_PANEL_COMPACT_ROW 1
 #define SDL_LEFT_PANEL_COMPACT_COUNT 2
@@ -129,6 +140,14 @@ enum sdl_min_terminal_mode {
     SDL_MIN_TERMINAL_COMPACT = 1,
 };
 
+enum sdl_pane_orientation {
+    SDL_PANE_ORIENTATION_LANDSCAPE = 0,
+    SDL_PANE_ORIENTATION_PORTRAIT = 1,
+};
+
+#define SDL_PANE_PROFILE_INDEX(ORIENTATION, MODE) \
+    ((ORIENTATION) * SDL_MIN_TERMINAL_MODE_COUNT + (MODE))
+
 enum sdl_config_load_status {
     SDL_CONFIG_LOAD_OK = 0,
     SDL_CONFIG_LOAD_READ_FAILED,
@@ -148,6 +167,13 @@ struct sdl_pane_profile {
     int aux_view_font_size;
     bool enable_right_panes;
     bool enable_bottom_panes;
+    bool show_main_menu_button;
+    bool left_panel_expanded_on_launch;
+    int left_panel_compact_mode;
+    bool touch_top_panel_default_open;
+    int touch_top_panel_cell_count;
+    int touch_top_panel_rows;
+    float touch_top_panel_size;
     int pane_count;
     struct pane_config pane_configs[MAX_PANE_CONFIGS];
 };
@@ -180,6 +206,7 @@ struct sdl_config {
     int dice_roll_lock_ms;
     int dice_roll_overlay_ms;
     int popup_notification_ms;
+    bool show_main_menu_button;
     
     // Window position and size for windowed mode
     int window_x;
@@ -266,9 +293,9 @@ struct sdl_config {
     int touch_corner_up_down_side;
     int touch_corner_action_bindings[SDL_TOUCH_CORNER_ACTION_BINDING_COUNT];
     bool touch_top_panel_default_open;
-    bool touch_top_panel_second_row;
-    int touch_top_panel_button_count;
-    int touch_top_panel_tile_scale;
+    float touch_top_panel_size;
+    int touch_top_panel_cell_count;
+    int touch_top_panel_rows;
     int touch_top_panel_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
     int touch_top_panel_long_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
     bool touch_thumb_enabled;
@@ -288,6 +315,12 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
 // Save SDL configuration to JSON file
 void sdl_config_save(const char* filename, const struct sdl_config* config,
                      const struct sdl_pane_profile* pane_profiles, int profile_count);
+
+/* Seed a profile with the portrait HUD defaults formerly imposed at render
+ * time.  Once seeded, the values remain ordinary editable pane settings. */
+void sdl_pane_config_apply_portrait_default(struct pane_config* pane);
+void sdl_pane_profile_apply_portrait_defaults(
+    struct sdl_pane_profile* profile);
 
 // Set default configuration values
 void sdl_config_set_defaults(struct sdl_config* config);

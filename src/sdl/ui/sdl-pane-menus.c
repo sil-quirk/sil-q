@@ -481,9 +481,12 @@ int sdl_log_pane_current_rows(enum pane_type pane)
     if (index < 0)
         return default_rows;
 
-    rows = get_sdl_pane_current_rows(index);
+    /* Row +/- edits the persisted request.  The live pane can be shorter when
+     * a layout clips it, so using live rows here can make repeated increments
+     * keep writing the same configured value. */
+    rows = pane_config[index].rect.rows;
     if (rows <= 0)
-        rows = pane_config[index].rect.rows;
+        rows = get_sdl_pane_current_rows(index);
     if (rows <= 0)
         rows = default_rows;
 

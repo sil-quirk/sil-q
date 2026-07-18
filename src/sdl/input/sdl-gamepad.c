@@ -897,7 +897,7 @@ bool sdl_touch_top_panel_compute_layout(SDL_FRect* button_rects,
 
     if (!sdl_touch_top_panel_layout_visible())
         return false;
-    if (!g_touch_top_panel_open && !sdl_mobile_portrait_layout_active())
+    if (!g_touch_top_panel_open)
         return false;
 
     if (!sdl_touch_top_panel_current_anchor(&screen, &anchor, &where))

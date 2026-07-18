@@ -250,7 +250,7 @@ bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect)
 
     if (out_rect)
         *out_rect = (SDL_Rect){ 0 };
-    if (!pc || (!pc->enabled && !sdl_mobile_portrait_layout_active()))
+    if (!pc || !pc->enabled)
         return false;
     if (screen_saved_fullscreen_active())
         return false;
@@ -274,24 +274,6 @@ bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect)
         return false;
     panel_w = content_w + cell_w * 2;
     panel_h = content_h + cell_h;
-
-    {
-        SDL_FRect portrait_rect;
-
-        if (sdl_mobile_portrait_hud_panel_rect(PANE_COMBAT, panel_w,
-                panel_h, &portrait_rect))
-        {
-            rect = (SDL_Rect){
-                .x = (int)portrait_rect.x,
-                .y = (int)portrait_rect.y,
-                .w = (int)portrait_rect.w,
-                .h = (int)portrait_rect.h,
-            };
-            if (out_rect)
-                *out_rect = rect;
-            return rect.w > 0 && rect.h > 0;
-        }
-    }
 
     rect = *pane;
     if (rect.w > panel_w) {
@@ -355,6 +337,31 @@ bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect)
     if (sdl_rect_has_area(&screen)) {
         int screen_right = screen.x + screen.w;
         int screen_bottom = screen.y + screen.h;
+        const SDL_Rect* left = &g_pane_rects[PANE_LEFT_PANEL];
+        SDL_Rect overlap;
+
+        /* LEFT_PANEL is measured and rendered independently of the nominal
+         * overlay slot geometry.  If Combat shares that slot, keep its real
+         * panel below (or above for a bottom anchor) the measured left panel
+         * instead of drawing over it. */
+        if (sdl_left_panel_pane_runtime_active()
+            && pc->where == sdl_left_panel_pane_placement()
+            && sdl_rect_has_area(left)
+            && SDL_GetRectIntersection(&rect, left, &overlap))
+        {
+            int below = left->y + left->h;
+            int above = left->y - rect.h;
+
+            if (sdl_left_panel_pane_placement_is_bottom(pc->where)) {
+                rect.y = above;
+                if (rect.y < screen.y && below + rect.h <= screen_bottom)
+                    rect.y = below;
+            } else {
+                rect.y = below;
+                if (rect.y + rect.h > screen_bottom && above >= screen.y)
+                    rect.y = above;
+            }
+        }
 
         if (rect.x < screen.x) {
             rect.w -= screen.x - rect.x;
@@ -510,7 +517,7 @@ bool sdl_status_pane_current_rect(SDL_Rect* out_rect,
     const SDL_Rect* pane;
     SDL_Rect fallback;
 
-    if (!pc || (!pc->enabled && !sdl_mobile_portrait_layout_active()))
+    if (!pc || !pc->enabled)
         return false;
     if (screen_saved_fullscreen_active())
         return false;
@@ -530,8 +537,7 @@ bool sdl_status_pane_current_rect(SDL_Rect* out_rect,
     if (out_rect)
         *out_rect = *pane;
     if (out_where)
-        *out_where = sdl_mobile_portrait_layout_active()
-            ? PLACE_TOP_RIGHT : pc->where;
+        *out_where = pc->where;
     return true;
 }
 
@@ -1192,7 +1198,8 @@ static bool sdl_status_pane_layout_compute(status_pane_layout* out)
         return true;
     }
 
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_story_font_for_height_slot(font_px,
+        SDL_STORY_FONT_SLOT_STATUS);
     if (!font)
         return false;
 
@@ -1213,12 +1220,6 @@ static bool sdl_status_pane_layout_compute(status_pane_layout* out)
 
     max_panel_w = screen.w - pad_x * 2;
     max_panel_h = screen.h - pad_y * 2;
-    if (sdl_mobile_portrait_layout_active()) {
-        int portrait_max = sdl_mobile_portrait_hud_panel_max_width(PANE_STATUS);
-
-        if (portrait_max > 0 && max_panel_w > portrait_max)
-            max_panel_w = portrait_max;
-    }
     if (max_panel_w <= 0 || max_panel_h <= 0)
         return false;
 
@@ -1267,12 +1268,8 @@ static bool sdl_status_pane_layout_compute(status_pane_layout* out)
     if (panel_h > max_panel_h)
         panel_h = max_panel_h;
 
-    if (!sdl_mobile_portrait_hud_panel_rect(PANE_STATUS, panel_w, panel_h,
-            &out->panel))
-    {
-        out->panel = sdl_overlay_panel_rect(&anchor, where, panel_w,
-            panel_h, &screen);
-    }
+    out->panel = sdl_overlay_panel_rect(&anchor, where, panel_w,
+        panel_h, &screen);
     out->layout_count = layout_count;
     out->content_w = content_w;
     out->font_px = font_px;
@@ -1316,7 +1313,8 @@ void sdl_status_pane_render(void)
     if (!sdl_status_pane_layout(&layout))
         return;
 
-    font = sdl_story_font_for_height(layout.font_px);
+    font = sdl_story_font_for_height_slot(layout.font_px,
+        SDL_STORY_FONT_SLOT_STATUS);
     if (!font)
         return;
 

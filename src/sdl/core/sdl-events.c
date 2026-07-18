@@ -108,11 +108,6 @@ void resize(const SDL_Rect* screen)
     int main_view_scale = sdl_current_main_view_scale();
     int layout_main_view_scale = sdl_main_view_layout_scale();
 
-    if (sdl_mobile_portrait_layout_active()) {
-        include_side = false;
-        include_bottom = false;
-    }
-
     g_sdl_present_generation++;
     if (g_sdl_present_generation == 0)
         g_sdl_present_generation = 1;

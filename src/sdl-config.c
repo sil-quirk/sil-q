@@ -1247,54 +1247,37 @@ static int parse_touch_profile(const char* value)
     return SDL_TOUCH_PROFILE_TOUCH_PANE;
 }
 
-static int normalize_touch_top_panel_button_count(int count)
+static int normalize_touch_top_panel_cell_count(int count)
 {
-    if (count < SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_MIN)
-        return SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_MIN;
-    if (count > SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
-        return SDL_TOUCH_TOP_PANEL_BUTTON_COUNT;
+    if (count < SDL_TOUCH_TOP_PANEL_CELL_COUNT_MIN)
+        return SDL_TOUCH_TOP_PANEL_CELL_COUNT_MIN;
+    if (count > SDL_TOUCH_TOP_PANEL_CELL_COUNT_MAX)
+        return SDL_TOUCH_TOP_PANEL_CELL_COUNT_MAX;
     return count;
 }
 
-/* Version c56a2488 briefly made the round-wheel preset allocate all sixteen
- * slots while assigning only the original first eight.  Repair that exact
- * saved state without hiding a genuine ninth (or later) binding. */
-static void sdl_config_migrate_round_wheel_top_panel_count(
-    struct sdl_config* config)
+static int normalize_touch_top_panel_rows(int rows)
 {
-    if (!config
-        || config->touch_profile != SDL_TOUCH_PROFILE_ROUND_WHEEL
-        || config->touch_top_panel_second_row
-        || config->touch_top_panel_button_count
-            != SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
-    {
-        return;
-    }
-
-    for (int i = SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;
-         i < SDL_TOUCH_TOP_PANEL_BUTTON_COUNT; i++)
-    {
-        if (config->touch_top_panel_bindings[i] != GAMEPAD_BIND_NONE
-            || config->touch_top_panel_long_bindings[i] != GAMEPAD_BIND_NONE)
-        {
-            return;
-        }
-    }
-
-    config->touch_top_panel_button_count =
-        SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;
-    log_info("Migrated round-wheel quick access from 16 empty slots to 8 cells");
+    if (rows < SDL_TOUCH_TOP_PANEL_ROWS_MIN)
+        return SDL_TOUCH_TOP_PANEL_ROWS_MIN;
+    if (rows > SDL_TOUCH_TOP_PANEL_ROWS_MAX)
+        return SDL_TOUCH_TOP_PANEL_ROWS_MAX;
+    return rows;
 }
 
-static int normalize_touch_top_panel_tile_scale(int scale)
+static float normalize_touch_top_panel_size(float size)
 {
-    if (scale <= 0)
-        return SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT;
-    if (scale < SDL_TOUCH_TOP_PANEL_TILE_SCALE_MIN)
-        return SDL_TOUCH_TOP_PANEL_TILE_SCALE_MIN;
-    if (scale > SDL_TOUCH_TOP_PANEL_TILE_SCALE_MAX)
-        return SDL_TOUCH_TOP_PANEL_TILE_SCALE_MAX;
-    return scale;
+    int steps;
+
+    if (size <= SDL_TOUCH_TOP_PANEL_SIZE_STRETCH)
+        return SDL_TOUCH_TOP_PANEL_SIZE_STRETCH;
+    if (size < SDL_TOUCH_TOP_PANEL_SIZE_MIN)
+        size = SDL_TOUCH_TOP_PANEL_SIZE_MIN;
+    if (size > SDL_TOUCH_TOP_PANEL_SIZE_MAX)
+        size = SDL_TOUCH_TOP_PANEL_SIZE_MAX;
+
+    steps = (int)(size / SDL_TOUCH_TOP_PANEL_SIZE_STEP + 0.5f);
+    return (float)steps * SDL_TOUCH_TOP_PANEL_SIZE_STEP;
 }
 
 static const char* touch_movement_mode_to_string(int mode)
@@ -2375,6 +2358,15 @@ static void sdl_config_copy_pane_profile(struct sdl_pane_profile* dest,
     dest->aux_view_font_size = src->aux_view_font_size;
     dest->enable_right_panes = src->enable_right_panes;
     dest->enable_bottom_panes = src->enable_bottom_panes;
+    dest->show_main_menu_button = src->show_main_menu_button;
+    dest->left_panel_expanded_on_launch =
+        src->left_panel_expanded_on_launch;
+    dest->left_panel_compact_mode = src->left_panel_compact_mode;
+    dest->touch_top_panel_default_open =
+        src->touch_top_panel_default_open;
+    dest->touch_top_panel_cell_count = src->touch_top_panel_cell_count;
+    dest->touch_top_panel_rows = src->touch_top_panel_rows;
+    dest->touch_top_panel_size = src->touch_top_panel_size;
     sdl_config_copy_pane_configs(dest->pane_configs, &dest->pane_count,
         src->pane_configs, src->pane_count);
 }
@@ -2497,6 +2489,20 @@ static void sdl_config_init_pane_profiles_from_legacy(const struct sdl_config* c
         pane_profiles[mode].aux_view_font_size = config->aux_view_font_size;
         pane_profiles[mode].enable_right_panes = config->enable_right_panes;
         pane_profiles[mode].enable_bottom_panes = config->enable_bottom_panes;
+        pane_profiles[mode].show_main_menu_button =
+            config->show_main_menu_button;
+        pane_profiles[mode].left_panel_expanded_on_launch =
+            config->left_panel_expanded_on_launch;
+        pane_profiles[mode].left_panel_compact_mode =
+            config->left_panel_compact_mode;
+        pane_profiles[mode].touch_top_panel_default_open =
+            config->touch_top_panel_default_open;
+        pane_profiles[mode].touch_top_panel_cell_count =
+            config->touch_top_panel_cell_count;
+        pane_profiles[mode].touch_top_panel_rows =
+            config->touch_top_panel_rows;
+        pane_profiles[mode].touch_top_panel_size =
+            config->touch_top_panel_size;
         if (pane_count > 0) {
             sdl_config_copy_pane_configs(pane_profiles[mode].pane_configs,
                 &pane_profiles[mode].pane_count, pane_configs, pane_count);
@@ -2533,6 +2539,54 @@ static void sdl_config_load_pane_profile(cJSON* profile_obj,
     if (cJSON_IsBool(item))
         profile->enable_bottom_panes = cJSON_IsTrue(item);
 
+    item = cJSON_GetObjectItemCaseSensitive(profile_obj,
+        "showMainMenuButton");
+    if (cJSON_IsBool(item))
+        profile->show_main_menu_button = cJSON_IsTrue(item);
+
+    item = cJSON_GetObjectItemCaseSensitive(profile_obj,
+        "leftPanelExpandedOnLaunch");
+    if (cJSON_IsBool(item))
+        profile->left_panel_expanded_on_launch = cJSON_IsTrue(item);
+
+    item = cJSON_GetObjectItemCaseSensitive(profile_obj,
+        "leftPanelCompactMode");
+    if (cJSON_IsString(item)) {
+        profile->left_panel_compact_mode =
+            parse_left_panel_compact_mode(item->valuestring);
+    } else if (cJSON_IsNumber(item)) {
+        profile->left_panel_compact_mode =
+            item->valueint == SDL_LEFT_PANEL_COMPACT_ROW
+                ? SDL_LEFT_PANEL_COMPACT_ROW
+                : SDL_LEFT_PANEL_COMPACT_COLUMN;
+    }
+
+    item = cJSON_GetObjectItemCaseSensitive(profile_obj,
+        "touchTopPanelDefaultOpen");
+    if (cJSON_IsBool(item))
+        profile->touch_top_panel_default_open = cJSON_IsTrue(item);
+
+    item = cJSON_GetObjectItemCaseSensitive(profile_obj,
+        "touchTopPanelCellCount");
+    if (cJSON_IsNumber(item)) {
+        profile->touch_top_panel_cell_count =
+            normalize_touch_top_panel_cell_count(item->valueint);
+    }
+
+    item = cJSON_GetObjectItemCaseSensitive(profile_obj,
+        "touchTopPanelRows");
+    if (cJSON_IsNumber(item)) {
+        profile->touch_top_panel_rows =
+            normalize_touch_top_panel_rows(item->valueint);
+    }
+
+    item = cJSON_GetObjectItemCaseSensitive(profile_obj,
+        "touchTopPanelSize");
+    if (cJSON_IsNumber(item)) {
+        profile->touch_top_panel_size =
+            normalize_touch_top_panel_size((float)item->valuedouble);
+    }
+
     item = cJSON_GetObjectItemCaseSensitive(profile_obj, "panes");
     if (cJSON_IsArray(item)) {
         sdl_config_load_pane_array(item, panes, &pane_count, MAX_PANE_CONFIGS, label);
@@ -2553,6 +2607,96 @@ static int sdl_config_profile_find_pane(struct sdl_pane_profile* profile,
     }
 
     return -1;
+}
+
+static void sdl_pane_profile_apply_portrait_stack_migration(
+    struct sdl_pane_profile* profile)
+{
+    int rolls_index;
+    int depth_index;
+
+    if (!profile)
+        return;
+
+    rolls_index = sdl_config_profile_find_pane(profile, PANE_ROLLS);
+    depth_index = sdl_config_profile_find_pane(profile, PANE_DEPTH);
+    if (rolls_index >= 0 && depth_index >= 0 && rolls_index > depth_index
+        && profile->pane_configs[rolls_index].where
+            == profile->pane_configs[depth_index].where
+        && pane_placement_is_overlay(
+            profile->pane_configs[rolls_index].where))
+    {
+        struct pane_config rolls = profile->pane_configs[rolls_index];
+
+        memmove(&profile->pane_configs[depth_index + 1],
+            &profile->pane_configs[depth_index],
+            sizeof(profile->pane_configs[0]) * (rolls_index - depth_index));
+        profile->pane_configs[depth_index] = rolls;
+    }
+}
+
+void sdl_pane_config_apply_portrait_default(struct pane_config* pane)
+{
+    if (!pane)
+        return;
+
+    switch (pane->pane) {
+    case PANE_LOG:
+    case PANE_TOUCH:
+        pane->enabled = false;
+        break;
+    case PANE_ROLLS:
+        pane->enabled = true;
+        pane->where = PLACE_TOP_RIGHT;
+        pane->rect.rows = SDL_CONFIG_DEFAULT_LOG_PANE_ROWS;
+        pane->rect.cols = 0;
+        break;
+    case PANE_LEFT_PANEL:
+        pane->enabled = true;
+        pane->where = PLACE_TOP_LEFT;
+        break;
+    case PANE_STATUS:
+    case PANE_DEPTH:
+        pane->enabled = true;
+        pane->where = PLACE_TOP_RIGHT;
+        break;
+    case PANE_COMBAT:
+        pane->enabled = true;
+        pane->where = PLACE_TOP_LEFT;
+        break;
+    case PANE_OVERLAY_MENU:
+        pane->enabled = true;
+        pane->where = PLACE_BOTTOM_CENTER;
+        break;
+    case PANE_DESCRIPTION:
+        break;
+    default:
+        /* Portrait previously hid every supporting side/bottom pane.  Store
+         * that as an editable default instead of imposing it in rendering. */
+        if (!pane_placement_is_overlay(pane->where))
+            pane->enabled = false;
+        break;
+    }
+}
+
+void sdl_pane_profile_apply_portrait_defaults(
+    struct sdl_pane_profile* profile)
+{
+    if (!profile)
+        return;
+
+    profile->enable_right_panes = false;
+    profile->enable_bottom_panes = false;
+    profile->left_panel_expanded_on_launch = false;
+    profile->touch_top_panel_default_open = true;
+    profile->touch_top_panel_size = SDL_TOUCH_TOP_PANEL_SIZE_STRETCH;
+
+    for (int i = 0; i < profile->pane_count && i < MAX_PANE_CONFIGS; i++)
+        sdl_pane_config_apply_portrait_default(&profile->pane_configs[i]);
+
+    /* Pane order is the stack order for panes sharing one overlay slot.  Keep
+     * the former portrait presentation: log, then depth, then status. */
+    sdl_pane_profile_apply_portrait_stack_migration(profile);
 }
 
 static bool sdl_config_profile_has_enabled_bottom_pane(
@@ -2640,17 +2784,30 @@ static void sdl_config_migrate_default_log_pane(struct sdl_config* config,
     if (!pane_profiles || profile_count <= 0)
         return;
 
-    for (int mode = 0; mode < profile_count; mode++) {
-        if (sdl_config_profile_has_enabled_bottom_pane(&pane_profiles[mode])) {
-            if (!pane_profiles[mode].enable_bottom_panes) {
-                pane_profiles[mode].enable_bottom_panes = true;
+    for (int mode = 0;
+         mode < SDL_MIN_TERMINAL_MODE_COUNT;
+         mode++)
+    {
+        int profile_index = SDL_PANE_PROFILE_INDEX(
+            SDL_PANE_ORIENTATION_LANDSCAPE, mode);
+
+        if (profile_index >= profile_count)
+            continue;
+        if (sdl_config_profile_has_enabled_bottom_pane(
+                &pane_profiles[profile_index]))
+        {
+            if (!pane_profiles[profile_index].enable_bottom_panes) {
+                pane_profiles[profile_index].enable_bottom_panes = true;
                 changed = true;
             }
             continue;
         }
 
-        if (sdl_config_profile_enable_default_log_pane(&pane_profiles[mode]))
+        if (sdl_config_profile_enable_default_log_pane(
+                &pane_profiles[profile_index]))
+        {
             changed = true;
+        }
     }
 
     if (changed) {
@@ -2693,6 +2850,54 @@ static cJSON* sdl_config_create_panes_array(const struct pane_config* pane_confi
     }
 
     return panes;
+}
+
+static cJSON* sdl_config_create_pane_profile_object(
+    const struct sdl_pane_profile* profile)
+{
+    cJSON* profile_obj;
+    cJSON* panes;
+
+    if (!profile)
+        return NULL;
+
+    profile_obj = cJSON_CreateObject();
+    if (!profile_obj)
+        return NULL;
+
+    cJSON_AddNumberToObject(profile_obj, "mainViewScale",
+        profile->main_view_scale);
+    cJSON_AddNumberToObject(profile_obj, "auxViewFontSize",
+        profile->aux_view_font_size);
+    cJSON_AddBoolToObject(profile_obj, "enableRightPanes",
+        profile->enable_right_panes);
+    cJSON_AddBoolToObject(profile_obj, "enableBottomPanes",
+        profile->enable_bottom_panes);
+    cJSON_AddBoolToObject(profile_obj, "showMainMenuButton",
+        profile->show_main_menu_button);
+    cJSON_AddBoolToObject(profile_obj, "leftPanelExpandedOnLaunch",
+        profile->left_panel_expanded_on_launch);
+    cJSON_AddStringToObject(profile_obj, "leftPanelCompactMode",
+        left_panel_compact_mode_to_string(profile->left_panel_compact_mode));
+    cJSON_AddBoolToObject(profile_obj, "touchTopPanelDefaultOpen",
+        profile->touch_top_panel_default_open);
+    cJSON_AddNumberToObject(profile_obj, "touchTopPanelCellCount",
+        profile->touch_top_panel_cell_count);
+    cJSON_AddNumberToObject(profile_obj, "touchTopPanelRows",
+        profile->touch_top_panel_rows);
+    cJSON_AddNumberToObject(profile_obj, "touchTopPanelSize",
+        profile->touch_top_panel_size);
+    cJSON_AddNumberToObject(profile_obj, "stackOrderVersion", 1);
+
+    panes = sdl_config_create_panes_array(profile->pane_configs,
+        profile->pane_count);
+    if (!panes) {
+        cJSON_Delete(profile_obj);
+        return NULL;
+    }
+
+    cJSON_AddItemToObject(profile_obj, "panes", panes);
+    return profile_obj;
 }
 
 enum sdl_config_load_status sdl_config_load(const char* filename,
@@ -2794,6 +2999,7 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                 config->mobile_starting_zoom_offset);
         }
 
+#if defined(__ANDROID__) || defined(SIL_IOS)
         item = cJSON_GetObjectItemCaseSensitive(sdl, "mobilePortraitMode");
         if (!cJSON_IsBool(item))
         {
@@ -2811,6 +3017,9 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
             log_debug("Loaded mobilePortraitMode: %s",
                 config->mobile_portrait_mode ? "true" : "false");
         }
+#else
+        config->mobile_portrait_mode = false;
+#endif
         
         item = cJSON_GetObjectItemCaseSensitive(sdl, "auxViewFontSize");
         if (cJSON_IsNumber(item)) {
@@ -2973,6 +3182,14 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
             }
             log_debug("Loaded popupNotificationMs: %d",
                 config->popup_notification_ms);
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl,
+            "showMainMenuButton");
+        if (cJSON_IsBool(item)) {
+            config->show_main_menu_button = cJSON_IsTrue(item);
+            log_debug("Loaded showMainMenuButton: %s",
+                config->show_main_menu_button ? "true" : "false");
         }
         
         // Window position and size for windowed mode
@@ -3170,31 +3387,160 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
         bool loaded_profiles[SDL_PANE_PROFILE_COUNT] = { false };
 
         if (cJSON_IsObject(pane_profiles_obj) && pane_profiles && profile_count > 0) {
-            for (int mode = 0; mode < profile_count; mode++) {
-                const char* mode_name = min_terminal_mode_to_string(mode);
-                cJSON* profile_obj = cJSON_GetObjectItemCaseSensitive(pane_profiles_obj, mode_name);
+            cJSON* orientation_objs[SDL_PANE_ORIENTATION_COUNT] = {
+                cJSON_GetObjectItemCaseSensitive(pane_profiles_obj,
+                    "landscape"),
+                cJSON_GetObjectItemCaseSensitive(pane_profiles_obj,
+                    "portrait"),
+            };
+            bool has_orientation_profiles =
+                cJSON_IsObject(orientation_objs[SDL_PANE_ORIENTATION_LANDSCAPE])
+                || cJSON_IsObject(
+                    orientation_objs[SDL_PANE_ORIENTATION_PORTRAIT]);
 
-                if (cJSON_IsObject(profile_obj)) {
-                    sdl_config_load_pane_profile(profile_obj, &pane_profiles[mode], mode_name);
-                    if (mode >= 0 && mode < SDL_PANE_PROFILE_COUNT)
-                        loaded_profiles[mode] = true;
+            if (has_orientation_profiles) {
+                for (int orientation = 0;
+                     orientation < SDL_PANE_ORIENTATION_COUNT;
+                     orientation++)
+                {
+                    cJSON* orientation_obj = orientation_objs[orientation];
+
+                    if (!cJSON_IsObject(orientation_obj))
+                        continue;
+                    for (int mode = 0;
+                         mode < SDL_MIN_TERMINAL_MODE_COUNT;
+                         mode++)
+                    {
+                        int profile_index = SDL_PANE_PROFILE_INDEX(
+                            orientation, mode);
+                        const char* mode_name =
+                            min_terminal_mode_to_string(mode);
+                        cJSON* profile_obj =
+                            cJSON_GetObjectItemCaseSensitive(orientation_obj,
+                                mode_name);
+                        char label[48];
+
+                        if (profile_index >= profile_count
+                            || !cJSON_IsObject(profile_obj))
+                        {
+                            continue;
+                        }
+                        strnfmt(label, sizeof(label), "%s.%s",
+                            orientation == SDL_PANE_ORIENTATION_PORTRAIT
+                                ? "portrait" : "landscape",
+                            mode_name);
+                        sdl_config_load_pane_profile(profile_obj,
+                            &pane_profiles[profile_index], label);
+                        if (orientation == SDL_PANE_ORIENTATION_PORTRAIT) {
+                            cJSON* order_version =
+                                cJSON_GetObjectItemCaseSensitive(profile_obj,
+                                    "stackOrderVersion");
+
+                            if (!cJSON_IsNumber(order_version)
+                                || order_version->valueint < 1)
+                            {
+                                sdl_pane_profile_apply_portrait_stack_migration(
+                                    &pane_profiles[profile_index]);
+                            }
+                        }
+                        loaded_profiles[profile_index] = true;
+                    }
+                }
+            } else {
+                /* Migrate the former NORMAL/COMPACT flat profile object into
+                 * the landscape half.  Portrait gets its own defaults below. */
+                for (int mode = 0;
+                     mode < SDL_MIN_TERMINAL_MODE_COUNT;
+                     mode++)
+                {
+                    int profile_index = SDL_PANE_PROFILE_INDEX(
+                        SDL_PANE_ORIENTATION_LANDSCAPE, mode);
+                    const char* mode_name = min_terminal_mode_to_string(mode);
+                    cJSON* profile_obj = cJSON_GetObjectItemCaseSensitive(
+                        pane_profiles_obj, mode_name);
+
+                    if (profile_index >= profile_count
+                        || !cJSON_IsObject(profile_obj))
+                    {
+                        continue;
+                    }
+                    sdl_config_load_pane_profile(profile_obj,
+                        &pane_profiles[profile_index], mode_name);
+                    loaded_profiles[profile_index] = true;
                 }
             }
 
-            if (profile_count > SDL_MIN_TERMINAL_COMPACT
-                && loaded_profiles[SDL_MIN_TERMINAL_NORMAL]
-                && !loaded_profiles[SDL_MIN_TERMINAL_COMPACT]) {
-                sdl_config_copy_pane_profile(
-                    &pane_profiles[SDL_MIN_TERMINAL_COMPACT],
-                    &pane_profiles[SDL_MIN_TERMINAL_NORMAL]);
-                log_info("paneProfiles.COMPACT missing; copied NORMAL profile into COMPACT");
-            } else if (profile_count > SDL_MIN_TERMINAL_COMPACT
-                && loaded_profiles[SDL_MIN_TERMINAL_COMPACT]
-                && !loaded_profiles[SDL_MIN_TERMINAL_NORMAL]) {
-                sdl_config_copy_pane_profile(
-                    &pane_profiles[SDL_MIN_TERMINAL_NORMAL],
-                    &pane_profiles[SDL_MIN_TERMINAL_COMPACT]);
-                log_info("paneProfiles.NORMAL missing; copied COMPACT profile into NORMAL");
+            {
+                int normal = SDL_PANE_PROFILE_INDEX(
+                    SDL_PANE_ORIENTATION_LANDSCAPE,
+                    SDL_MIN_TERMINAL_NORMAL);
+                int compact = SDL_PANE_PROFILE_INDEX(
+                    SDL_PANE_ORIENTATION_LANDSCAPE,
+                    SDL_MIN_TERMINAL_COMPACT);
+
+                if (compact < profile_count && loaded_profiles[normal]
+                    && !loaded_profiles[compact])
+                {
+                    sdl_config_copy_pane_profile(&pane_profiles[compact],
+                        &pane_profiles[normal]);
+                    loaded_profiles[compact] = true;
+                    log_info("Landscape COMPACT profile missing; copied NORMAL");
+                } else if (compact < profile_count && loaded_profiles[compact]
+                    && !loaded_profiles[normal])
+                {
+                    sdl_config_copy_pane_profile(&pane_profiles[normal],
+                        &pane_profiles[compact]);
+                    loaded_profiles[normal] = true;
+                    log_info("Landscape NORMAL profile missing; copied COMPACT");
+                }
+            }
+
+            {
+                int normal = SDL_PANE_PROFILE_INDEX(
+                    SDL_PANE_ORIENTATION_PORTRAIT,
+                    SDL_MIN_TERMINAL_NORMAL);
+                int compact = SDL_PANE_PROFILE_INDEX(
+                    SDL_PANE_ORIENTATION_PORTRAIT,
+                    SDL_MIN_TERMINAL_COMPACT);
+
+                if (compact < profile_count && loaded_profiles[normal]
+                    && !loaded_profiles[compact])
+                {
+                    sdl_config_copy_pane_profile(&pane_profiles[compact],
+                        &pane_profiles[normal]);
+                    loaded_profiles[compact] = true;
+                    log_info("Portrait COMPACT profile missing; copied NORMAL");
+                } else if (compact < profile_count && loaded_profiles[compact]
+                    && !loaded_profiles[normal])
+                {
+                    sdl_config_copy_pane_profile(&pane_profiles[normal],
+                        &pane_profiles[compact]);
+                    loaded_profiles[normal] = true;
+                    log_info("Portrait NORMAL profile missing; copied COMPACT");
+                }
+            }
+        }
+
+        if (pane_profiles && profile_count > 0) {
+            for (int mode = 0;
+                 mode < SDL_MIN_TERMINAL_MODE_COUNT;
+                 mode++)
+            {
+                int landscape = SDL_PANE_PROFILE_INDEX(
+                    SDL_PANE_ORIENTATION_LANDSCAPE, mode);
+                int portrait = SDL_PANE_PROFILE_INDEX(
+                    SDL_PANE_ORIENTATION_PORTRAIT, mode);
+
+                if (portrait >= profile_count || loaded_profiles[portrait])
+                    continue;
+                if (landscape < profile_count) {
+                    sdl_config_copy_pane_profile(&pane_profiles[portrait],
+                        &pane_profiles[landscape]);
+                }
+                sdl_pane_profile_apply_portrait_defaults(
+                    &pane_profiles[portrait]);
+                log_info("Portrait %s profile missing; seeded portrait defaults",
+                    min_terminal_mode_to_string(mode));
             }
         }
     }
@@ -3380,7 +3726,9 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
         cJSON* legacy_swipe_bindings = NULL;
         bool saw_touch_control_swipe_enabled = false;
         bool saw_touch_control_swipe_bindings = false;
-        bool saw_touch_control_top_panel_button_count = false;
+        bool saw_touch_control_top_panel_size = false;
+        bool saw_touch_control_top_panel_cell_count = false;
+        bool saw_touch_control_top_panel_rows = false;
         cJSON* touch_pane = cJSON_GetObjectItemCaseSensitive(root, "touchPane");
         if (cJSON_IsObject(touch_pane)) {
             cJSON* bindings = cJSON_GetObjectItemCaseSensitive(touch_pane, "bindings");
@@ -3545,6 +3893,17 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                     "cornerButtonActionBindings");
                 cJSON* top_panel_default_open = cJSON_GetObjectItemCaseSensitive(touch_control,
                     "topPanelDefaultOpen");
+                cJSON* top_panel_size = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "topPanelSize");
+                cJSON* top_panel_cell_count = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "topPanelCellCount");
+                /* The first grid implementation stored its cell count under
+                 * topPanelColumns.  Read it once as a legacy alias. */
+                cJSON* top_panel_columns = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "topPanelColumns");
+                cJSON* top_panel_rows = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "topPanelRows");
+                /* Legacy fields used only to migrate existing sil_sdl.json. */
                 cJSON* top_panel_second_row = cJSON_GetObjectItemCaseSensitive(touch_control,
                     "topPanelSecondRow");
                 cJSON* top_panel_button_count = cJSON_GetObjectItemCaseSensitive(touch_control,
@@ -3722,28 +4081,68 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                         config->touch_top_panel_default_open ? "true" : "false");
                 }
 
-                if (cJSON_IsBool(top_panel_second_row)) {
-                    config->touch_top_panel_second_row =
-                        cJSON_IsTrue(top_panel_second_row);
-                    log_debug("Loaded touchControl.topPanelSecondRow: %s",
-                        config->touch_top_panel_second_row ? "true" : "false");
+                if (cJSON_IsString(top_panel_size)
+                    && top_panel_size->valuestring
+                    && strcmp(top_panel_size->valuestring, "STRETCH") == 0)
+                {
+                    saw_touch_control_top_panel_size = true;
+                    config->touch_top_panel_size =
+                        SDL_TOUCH_TOP_PANEL_SIZE_STRETCH;
+                    log_debug("Loaded touchControl.topPanelSize: STRETCH");
+                } else if (cJSON_IsNumber(top_panel_size)) {
+                    saw_touch_control_top_panel_size = true;
+                    config->touch_top_panel_size = normalize_touch_top_panel_size(
+                        (float)top_panel_size->valuedouble);
+                    log_debug("Loaded touchControl.topPanelSize: %.2f",
+                        (double)config->touch_top_panel_size);
                 }
 
-                if (cJSON_IsNumber(top_panel_button_count)) {
-                    saw_touch_control_top_panel_button_count = true;
-                    config->touch_top_panel_button_count =
-                        normalize_touch_top_panel_button_count(
+                if (cJSON_IsNumber(top_panel_cell_count)) {
+                    saw_touch_control_top_panel_cell_count = true;
+                    config->touch_top_panel_cell_count =
+                        normalize_touch_top_panel_cell_count(
+                            top_panel_cell_count->valueint);
+                    log_debug("Loaded touchControl.topPanelCellCount: %d",
+                        config->touch_top_panel_cell_count);
+                } else if (cJSON_IsNumber(top_panel_columns)) {
+                    saw_touch_control_top_panel_cell_count = true;
+                    config->touch_top_panel_cell_count =
+                        normalize_touch_top_panel_cell_count(
+                            top_panel_columns->valueint);
+                    log_info("Migrated touchControl.topPanelColumns to topPanelCellCount");
+                }
+
+                if (cJSON_IsNumber(top_panel_rows)) {
+                    saw_touch_control_top_panel_rows = true;
+                    config->touch_top_panel_rows = normalize_touch_top_panel_rows(
+                        top_panel_rows->valueint);
+                    log_debug("Loaded touchControl.topPanelRows: %d",
+                        config->touch_top_panel_rows);
+                }
+
+                if (!saw_touch_control_top_panel_rows
+                    && cJSON_IsBool(top_panel_second_row))
+                {
+                    config->touch_top_panel_rows =
+                        cJSON_IsTrue(top_panel_second_row) ? 2 : 1;
+                    log_info("Migrated touchControl.topPanelSecondRow to topPanelRows");
+                }
+
+                if (!saw_touch_control_top_panel_cell_count
+                    && cJSON_IsNumber(top_panel_button_count))
+                {
+                    config->touch_top_panel_cell_count =
+                        normalize_touch_top_panel_cell_count(
                             top_panel_button_count->valueint);
-                    log_debug("Loaded touchControl.topPanelButtonCount: %d",
-                        config->touch_top_panel_button_count);
+                    log_info("Migrated touchControl.topPanelButtonCount to topPanelCellCount");
                 }
 
-                if (cJSON_IsNumber(top_panel_tile_scale)) {
-                    config->touch_top_panel_tile_scale =
-                        normalize_touch_top_panel_tile_scale(
-                            top_panel_tile_scale->valueint);
-                    log_debug("Loaded touchControl.topPanelTileScale: %d",
-                        config->touch_top_panel_tile_scale);
+                if (!saw_touch_control_top_panel_size
+                    && cJSON_IsNumber(top_panel_tile_scale))
+                {
+                    config->touch_top_panel_size = normalize_touch_top_panel_size(
+                        (float)top_panel_tile_scale->valuedouble);
+                    log_info("Migrated touchControl.topPanelTileScale to topPanelSize");
                 }
 
                 if (cJSON_IsArray(top_panel_bindings)) {
@@ -3810,11 +4209,6 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
         }
 
         sdl_config_migrate_touch_thumb_defaults(config);
-        if (!saw_touch_control_top_panel_button_count) {
-            config->touch_top_panel_button_count =
-                SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;
-        }
-
         if (!saw_touch_control_swipe_enabled && cJSON_IsBool(legacy_swipe_enabled)) {
             config->touch_swipe_enabled = cJSON_IsTrue(legacy_swipe_enabled);
             log_debug("Loaded legacy touchPane.swipeEnabled: %s",
@@ -3846,14 +4240,15 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
             normalize_touch_zone_overlay_mode(config->touch_zone_overlay_mode);
         config->touch_corner_up_down_side =
             normalize_touch_corner_up_down_side(config->touch_corner_up_down_side);
-        config->touch_top_panel_tile_scale =
-            normalize_touch_top_panel_tile_scale(config->touch_top_panel_tile_scale);
-        config->touch_top_panel_button_count =
-            normalize_touch_top_panel_button_count(
-                config->touch_top_panel_button_count);
+        config->touch_top_panel_size =
+            normalize_touch_top_panel_size(config->touch_top_panel_size);
+        config->touch_top_panel_cell_count =
+            normalize_touch_top_panel_cell_count(
+                config->touch_top_panel_cell_count);
+        config->touch_top_panel_rows =
+            normalize_touch_top_panel_rows(config->touch_top_panel_rows);
         config->touch_profile =
             normalize_touch_profile(config->touch_profile);
-        sdl_config_migrate_round_wheel_top_panel_count(config);
     }
 
     {
@@ -3904,6 +4299,9 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                      const struct sdl_pane_profile* pane_profiles, int profile_count)
 {
     int active_mode = config->min_terminal_mode;
+    int active_orientation = SDL_PANE_ORIENTATION_LANDSCAPE;
+    int saved_orientation_count = 1;
+    int active_profile_index;
     const struct sdl_pane_profile* active_profile = NULL;
     cJSON* root = cJSON_CreateObject();
     if (!root) {
@@ -3924,8 +4322,11 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
         config->terminal_menu_scale_offset);
     cJSON_AddNumberToObject(sdl, "mobileStartingZoomOffset",
         config->mobile_starting_zoom_offset);
+#if defined(__ANDROID__) || defined(SIL_IOS)
     cJSON_AddBoolToObject(sdl, "mobilePortraitMode",
         config->mobile_portrait_mode);
+    saved_orientation_count = SDL_PANE_ORIENTATION_COUNT;
+#endif
     cJSON_AddNumberToObject(sdl, "auxViewFontSize", config->aux_view_font_size);
     cJSON_AddNumberToObject(sdl, "margin", config->margin);
     cJSON_AddBoolToObject(sdl, "fullscreen", config->fullscreen);
@@ -3949,6 +4350,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
         config->dice_roll_overlay_ms);
     cJSON_AddNumberToObject(sdl, "popupNotificationMs",
         config->popup_notification_ms);
+    cJSON_AddBoolToObject(sdl, "showMainMenuButton",
+        config->show_main_menu_button);
     
     // Save window position and size for windowed mode
     cJSON_AddNumberToObject(sdl, "windowX", config->window_x);
@@ -3998,10 +4401,19 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
 
     sdl_config_save_movement_bindings(root, config);
 
-    if (active_mode < 0 || active_mode >= profile_count)
+    if (active_mode < 0 || active_mode >= SDL_MIN_TERMINAL_MODE_COUNT)
         active_mode = SDL_MIN_TERMINAL_NORMAL;
-    if (pane_profiles && active_mode >= 0 && active_mode < profile_count)
-        active_profile = &pane_profiles[active_mode];
+#if defined(__ANDROID__) || defined(SIL_IOS)
+    if (config->mobile_portrait_mode)
+        active_orientation = SDL_PANE_ORIENTATION_PORTRAIT;
+#endif
+    active_profile_index = SDL_PANE_PROFILE_INDEX(active_orientation,
+        active_mode);
+    if (pane_profiles && active_profile_index >= 0
+        && active_profile_index < profile_count)
+    {
+        active_profile = &pane_profiles[active_profile_index];
+    }
 
     {
         cJSON* panes = active_profile
@@ -4026,32 +4438,37 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             return;
         }
 
-        for (int mode = 0; mode < profile_count; mode++) {
-            cJSON* profile_obj = cJSON_CreateObject();
-            cJSON* panes = NULL;
+        for (int orientation = 0;
+             orientation < saved_orientation_count;
+             orientation++)
+        {
+            const char* orientation_name =
+                orientation == SDL_PANE_ORIENTATION_PORTRAIT
+                    ? "portrait" : "landscape";
+            cJSON* orientation_obj = cJSON_CreateObject();
 
-            if (!profile_obj)
+            if (!orientation_obj)
                 continue;
 
-            cJSON_AddNumberToObject(profile_obj, "mainViewScale",
-                pane_profiles[mode].main_view_scale);
-            cJSON_AddNumberToObject(profile_obj, "auxViewFontSize",
-                pane_profiles[mode].aux_view_font_size);
-            cJSON_AddBoolToObject(profile_obj, "enableRightPanes",
-                pane_profiles[mode].enable_right_panes);
-            cJSON_AddBoolToObject(profile_obj, "enableBottomPanes",
-                pane_profiles[mode].enable_bottom_panes);
+            for (int mode = 0;
+                 mode < SDL_MIN_TERMINAL_MODE_COUNT;
+                 mode++)
+            {
+                int profile_index = SDL_PANE_PROFILE_INDEX(orientation, mode);
+                cJSON* profile_obj;
 
-            panes = sdl_config_create_panes_array(pane_profiles[mode].pane_configs,
-                pane_profiles[mode].pane_count);
-            if (!panes) {
-                cJSON_Delete(profile_obj);
-                continue;
+                if (!pane_profiles || profile_index >= profile_count)
+                    continue;
+                profile_obj = sdl_config_create_pane_profile_object(
+                    &pane_profiles[profile_index]);
+                if (!profile_obj)
+                    continue;
+                cJSON_AddItemToObject(orientation_obj,
+                    min_terminal_mode_to_string(mode), profile_obj);
             }
 
-            cJSON_AddItemToObject(profile_obj, "panes", panes);
-            cJSON_AddItemToObject(pane_profiles_obj,
-                min_terminal_mode_to_string(mode), profile_obj);
+            cJSON_AddItemToObject(pane_profiles_obj, orientation_name,
+                orientation_obj);
         }
 
         cJSON_AddItemToObject(root, "paneProfiles", pane_profiles_obj);
@@ -4264,12 +4681,19 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             }
             cJSON_AddBoolToObject(touch_control, "topPanelDefaultOpen",
                 config->touch_top_panel_default_open);
-            cJSON_AddBoolToObject(touch_control, "topPanelSecondRow",
-                config->touch_top_panel_second_row);
-            cJSON_AddNumberToObject(touch_control, "topPanelButtonCount",
-                config->touch_top_panel_button_count);
-            cJSON_AddNumberToObject(touch_control, "topPanelTileScale",
-                config->touch_top_panel_tile_scale);
+            if (config->touch_top_panel_size
+                == SDL_TOUCH_TOP_PANEL_SIZE_STRETCH)
+            {
+                cJSON_AddStringToObject(touch_control, "topPanelSize",
+                    "STRETCH");
+            } else {
+                cJSON_AddNumberToObject(touch_control, "topPanelSize",
+                    config->touch_top_panel_size);
+            }
+            cJSON_AddNumberToObject(touch_control, "topPanelCellCount",
+                config->touch_top_panel_cell_count);
+            cJSON_AddNumberToObject(touch_control, "topPanelRows",
+                config->touch_top_panel_rows);
             if (top_panel_bindings)
                 cJSON_AddItemToObject(touch_control, "topPanelBindings",
                     top_panel_bindings);
@@ -4476,11 +4900,15 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
     config->touch_corner_up_down_side = SDL_TOUCH_CORNER_UP_DOWN_RIGHT;
     memcpy(config->touch_corner_action_bindings, corner_action_defaults,
         sizeof(corner_action_defaults));
+#if defined(__ANDROID__) || defined(SIL_IOS)
+    config->touch_top_panel_default_open = true;
+    config->touch_top_panel_size = SDL_TOUCH_TOP_PANEL_SIZE_STRETCH;
+#else
     config->touch_top_panel_default_open = false;
-    config->touch_top_panel_second_row = false;
-    config->touch_top_panel_button_count =
-        SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;
-    config->touch_top_panel_tile_scale = SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT;
+    config->touch_top_panel_size = SDL_TOUCH_TOP_PANEL_SIZE_DEFAULT;
+#endif
+    config->touch_top_panel_cell_count = SDL_TOUCH_TOP_PANEL_CELL_COUNT_DEFAULT;
+    config->touch_top_panel_rows = SDL_TOUCH_TOP_PANEL_ROWS_DEFAULT;
     sdl_config_set_default_top_panel_bindings(config);
     config->touch_thumb_enabled = true;
     sdl_config_set_default_thumb_bindings(config);
@@ -4533,6 +4961,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->dice_roll_lock_ms = SDL_DICE_ROLL_LOCK_DEFAULT_MS;
     config->dice_roll_overlay_ms = SDL_DICE_ROLL_OVERLAY_DEFAULT_MS;
     config->popup_notification_ms = SDL_POPUP_NOTIFICATION_DEFAULT_MS;
+    config->show_main_menu_button = true;
     
     // Default window position and size (will be overridden by actual screen size)
     config->window_x = -1;  // -1 means centered

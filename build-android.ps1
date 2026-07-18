@@ -150,7 +150,10 @@ $configureArgs = @(
     "-DCMAKE_TOOLCHAIN_FILE=$toolchain",
     "-DANDROID_ABI=$Abi",
     "-DANDROID_PLATFORM=$Platform",
-    '-DSIL_BUILD_WITH_SDL_SOURCES=ON'
+    '-DSIL_BUILD_WITH_SDL_SOURCES=ON',
+    '-Wno-dev',
+    '-Wno-deprecated',
+    '--log-level=WARNING'
 )
 
 if (Get-Command ninja -ErrorAction SilentlyContinue) {

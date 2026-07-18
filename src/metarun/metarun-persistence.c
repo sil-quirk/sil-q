@@ -530,7 +530,13 @@ errr load_metaruns(bool create_if_missing)
     log_info("Loading versioned meta file v%d.%d.%d.%d (%u entries)",
              header.version_major, header.version_minor,
              header.version_patch, header.version_extra, header.entry_count);
+    /* Keep the original 0.9.7 interface migration on every platform.  Only
+     * Android and iOS need the newer orientation-profile migration. */
+#if defined(__ANDROID__) || defined(SIL_IOS)
+    interface_settings_migrated = metarun_header_before(&header, 0, 9, 7, 3);
+#else
     interface_settings_migrated = metarun_header_before(&header, 0, 9, 7, 0);
+#endif
 
     bool header_matches_current = (header.version_major == METARUN_FILE_VERSION_MAJOR &&
                                    header.version_minor == METARUN_FILE_VERSION_MINOR &&

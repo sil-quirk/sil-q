@@ -510,7 +510,7 @@ void binding_action_short(int binding, char* buf, size_t buflen)
         SDL_strlcpy(buf, "Down", buflen);
         return;
     case 'm':
-        SDL_strlcpy(buf, "Menu", buflen);
+        SDL_strlcpy(buf, "Main Menu", buflen);
         return;
     case '?':
         SDL_strlcpy(buf, "Help", buflen);

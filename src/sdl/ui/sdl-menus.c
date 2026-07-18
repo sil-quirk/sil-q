@@ -91,7 +91,7 @@ bool sdl_depth_menu_pane_layout(depth_pane_layout* out)
     if (out)
         *out = (depth_pane_layout){ 0 };
 
-    if (!pc || (!pc->enabled && !sdl_mobile_portrait_layout_active()))
+    if (!pc || !pc->enabled)
         return false;
     if (!character_generated || !character_dungeon || character_icky)
         return false;
@@ -128,12 +128,6 @@ bool sdl_depth_menu_pane_layout(depth_pane_layout* out)
     gap = 1.0f;
     panel_h = row_h * 2.0f + gap;
     max_w = (float)screen.w * 0.72f;
-    if (sdl_mobile_portrait_layout_active()) {
-        int portrait_max = sdl_mobile_portrait_hud_panel_max_width(PANE_DEPTH);
-
-        if (portrait_max > 0 && max_w > (float)portrait_max)
-            max_w = (float)portrait_max;
-    }
     if (max_w < 96.0f)
         max_w = (float)screen.w;
     if (panel_w < (float)font_px * 8.5f)
@@ -153,12 +147,8 @@ bool sdl_depth_menu_pane_layout(depth_pane_layout* out)
     {
         float button_w;
 
-        if (!sdl_mobile_portrait_hud_panel_rect(PANE_DEPTH,
-                (int)panel_w, (int)panel_h, &out->panel))
-        {
-            out->panel = sdl_overlay_panel_rect(&anchor, pc->where,
-                (int)panel_w, (int)panel_h, &screen);
-        }
+        out->panel = sdl_overlay_panel_rect(&anchor, pc->where,
+            (int)panel_w, (int)panel_h, &screen);
         out->label = (SDL_FRect){
             .x = out->panel.x,
             .y = out->panel.y,
@@ -271,9 +261,9 @@ void sdl_depth_menu_pane_render(void)
         label_text, 0.54f,
         0.62f);
     sdl_touch_pane_draw_button_text_scaled(&layout.zoom_out, NULL, "-",
-        zoom_out_text, 0.42f, 0.58f);
+        zoom_out_text, 0.72f, 0.78f);
     sdl_touch_pane_draw_button_text_scaled(&layout.zoom_in, NULL, "+",
-        zoom_in_text, 0.42f, 0.58f);
+        zoom_in_text, 0.72f, 0.78f);
 }
 
 int sdl_depth_menu_pane_hit_action(float x, float y,

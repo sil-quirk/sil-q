@@ -148,6 +148,7 @@ enum { STORY_FONT_SLOTS = 2 };
  */
 enum {
     SDL_STORY_FONT_SLOT_DEFAULT   = 0,
+    SDL_STORY_FONT_SLOT_STATUS    = 0, /* status overlay: Story Font 1 */
     SDL_STORY_FONT_SLOT_NARRATIVE = 1, /* quest / narrative book body text */
     SDL_STORY_FONT_SLOT_MENU      = 1, /* in-game popup selection menus */
     SDL_STORY_FONT_SLOT_LOG       = 1, /* message log and log pane */
@@ -1453,7 +1454,7 @@ extern const int default_pane_config_count;
 extern struct pane_config pane_config[MAX_PANE_CONFIGS];
 extern int pane_config_count;
 extern struct sdl_pane_profile g_pane_profiles[SDL_PANE_PROFILE_COUNT];
-extern int g_platform_max_main_view_scale[SDL_PANE_PROFILE_COUNT];
+extern int g_platform_max_main_view_scale[SDL_MIN_TERMINAL_MODE_COUNT];
 extern sdl_startup_device_class g_startup_device_class;
 extern bool g_touch_tutorial_requested_from_settings;
 extern bool g_mouse_tutorial_requested_from_settings;
@@ -1516,9 +1517,9 @@ extern int g_default_touch_zone_center_bindings[SDL_TOUCH_ZONE_CENTER_BINDING_CO
 extern int g_default_touch_corner_up_down_side;
 extern int g_default_touch_corner_action_bindings[SDL_TOUCH_CORNER_ACTION_BINDING_COUNT];
 extern bool g_default_touch_top_panel_default_open;
-extern bool g_default_touch_top_panel_second_row;
-extern int g_default_touch_top_panel_button_count;
-extern int g_default_touch_top_panel_tile_scale;
+extern float g_default_touch_top_panel_size;
+extern int g_default_touch_top_panel_cell_count;
+extern int g_default_touch_top_panel_rows;
 extern int g_default_touch_top_panel_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
 extern int g_default_touch_top_panel_long_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
 extern bool g_default_touch_thumb_enabled;
@@ -1872,11 +1873,9 @@ bool sdl_prompt_reset_sdl_defaults(const char* issue_summary, int screen_width, 
 bool sdl_resolution_matches_pair(int width, int height, int native_w, int native_h);
 bool sdl_is_desktop_handheld_resolution(int width, int height);
 bool sdl_mobile_portrait_layout_active(void);
+bool sdl_mobile_orientation_matches_layout(void);
 void sdl_mobile_portrait_scale_reference_rect(const SDL_Rect* source,
     SDL_Rect* out);
-int sdl_mobile_portrait_hud_panel_max_width(enum pane_type pane);
-bool sdl_mobile_portrait_hud_panel_rect(enum pane_type pane, int panel_w,
-    int panel_h, SDL_FRect* out);
 bool sdl_mobile_portrait_control_regions(SDL_Rect* out_left,
     SDL_Rect* out_right);
 sdl_startup_device_class sdl_prompt_desktop_startup_input_device( int screen_width, int screen_height);
@@ -1922,6 +1921,7 @@ void sdl_pop_description_overlay_main_anchor(void);
 void sdl_push_description_overlay_full_main_anchor(void);
 void sdl_pop_description_overlay_full_main_anchor(void);
 int sdl_main_menu_pane_font_px(void);
+int sdl_main_menu_button_height_for_screen(const SDL_Rect* screen);
 bool sdl_main_menu_pane_context_visible(void);
 const char* sdl_main_menu_mono_font_path(void);
 TTF_Font* sdl_main_menu_mono_font_for_height(int font_px);
@@ -2852,10 +2852,11 @@ int sdl_touch_zone_pending_timeout_ms(Uint64 now_ns);
 bool sdl_touch_zone_flush_pending_press(Uint64 now_ns);
 bool sdl_touch_top_panel_layout_visible(void);
 void sdl_touch_top_panel_set_open(bool open);
-int sdl_touch_top_panel_button_count_normalized(int count);
-int sdl_touch_top_panel_tile_scale_normalized(int scale);
+float sdl_touch_top_panel_size_normalized(float size);
+int sdl_touch_top_panel_cell_count_normalized(int count);
+int sdl_touch_top_panel_columns_normalized(int columns);
+int sdl_touch_top_panel_rows_normalized(int rows);
 int sdl_touch_top_panel_visible_button_count(void);
-int sdl_touch_top_panel_physical_button_capacity(bool second_row);
 bool sdl_touch_top_panel_current_anchor(SDL_Rect* out_screen,
     SDL_Rect* out_anchor, enum pane_placement* out_where);
 bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
@@ -3233,6 +3234,9 @@ int get_pane_config_count(void);
 int get_sdl_pane_type(int index);
 int get_sdl_pane_where(int index);
 void set_sdl_pane_where(int index, int where);
+int get_sdl_pane_stack_order(int index);
+int get_sdl_pane_stack_count(int where);
+void set_sdl_pane_where_order(int index, int where, int order);
 bool get_sdl_pane_enabled(int index);
 int get_sdl_pane_rows(int index);
 int get_sdl_pane_cols(int index);
@@ -3369,15 +3373,18 @@ int get_sdl_touch_corner_action_default_binding(int index);
 bool get_sdl_touch_top_panel_default_open(void);
 void set_sdl_touch_top_panel_default_open(bool value);
 bool get_sdl_touch_top_panel_default_open_default(void);
-bool get_sdl_touch_top_panel_second_row(void);
-void set_sdl_touch_top_panel_second_row(bool value);
-bool get_sdl_touch_top_panel_second_row_default(void);
-int get_sdl_touch_top_panel_button_count(void);
-void set_sdl_touch_top_panel_button_count(int count);
-int get_sdl_touch_top_panel_default_button_count(void);
-int get_sdl_touch_top_panel_tile_scale(void);
-void set_sdl_touch_top_panel_tile_scale(int scale);
-int get_sdl_touch_top_panel_default_tile_scale(void);
+float get_sdl_touch_top_panel_size(void);
+void set_sdl_touch_top_panel_size(float size);
+float get_sdl_touch_top_panel_default_size(void);
+int get_sdl_touch_top_panel_columns(void);
+void set_sdl_touch_top_panel_columns(int columns);
+int get_sdl_touch_top_panel_default_columns(void);
+int get_sdl_touch_top_panel_cell_count(void);
+void set_sdl_touch_top_panel_cell_count(int count);
+int get_sdl_touch_top_panel_default_cell_count(void);
+int get_sdl_touch_top_panel_rows(void);
+void set_sdl_touch_top_panel_rows(int rows);
+int get_sdl_touch_top_panel_default_rows(void);
 int get_sdl_touch_top_panel_binding(int index, bool long_press);
 void set_sdl_touch_top_panel_binding(int index, bool long_press, int binding);
 int get_sdl_touch_top_panel_default_binding(int index, bool long_press);
@@ -3962,8 +3969,10 @@ void sdl_touch_hidden_indicator_render(void);
 bool sdl_touch_hidden_indicator_handle_pointer_down(float x, float y, bool touch);
 bool sdl_touch_top_panel_layout_visible(void);
 void sdl_touch_top_panel_set_open(bool open);
-int sdl_touch_top_panel_button_count_normalized(int count);
-int sdl_touch_top_panel_tile_scale_normalized(int scale);
+float sdl_touch_top_panel_size_normalized(float size);
+int sdl_touch_top_panel_cell_count_normalized(int count);
+int sdl_touch_top_panel_columns_normalized(int columns);
+int sdl_touch_top_panel_rows_normalized(int rows);
 bool sdl_touch_top_panel_current_anchor(SDL_Rect* out_screen,
     SDL_Rect* out_anchor, enum pane_placement* out_where);
 bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,

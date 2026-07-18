@@ -159,12 +159,24 @@ static void clear_obsolete_interface_options_097(void)
     op_ptr->main_combat_rolls = 0;
 }
 
+static bool loaded_savefile_needs_interface_defaults(void)
+{
+#if defined(__ANDROID__) || defined(SIL_IOS)
+    /* Mobile 0.9.7.3 introduced independent orientation profiles. */
+    return !savefile_version_at_least(0, 9, 7, 3);
+#else
+    /* Preserve the original general 0.9.7 interface migration on desktop. */
+    return !savefile_version_at_least(0, 9, 7, 0);
+#endif
+}
+
 static void apply_loaded_savefile_app_settings(void)
 {
     /* App-wide settings live in the SDL JSON config, so they must win over
-     * any copies serialized in the savefile. Older interface layouts are
-     * discarded entirely because 0.9.7 removed/reworked those settings. */
-    if (!savefile_version_at_least(0, 9, 7, 0))
+     * any copies serialized in the savefile.  On Android and iOS, 0.9.7.3
+     * introduced independent landscape and portrait profiles, so older
+     * mobile layouts rebuild both profiles from defaults. */
+    if (loaded_savefile_needs_interface_defaults())
     {
         clear_obsolete_interface_options_097();
         sdl_reset_interface_settings_to_defaults_for_migration();

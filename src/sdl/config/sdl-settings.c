@@ -14,9 +14,11 @@ void get_sdl_config_info(char* buf, size_t size)
     offset += (size_t)strnfmt(buf + offset, size - offset,
         "Mobile Starting Zoom Offset: %+d\n",
         config.mobile_starting_zoom_offset);
+#if defined(__ANDROID__) || defined(SIL_IOS)
     offset += (size_t)strnfmt(buf + offset, size - offset,
         "Mobile Portrait Mode: %s\n",
         config.mobile_portrait_mode ? "Yes" : "No");
+#endif
     offset += (size_t)strnfmt(buf + offset, size - offset, "Minimum Terminal Size: %s (%dx%d)\n",
         sdl_min_terminal_mode_name(config.min_terminal_mode),
         sdl_current_min_terminal_cols(), sdl_current_min_terminal_rows());
@@ -41,8 +43,10 @@ void get_sdl_config_info(char* buf, size_t size)
         (get_sdl_left_panel_compact_mode() == SDL_LEFT_PANEL_COMPACT_ROW)
             ? "Row" : "Column");
     offset += (size_t)strnfmt(buf + offset, size - offset,
-        "Quick Access Second Row: %s\n\n",
-        config.touch_top_panel_second_row ? "Yes" : "No");
+        "Quick Access Size: %s\nQuick Access Grid: %d x %d\n\n",
+        (config.touch_top_panel_size == SDL_TOUCH_TOP_PANEL_SIZE_STRETCH)
+            ? "Stretch" : "Fixed",
+        get_sdl_touch_top_panel_columns(), config.touch_top_panel_rows);
     
     // Pane configurations
     offset += (size_t)strnfmt(buf + offset, size - offset, "=== Pane Configuration ===\n");
@@ -238,17 +242,30 @@ cleanup:
 
 bool get_sdl_mobile_portrait_mode(void)
 {
+#if defined(__ANDROID__) || defined(SIL_IOS)
     return config.mobile_portrait_mode;
+#else
+    return false;
+#endif
 }
 
 void set_sdl_mobile_portrait_mode(bool value)
 {
+#if defined(__ANDROID__) || defined(SIL_IOS)
+    int saved_zoom_scale;
+
     if (config.mobile_portrait_mode == value)
         return;
 
+    /* Pane placement, visibility, sizes, and per-pane fonts are stored per
+     * orientation.  Capture the outgoing layout before selecting the other
+     * profile; the renderer then consumes the active settings normally. */
+    saved_zoom_scale = g_main_view_zoom_scale;
+    sdl_store_active_pane_profile(config.min_terminal_mode);
     config.mobile_portrait_mode = value;
+    sdl_apply_stored_pane_profile(config.min_terminal_mode);
     sdl_set_mobile_orientation_hint(value);
-    g_main_view_zoom_scale = 0;
+    g_main_view_zoom_scale = saved_zoom_scale;
 
 #if defined(__ANDROID__)
     sdl_android_request_orientation(value);
@@ -257,6 +274,9 @@ void set_sdl_mobile_portrait_mode(bool value)
 #endif
 
     g_state.need_present = true;
+#else
+    (void)value;
+#endif
 }
 
 int get_sdl_min_main_view_scale(void)
@@ -461,6 +481,16 @@ void set_sdl_popup_notification_ms(int value)
     config.popup_notification_ms = value;
 }
 
+bool get_sdl_show_main_menu_button(void)
+{
+    return config.show_main_menu_button;
+}
+
+void set_sdl_show_main_menu_button(bool value)
+{
+    config.show_main_menu_button = value;
+}
+
 int get_sdl_margin(void)
 {
     return config.margin;
@@ -641,6 +671,9 @@ void sdl_reset_interface_settings_to_defaults(void)
     bool old_tiles;
     bool desired_fullscreen;
     bool desired_tiles;
+#if SIL_SDL_MOBILE_BUILD
+    bool active_portrait = config.mobile_portrait_mode;
+#endif
 
     sdl_current_default_dimensions(&screen_w, &screen_h);
     old_fullscreen = config.fullscreen;
@@ -649,6 +682,11 @@ void sdl_reset_interface_settings_to_defaults(void)
     sdl_reset_config_to_resolution_defaults(screen_w, screen_h);
     sdl_ensure_default_pane_profiles_present(false);
     sdl_apply_screen_aspect_pane_default_profiles(screen_w, screen_h);
+#if SIL_SDL_MOBILE_BUILD
+    /* Reset both orientation profiles, then remain in the orientation from
+     * which Reset was requested instead of jumping to landscape defaults. */
+    config.mobile_portrait_mode = active_portrait;
+#endif
     sdl_apply_stored_pane_profile(config.min_terminal_mode);
     sdl_apply_startup_input_defaults_to_config(&config,
         g_startup_device_class);
@@ -679,7 +717,7 @@ void sdl_reset_interface_settings_to_defaults(void)
     {
         sdl_config_save(config_file_path, &config, g_pane_profiles,
             SDL_PANE_PROFILE_COUNT);
-        log_info("Reset all SDL/interface settings to defaults: %s",
+        log_info("Reset all SDL/interface settings, including landscape and portrait profiles, to defaults: %s",
             config_file_path);
     }
 }
@@ -736,6 +774,131 @@ void set_sdl_pane_where(int index, int where)
         placement = pane_first_allowed_placement(pane_config[index].pane);
 
     pane_config[index].where = placement;
+    if (is_touch_pane) {
+        sdl_touch_pane_cancel_press();
+        sdl_touch_swipe_cancel();
+    }
+    if (is_overlay_menu)
+        sdl_touch_top_panel_cancel_press();
+}
+
+static bool sdl_pane_has_user_stack_order(enum pane_type pane)
+{
+    return pane != PANE_MAIN && pane != PANE_MAIN_MENU
+        && pane != PANE_DESCRIPTION;
+}
+
+int get_sdl_pane_stack_order(int index)
+{
+    int order = 1;
+
+    if (index < 0 || index >= pane_config_count)
+        return 0;
+
+    for (int i = 0; i < index; i++) {
+        if (sdl_pane_has_user_stack_order(pane_config[i].pane)
+            && pane_config[i].where == pane_config[index].where)
+        {
+            order++;
+        }
+    }
+
+    return order;
+}
+
+int get_sdl_pane_stack_count(int where)
+{
+    enum pane_placement placement = (enum pane_placement)where;
+    int count = 0;
+
+    for (int i = 0; i < pane_config_count; i++) {
+        if (sdl_pane_has_user_stack_order(pane_config[i].pane)
+            && pane_config[i].where == placement)
+        {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+void set_sdl_pane_where_order(int index, int where, int order)
+{
+    enum pane_placement placement = (enum pane_placement)where;
+    struct pane_config moving;
+    int reduced_count;
+    int placement_count = 0;
+    int insertion_index = -1;
+    int last_placement_index = -1;
+    bool is_touch_pane;
+    bool is_overlay_menu;
+
+    if (index < 0 || index >= pane_config_count)
+        return;
+    if (!pane_type_allows_placement(pane_config[index].pane, placement))
+        placement = pane_first_allowed_placement(pane_config[index].pane);
+    if (pane_config[index].where == placement
+        && get_sdl_pane_stack_order(index) == order)
+    {
+        return;
+    }
+
+    moving = pane_config[index];
+    moving.where = placement;
+    is_touch_pane = (moving.pane == PANE_TOUCH);
+    is_overlay_menu = (moving.pane == PANE_OVERLAY_MENU);
+
+    reduced_count = pane_config_count - 1;
+    if (index < reduced_count) {
+        memmove(&pane_config[index], &pane_config[index + 1],
+            sizeof(pane_config[0]) * (reduced_count - index));
+    }
+
+    for (int i = 0; i < reduced_count; i++) {
+        if (!sdl_pane_has_user_stack_order(pane_config[i].pane)
+            || pane_config[i].where != placement)
+        {
+            continue;
+        }
+        placement_count++;
+        last_placement_index = i;
+    }
+
+    if (order < 1)
+        order = 1;
+    if (order > placement_count + 1)
+        order = placement_count + 1;
+
+    if (placement_count == 0) {
+        insertion_index = (index < reduced_count) ? index : reduced_count;
+    } else if (order > placement_count) {
+        insertion_index = last_placement_index + 1;
+    } else {
+        int seen = 0;
+
+        for (int i = 0; i < reduced_count; i++) {
+            if (!sdl_pane_has_user_stack_order(pane_config[i].pane)
+                || pane_config[i].where != placement)
+            {
+                continue;
+            }
+            seen++;
+            if (seen == order) {
+                insertion_index = i;
+                break;
+            }
+        }
+    }
+
+    if (insertion_index < 0)
+        insertion_index = reduced_count;
+    if (insertion_index < reduced_count) {
+        memmove(&pane_config[insertion_index + 1],
+            &pane_config[insertion_index],
+            sizeof(pane_config[0]) * (reduced_count - insertion_index));
+    }
+    pane_config[insertion_index] = moving;
+
     if (is_touch_pane) {
         sdl_touch_pane_cancel_press();
         sdl_touch_swipe_cancel();
@@ -1229,12 +1392,9 @@ void sdl_touch_pane_load_default_bindings(void)
         sizeof(g_default_touch_corner_action_bindings));
     g_default_touch_top_panel_default_open =
         defaults.touch_top_panel_default_open;
-    g_default_touch_top_panel_second_row =
-        defaults.touch_top_panel_second_row;
-    g_default_touch_top_panel_button_count =
-        defaults.touch_top_panel_button_count;
-    g_default_touch_top_panel_tile_scale =
-        defaults.touch_top_panel_tile_scale;
+    g_default_touch_top_panel_size = defaults.touch_top_panel_size;
+    g_default_touch_top_panel_cell_count = defaults.touch_top_panel_cell_count;
+    g_default_touch_top_panel_rows = defaults.touch_top_panel_rows;
     memcpy(g_default_touch_top_panel_bindings,
         defaults.touch_top_panel_bindings,
         sizeof(g_default_touch_top_panel_bindings));
@@ -1952,7 +2112,7 @@ void sdl_touch_apply_profile(int profile)
     int pane_placement = SDL_TOUCH_PANE_PLACEMENT_RIGHT;
     bool pane_default_open = true;
     bool top_panel_default_open = false;
-    int top_panel_button_count = SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;
+    int top_panel_cell_count = SDL_TOUCH_TOP_PANEL_CELL_COUNT_DEFAULT;
     int movement_mode = SDL_TOUCH_MOVEMENT_ON;
     bool round_enabled = false;
     int zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_MARKERS;
@@ -1968,10 +2128,7 @@ void sdl_touch_apply_profile(int profile)
     case SDL_TOUCH_PROFILE_ROUND_WHEEL:
         pane_default_open = false;
         top_panel_default_open = true;
-        /* The preset assigns the first eight actions.  Extra quick-access
-         * cells are added on demand, rather than starting as invisible empty
-         * slots up to the storage limit. */
-        top_panel_button_count = SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;
+        top_panel_cell_count = SDL_TOUCH_TOP_PANEL_CELL_COUNT_DEFAULT;
         movement_mode = SDL_TOUCH_MOVEMENT_ON;
         round_enabled = true;
         zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_OFF;
@@ -1989,10 +2146,10 @@ void sdl_touch_apply_profile(int profile)
     for (int i = 0; i < SDL_TOUCH_MENU_CATEGORY_COUNT; i++)
         config.touch_menu_command_enabled[i] = true;
     config.touch_pane_default_open = pane_default_open;
-    config.touch_top_panel_button_count =
-        sdl_touch_top_panel_button_count_normalized(top_panel_button_count);
+    config.touch_top_panel_cell_count =
+        sdl_touch_top_panel_cell_count_normalized(top_panel_cell_count);
+    config.touch_top_panel_rows = SDL_TOUCH_TOP_PANEL_ROWS_DEFAULT;
     config.touch_top_panel_default_open = top_panel_default_open;
-    config.touch_top_panel_second_row = false;
     config.touch_movement_mode = sdl_touch_movement_normalized_mode(movement_mode);
     config.touch_round_movement_enabled = round_enabled;
     config.touch_zone_overlay_mode =
@@ -2169,73 +2326,107 @@ bool get_sdl_touch_top_panel_default_open_default(void)
     return g_default_touch_top_panel_default_open;
 }
 
-bool get_sdl_touch_top_panel_second_row(void)
+float get_sdl_touch_top_panel_size(void)
 {
-    return config.touch_top_panel_second_row;
+    return sdl_touch_top_panel_size_normalized(config.touch_top_panel_size);
 }
 
-void set_sdl_touch_top_panel_second_row(bool value)
+void set_sdl_touch_top_panel_size(float size)
 {
-    if (config.touch_top_panel_second_row == value)
+    size = sdl_touch_top_panel_size_normalized(size);
+    if (config.touch_top_panel_size == size)
         return;
 
-    config.touch_top_panel_second_row = value;
+    config.touch_top_panel_size = size;
     sdl_touch_top_panel_cancel_press();
     g_state.need_present = true;
 }
 
-bool get_sdl_touch_top_panel_second_row_default(void)
+float get_sdl_touch_top_panel_default_size(void)
 {
     sdl_touch_pane_load_default_bindings();
-    return g_default_touch_top_panel_second_row;
+    return sdl_touch_top_panel_size_normalized(g_default_touch_top_panel_size);
 }
 
-int get_sdl_touch_top_panel_button_count(void)
+int get_sdl_touch_top_panel_columns(void)
 {
-    return sdl_touch_top_panel_button_count_normalized(
-        config.touch_top_panel_button_count);
+    int count = get_sdl_touch_top_panel_cell_count();
+    int rows = get_sdl_touch_top_panel_rows();
+
+    if (count <= 0)
+        return 0;
+    return (count + rows - 1) / rows;
 }
 
-void set_sdl_touch_top_panel_button_count(int count)
+void set_sdl_touch_top_panel_columns(int columns)
 {
-    count = sdl_touch_top_panel_button_count_normalized(count);
-    if (config.touch_top_panel_button_count == count)
+    columns = sdl_touch_top_panel_columns_normalized(columns);
+    set_sdl_touch_top_panel_cell_count(columns * get_sdl_touch_top_panel_rows());
+}
+
+int get_sdl_touch_top_panel_default_columns(void)
+{
+    sdl_touch_pane_load_default_bindings();
+    return (g_default_touch_top_panel_cell_count
+        + g_default_touch_top_panel_rows - 1)
+        / g_default_touch_top_panel_rows;
+}
+
+int get_sdl_touch_top_panel_cell_count(void)
+{
+    return sdl_touch_top_panel_cell_count_normalized(
+        config.touch_top_panel_cell_count);
+}
+
+void set_sdl_touch_top_panel_cell_count(int count)
+{
+    int old_count = sdl_touch_top_panel_cell_count_normalized(
+        config.touch_top_panel_cell_count);
+
+    count = sdl_touch_top_panel_cell_count_normalized(count);
+    if (old_count == count)
         return;
 
-    config.touch_top_panel_button_count = count;
+    /* Cells removed by reducing the count must not silently reappear if the
+     * grid is enlarged later.  Explicit removal also keeps Add Cell's new
+     * slot genuinely unbound until the user chooses its action. */
+    for (int i = count; i < old_count; i++) {
+        config.touch_top_panel_bindings[i] = GAMEPAD_BIND_NONE;
+        config.touch_top_panel_long_bindings[i] = GAMEPAD_BIND_NONE;
+    }
+
+    config.touch_top_panel_cell_count = count;
     sdl_touch_top_panel_cancel_press();
     g_state.need_present = true;
 }
 
-int get_sdl_touch_top_panel_default_button_count(void)
+int get_sdl_touch_top_panel_default_cell_count(void)
 {
     sdl_touch_pane_load_default_bindings();
-    return sdl_touch_top_panel_button_count_normalized(
-        g_default_touch_top_panel_button_count);
+    return sdl_touch_top_panel_cell_count_normalized(
+        g_default_touch_top_panel_cell_count);
 }
 
-int get_sdl_touch_top_panel_tile_scale(void)
+int get_sdl_touch_top_panel_rows(void)
 {
-    return sdl_touch_top_panel_tile_scale_normalized(
-        config.touch_top_panel_tile_scale);
+    return sdl_touch_top_panel_rows_normalized(config.touch_top_panel_rows);
 }
 
-void set_sdl_touch_top_panel_tile_scale(int scale)
+void set_sdl_touch_top_panel_rows(int rows)
 {
-    scale = sdl_touch_top_panel_tile_scale_normalized(scale);
-    if (config.touch_top_panel_tile_scale == scale)
+    rows = sdl_touch_top_panel_rows_normalized(rows);
+    if (config.touch_top_panel_rows == rows)
         return;
 
-    config.touch_top_panel_tile_scale = scale;
+    config.touch_top_panel_rows = rows;
     sdl_touch_top_panel_cancel_press();
     g_state.need_present = true;
 }
 
-int get_sdl_touch_top_panel_default_tile_scale(void)
+int get_sdl_touch_top_panel_default_rows(void)
 {
     sdl_touch_pane_load_default_bindings();
-    return sdl_touch_top_panel_tile_scale_normalized(
-        g_default_touch_top_panel_tile_scale);
+    return sdl_touch_top_panel_rows_normalized(g_default_touch_top_panel_rows);
 }
 
 int get_sdl_touch_top_panel_binding(int index, bool long_press)
@@ -2707,6 +2898,8 @@ void sdl_clamp_main_view_zoom_to_current_layout(void)
     int configured_scale;
 
     if (g_main_view_zoom_scale <= 0)
+        return;
+    if (!sdl_mobile_orientation_matches_layout())
         return;
 
     min_scale = get_sdl_min_main_view_zoom_scale();
