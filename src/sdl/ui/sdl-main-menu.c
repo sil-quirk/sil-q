@@ -308,88 +308,6 @@ float sdl_main_menu_draw_text(TTF_Font* font, cptr text, float x,
     return dst.w;
 }
 
-static void sdl_main_menu_note_bottom(float candidate, float* bottom)
-{
-    if (bottom && candidate > *bottom)
-        *bottom = candidate;
-}
-
-static void sdl_main_menu_note_rect_bottom(const SDL_FRect* rect, float* bottom)
-{
-    if (!rect || rect->w <= 0.0f || rect->h <= 0.0f)
-        return;
-
-    sdl_main_menu_note_bottom(rect->y + rect->h, bottom);
-}
-
-static float sdl_main_menu_top_center_panes_bottom(void)
-{
-    float bottom = 0.0f;
-
-    for (int i = 0; i < pane_config_count; i++) {
-        SDL_FRect pane_rect;
-
-        if (pane_config[i].where != PLACE_TOP_CENTER)
-            continue;
-
-        if (pane_config[i].pane == PANE_OVERLAY_MENU) {
-            SDL_Rect screen;
-            SDL_Rect anchor;
-            enum pane_placement where;
-            SDL_FRect panel;
-
-            if (!sdl_touch_top_panel_layout_visible())
-                continue;
-            if (sdl_touch_top_panel_current_anchor(&screen, &anchor, &where)
-                && where == PLACE_TOP_CENTER)
-            {
-                pane_rect = (SDL_FRect){ (float)anchor.x, (float)anchor.y,
-                    (float)anchor.w, (float)anchor.h };
-                sdl_main_menu_note_rect_bottom(&pane_rect, &bottom);
-            }
-            if (sdl_touch_top_panel_compute_layout(NULL, &panel))
-                sdl_main_menu_note_rect_bottom(&panel, &bottom);
-            continue;
-        }
-
-        if (sdl_narrative_banner_top_center_pane_rect(&pane_config[i],
-                &pane_rect))
-        {
-            sdl_main_menu_note_rect_bottom(&pane_rect, &bottom);
-        }
-    }
-
-    return bottom;
-}
-
-static void sdl_main_menu_apply_top_center_avoidance(SDL_FRect* rect,
-    const SDL_Rect* screen, int font_px)
-{
-    float bottom;
-    float gap;
-    float target_y;
-    float max_y;
-
-    if (!rect || !screen || rect->w <= 0.0f || rect->h <= 0.0f)
-        return;
-
-    bottom = sdl_main_menu_top_center_panes_bottom();
-    if (bottom <= rect->y)
-        return;
-
-    gap = sdl_touch_pane_clampf((float)font_px * 0.24f, 4.0f, 10.0f);
-    target_y = bottom + gap;
-    max_y = (float)(screen->y + screen->h) - rect->h
-        - (float)sdl_overlay_margin_px();
-    if (max_y < (float)screen->y)
-        max_y = (float)screen->y;
-    if (target_y > max_y)
-        target_y = max_y;
-    if (target_y > rect->y)
-        rect->y = target_y;
-}
-
-
 bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
 {
     SDL_Rect anchor;
@@ -410,8 +328,11 @@ bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
         return false;
 
     screen = sdl_get_layout_screen_rect();
-    if (!sdl_overlay_pane_anchor_rect(PANE_MAIN, &anchor))
+    if (sdl_mobile_portrait_layout_active()) {
+        anchor = screen;
+    } else if (!sdl_overlay_pane_anchor_rect(PANE_MAIN, &anchor)) {
         return false;
+    }
 
     font_px = sdl_main_menu_pane_font_px();
     font = sdl_story_font_for_height(font_px);
@@ -440,9 +361,18 @@ bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
         panel_h = (float)screen.h * 0.18f;
 
     if (out) {
-        *out = sdl_overlay_panel_rect(&anchor, PLACE_TOP_CENTER, (int)panel_w,
-            (int)panel_h, &screen);
-        sdl_main_menu_apply_top_center_avoidance(out, &screen, font_px);
+        if (sdl_mobile_portrait_layout_active()) {
+            *out = (SDL_FRect){
+                .x = (float)screen.x + ((float)screen.w - panel_w) * 0.5f,
+                .y = (float)screen.y,
+                .w = panel_w,
+                .h = panel_h,
+            };
+        } else {
+            *out = sdl_overlay_panel_rect(&anchor, PLACE_TOP_CENTER,
+                (int)panel_w, (int)panel_h, &screen);
+            out->y = (float)screen.y;
+        }
     }
 
     return true;
@@ -490,6 +420,7 @@ bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
     int font_px;
     int title_w = 0;
     int shortcut_w = 0;
+    int text_h;
     float pad_x;
     float pad_y;
     float row_h;
@@ -516,6 +447,9 @@ bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
     mono_font = sdl_main_menu_mono_font_for_height(font_px);
     if (!story_font)
         return false;
+    text_h = TTF_GetFontHeight(story_font);
+    if (text_h < 1)
+        text_h = font_px;
 
     for (int i = 1; i <= MAIN_MENU_MAX; i++) {
         char shortcut[32];
@@ -569,8 +503,13 @@ bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
 
         panel_h = max_panel_h;
         row_h = (panel_h - pad_y * 2.0f) / (float)MAIN_MENU_MAX;
+        /* Keep the empty vertical gap between adjacent labels no larger than
+         * the rendered label height. */
+        if (row_h > (float)text_h * 2.0f)
+            row_h = (float)text_h * 2.0f;
         if (row_h < 1.0f)
             row_h = 1.0f;
+        panel_h = pad_y * 2.0f + row_h * (float)MAIN_MENU_MAX;
         visible_count = MAIN_MENU_MAX;
     }
 #else
@@ -594,6 +533,7 @@ bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
     {
         out->panel = sdl_overlay_panel_rect(&anchor, PLACE_TOP_CENTER,
             (int)(panel_w + 0.5f), (int)(panel_h + 0.5f), &screen);
+        out->panel.y = (float)screen.y;
         out->pad_x = pad_x;
         out->row_h = row_h;
         out->title_w = (float)title_w;
@@ -1418,10 +1358,16 @@ bool sdl_main_menu_overlay_handle_event(const SDL_Event* ev)
     case SDL_EVENT_KEY_DOWN:
         return sdl_main_menu_overlay_handle_key(&ev->key);
     case SDL_EVENT_MOUSE_MOTION:
-        if (sdl_main_menu_overlay_handle_touch_pane_point(
-                (float)ev->motion.x, (float)ev->motion.y, false))
         {
-            return true;
+            bool in_panel = false;
+
+            (void)sdl_main_menu_overlay_choice_at((float)ev->motion.x,
+                (float)ev->motion.y, &in_panel);
+            if (!in_panel && sdl_main_menu_overlay_handle_touch_pane_point(
+                    (float)ev->motion.x, (float)ev->motion.y, false))
+            {
+                return true;
+            }
         }
         return sdl_main_menu_overlay_handle_pointer_motion(
             (float)ev->motion.x, (float)ev->motion.y);
@@ -1431,10 +1377,16 @@ bool sdl_main_menu_overlay_handle_event(const SDL_Event* ev)
             return true;
         }
         if (ev->button.button == SDL_BUTTON_LEFT) {
-            if (sdl_main_menu_overlay_handle_touch_pane_point(
-                    (float)ev->button.x, (float)ev->button.y, true))
             {
-                return true;
+                bool in_panel = false;
+
+                (void)sdl_main_menu_overlay_choice_at((float)ev->button.x,
+                    (float)ev->button.y, &in_panel);
+                if (!in_panel && sdl_main_menu_overlay_handle_touch_pane_point(
+                        (float)ev->button.x, (float)ev->button.y, true))
+                {
+                    return true;
+                }
             }
             return sdl_main_menu_overlay_handle_pointer_down(
                 (float)ev->button.x, (float)ev->button.y);
@@ -1449,10 +1401,15 @@ bool sdl_main_menu_overlay_handle_event(const SDL_Event* ev)
             return true;
         if (!sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
             return true;
-        if (sdl_main_menu_overlay_handle_touch_pane_point(x, y,
-                ev->type == SDL_EVENT_FINGER_DOWN))
         {
-            return true;
+            bool in_panel = false;
+
+            (void)sdl_main_menu_overlay_choice_at(x, y, &in_panel);
+            if (!in_panel && sdl_main_menu_overlay_handle_touch_pane_point(x, y,
+                    ev->type == SDL_EVENT_FINGER_DOWN))
+            {
+                return true;
+            }
         }
         if (ev->type == SDL_EVENT_FINGER_DOWN)
             return sdl_main_menu_overlay_handle_pointer_down(x, y);

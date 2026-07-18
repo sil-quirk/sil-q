@@ -13,7 +13,6 @@ import org.libsdl.app.SDLActivity;
 public class SilMoreActivity extends SDLActivity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
-		setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE);
 		super.onCreate(savedInstanceState);
 		applyFullscreenLayout();
 	}
@@ -34,8 +33,22 @@ public class SilMoreActivity extends SDLActivity {
 
 	@Override
 	public void setOrientationBis(int w, int h, boolean resizable, String hint) {
-		setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE);
+		// SDL_HINT_ORIENTATIONS is the source of truth for initial orientation
+		// and any SDL-owned orientation update.
+		super.setOrientationBis(w, h, resizable, hint);
 	}
+
+    /** Called from native code after it updates SDL_HINT_ORIENTATIONS. */
+    public void requestGameOrientation(final boolean portrait) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                setRequestedOrientation(portrait
+                        ? ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+                        : ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE);
+            }
+        });
+    }
 
 	private void applyFullscreenLayout() {
 		View decorView = getWindow().getDecorView();

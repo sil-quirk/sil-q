@@ -250,7 +250,7 @@ bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect)
 
     if (out_rect)
         *out_rect = (SDL_Rect){ 0 };
-    if (!pc || !pc->enabled)
+    if (!pc || (!pc->enabled && !sdl_mobile_portrait_layout_active()))
         return false;
     if (screen_saved_fullscreen_active())
         return false;
@@ -274,6 +274,24 @@ bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect)
         return false;
     panel_w = content_w + cell_w * 2;
     panel_h = content_h + cell_h;
+
+    {
+        SDL_FRect portrait_rect;
+
+        if (sdl_mobile_portrait_hud_panel_rect(PANE_COMBAT, panel_w,
+                panel_h, &portrait_rect))
+        {
+            rect = (SDL_Rect){
+                .x = (int)portrait_rect.x,
+                .y = (int)portrait_rect.y,
+                .w = (int)portrait_rect.w,
+                .h = (int)portrait_rect.h,
+            };
+            if (out_rect)
+                *out_rect = rect;
+            return rect.w > 0 && rect.h > 0;
+        }
+    }
 
     rect = *pane;
     if (rect.w > panel_w) {
@@ -492,7 +510,7 @@ bool sdl_status_pane_current_rect(SDL_Rect* out_rect,
     const SDL_Rect* pane;
     SDL_Rect fallback;
 
-    if (!pc || !pc->enabled)
+    if (!pc || (!pc->enabled && !sdl_mobile_portrait_layout_active()))
         return false;
     if (screen_saved_fullscreen_active())
         return false;
@@ -512,7 +530,8 @@ bool sdl_status_pane_current_rect(SDL_Rect* out_rect,
     if (out_rect)
         *out_rect = *pane;
     if (out_where)
-        *out_where = pc->where;
+        *out_where = sdl_mobile_portrait_layout_active()
+            ? PLACE_TOP_RIGHT : pc->where;
     return true;
 }
 
@@ -918,6 +937,8 @@ int sdl_status_pane_layout_entries(TTF_Font* font,
     int max_span_w = 0;
     int normal_count = 0;
     int normal_columns;
+    int column_limit = sdl_mobile_portrait_layout_active() ? 4
+        : SDL_STATUS_PANE_COLUMNS;
     int content_w;
     int column_w;
     int row = 0;
@@ -938,7 +959,10 @@ int sdl_status_pane_layout_entries(TTF_Font* font,
     if (max_content_w <= column_gap_x)
         column_gap_x = 0;
 
-    max_column_w = (max_content_w - column_gap_x) / SDL_STATUS_PANE_COLUMNS;
+    if (column_limit < 1)
+        column_limit = 1;
+    max_column_w = (max_content_w
+        - column_gap_x * (column_limit - 1)) / column_limit;
     if (max_column_w < 1)
         max_column_w = max_content_w;
 
@@ -995,10 +1019,10 @@ int sdl_status_pane_layout_entries(TTF_Font* font,
     if (item_count <= 0)
         return 0;
 
-    normal_columns = (normal_count > 1) ? SDL_STATUS_PANE_COLUMNS : 1;
+    normal_columns = MIN(MAX(normal_count, 1), column_limit);
     if (max_normal_w > 0)
         content_w = max_normal_w * normal_columns
-            + ((normal_columns > 1) ? column_gap_x : 0);
+            + column_gap_x * (normal_columns - 1);
     else
         content_w = max_span_w;
 
@@ -1009,7 +1033,8 @@ int sdl_status_pane_layout_entries(TTF_Font* font,
         content_w = max_content_w;
 
     column_w = (normal_columns > 1)
-        ? (content_w - column_gap_x) / normal_columns
+        ? (content_w - column_gap_x * (normal_columns - 1))
+            / normal_columns
         : content_w;
     if (column_w < 1)
         column_w = content_w;
@@ -1122,6 +1147,7 @@ static bool sdl_status_pane_layout_compute(status_pane_layout* out)
     int row_count = 0;
     int panel_w;
     int panel_h;
+    int column_limit;
     Uint64 layout_hash = 1469598103934665603ULL;
 
     if (!out)
@@ -1187,6 +1213,12 @@ static bool sdl_status_pane_layout_compute(status_pane_layout* out)
 
     max_panel_w = screen.w - pad_x * 2;
     max_panel_h = screen.h - pad_y * 2;
+    if (sdl_mobile_portrait_layout_active()) {
+        int portrait_max = sdl_mobile_portrait_hud_panel_max_width(PANE_STATUS);
+
+        if (portrait_max > 0 && max_panel_w > portrait_max)
+            max_panel_w = portrait_max;
+    }
     if (max_panel_w <= 0 || max_panel_h <= 0)
         return false;
 
@@ -1196,13 +1228,17 @@ static bool sdl_status_pane_layout_compute(status_pane_layout* out)
     max_rows = (max_panel_h - pad_y * 2) / row_h;
     if (max_rows <= 0)
         return false;
+    column_limit = sdl_mobile_portrait_layout_active() ? 4
+        : SDL_STATUS_PANE_COLUMNS;
+    if (sdl_mobile_portrait_layout_active() && max_rows > 2)
+        max_rows = 2;
 
-    /* At most two ordinary entries fit on a row.  Reserve one cell for the
+    /* Reserve one cell for the
      * "More" item when truncating, instead of starting at all 48 entries and
      * reformatting/remeasuring them once for every failed row count. */
     visible_count = count;
-    if (visible_count > max_rows * SDL_STATUS_PANE_COLUMNS) {
-        visible_count = max_rows * SDL_STATUS_PANE_COLUMNS - 1;
+    if (visible_count > max_rows * column_limit) {
+        visible_count = max_rows * column_limit - 1;
         if (visible_count < 0)
             visible_count = 0;
     }
@@ -1231,14 +1267,20 @@ static bool sdl_status_pane_layout_compute(status_pane_layout* out)
     if (panel_h > max_panel_h)
         panel_h = max_panel_h;
 
-    out->panel = sdl_overlay_panel_rect(&anchor, where, panel_w,
-        panel_h, &screen);
+    if (!sdl_mobile_portrait_hud_panel_rect(PANE_STATUS, panel_w, panel_h,
+            &out->panel))
+    {
+        out->panel = sdl_overlay_panel_rect(&anchor, where, panel_w,
+            panel_h, &screen);
+    }
     out->layout_count = layout_count;
+    out->content_w = content_w;
     out->font_px = font_px;
     out->row_h = row_h;
     out->pad_x = pad_x;
     out->pad_y = pad_y;
     out->item_pad_x = item_pad_x;
+    out->right_align = sdl_left_panel_pane_placement_is_right(where);
 
     stable_cache_layout = *out;
     stable_cache_hash = layout_hash;
@@ -1285,6 +1327,11 @@ void sdl_status_pane_render(void)
     {
         float text_x = layout.panel.x + (float)layout.pad_x;
 
+        if (layout.right_align) {
+            text_x = layout.panel.x + layout.panel.w
+                - (float)layout.pad_x - (float)layout.content_w;
+        }
+
         for (int i = 0; i < layout.layout_count; i++) {
             status_pane_layout_item* item = &layout.items[i];
             SDL_Color color;
@@ -1301,7 +1348,7 @@ void sdl_status_pane_render(void)
             color = sdl_status_pane_color(item->attr);
             sdl_status_pane_draw_text(font, item->line, color,
                 item_text_x, row_y, item_text_w, (float)layout.row_h,
-                false);
+                layout.right_align);
         }
     }
 }

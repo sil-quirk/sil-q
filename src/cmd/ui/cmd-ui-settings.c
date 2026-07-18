@@ -1076,6 +1076,33 @@ static bool settings_pick_value(cptr title, cptr desc,
         out_value, true);
 }
 
+static bool settings_pick_integer_range(cptr title, cptr desc, int min_value,
+    int max_value, int current_value, bool show_sign, int* out_value)
+{
+    struct settings_value_choice choices[SETTINGS_VALUE_PICKER_MAX];
+    char labels[SETTINGS_VALUE_PICKER_MAX][24];
+    int count;
+
+    if (!out_value || max_value < min_value)
+        return false;
+
+    count = max_value - min_value + 1;
+    if (count > SETTINGS_VALUE_PICKER_MAX)
+        return false;
+
+    for (int i = 0; i < count; i++) {
+        int value = min_value + i;
+
+        strnfmt(labels[i], sizeof(labels[i]), show_sign ? "%+d" : "%d",
+            value);
+        choices[i].value = value;
+        choices[i].label = labels[i];
+    }
+
+    return settings_pick_value(title, desc, choices, count, current_value,
+        out_value);
+}
+
 static bool option_pick_from_choices(int opt,
     const struct settings_value_choice* choices, int count, int current_value,
     int* out_value, bool* handled)
@@ -1433,6 +1460,7 @@ enum iface_pane_field {
     IFACE_PANE_FIELD_BUTTONS,
     IFACE_PANE_FIELD_LP_LAUNCH,
     IFACE_PANE_FIELD_LP_COMPACT,
+    IFACE_PANE_FIELD_OVERLAY_LOG_BORDER,
     IFACE_PANE_FIELD_DICE_LOCK,
     IFACE_PANE_FIELD_DICE_OVERLAY,
     IFACE_PANE_FIELD_POPUP_NOTIFICATION
@@ -2852,8 +2880,8 @@ void do_cmd_pane_settings(void)
         PANE_SETTING_MAIN_VIEW_SCALE,
         PANE_SETTING_TERMINAL_MENU_SCALE_OFFSET,
         PANE_SETTING_MOBILE_STARTING_ZOOM_OFFSET,
-#if defined(__ANDROID__)
-        PANE_SETTING_ANDROID_NARRATIVE_PORTRAIT_LAYOUT,
+#if defined(__ANDROID__) || defined(SIL_IOS)
+        PANE_SETTING_MOBILE_PORTRAIT_MODE,
 #endif
         PANE_SETTING_ENABLE_SIDE_PANES,
         PANE_SETTING_ENABLE_BOTTOM_PANES,
@@ -2956,18 +2984,17 @@ void do_cmd_pane_settings(void)
         ADD_PANE_SETTING_ROW(PANE_SETTING_MOBILE_STARTING_ZOOM_OFFSET, 3, a,
             buf);
 
-#if defined(__ANDROID__)
-        /* Rotate narrative rendering; do not change Android orientation. */
-        a = (k == PANE_SETTING_ANDROID_NARRATIVE_PORTRAIT_LAYOUT)
+#if defined(__ANDROID__) || defined(SIL_IOS)
+        a = (k == PANE_SETTING_MOBILE_PORTRAIT_MODE)
             ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf),
             settings_ui_pick_label(label_hint,
-                "Vertical Narrative Screens",
-                "Vertical Narratives",
-                "Vertical Stories"),
-            get_sdl_android_narrative_portrait_layout() ? "yes" : "no",
+                "Portrait Mode",
+                "Portrait Mode",
+                "Portrait"),
+            get_sdl_mobile_portrait_mode() ? "yes" : "no",
             row_width, 3);
-        ADD_PANE_SETTING_ROW(PANE_SETTING_ANDROID_NARRATIVE_PORTRAIT_LAYOUT, 4,
+        ADD_PANE_SETTING_ROW(PANE_SETTING_MOBILE_PORTRAIT_MODE, 4,
             a, buf);
 #endif
 
@@ -3125,12 +3152,11 @@ void do_cmd_pane_settings(void)
                     "Extra zoom steps applied when gameplay starts on mobile. "
                     "Set to 0 to start at the configured main-map scale. The "
                     "result is limited to what the screen can display.",
-#if defined(__ANDROID__)
-                [PANE_SETTING_ANDROID_NARRATIVE_PORTRAIT_LAYOUT] =
-                    "Rotate full portrait narrative screens so welcome, "
-                    "story, tale, poetry, and book pages are upright when "
-                    "the phone is held vertically. Android itself stays in "
-                    "landscape mode.",
+#if defined(__ANDROID__) || defined(SIL_IOS)
+                [PANE_SETTING_MOBILE_PORTRAIT_MODE] =
+                    "Use the device's real portrait orientation. Turning it "
+                    "off returns the game to landscape; the screen, safe "
+                    "area, and touch input then reflow normally.",
 #endif
                 [PANE_SETTING_ENABLE_SIDE_PANES] =
                     "Show panes to the side of the map (inventory, monster "
@@ -3147,7 +3173,9 @@ void do_cmd_pane_settings(void)
                     "Let the display extend into a screen notch or rounded "
                     "cutout. Off keeps everything within the safe area.",
                 [PANE_SETTING_WHITE_PANE_BORDERS] =
-                    "Color of the lines drawn around each pane.",
+                    "Use white rather than black separator lines for ordinary "
+                    "panes. Configure the overlay-log border in Interface > "
+                    "Overlay Log.",
                 [PANE_SETTING_HIDE_FULLSCREEN_PANES] =
                     "On full-screen menus (inventory, character sheet, and the "
                     "like), hide the supporting panes to reduce clutter.",
@@ -3220,10 +3248,9 @@ void do_cmd_pane_settings(void)
                         set_sdl_mobile_starting_zoom_offset(
                             def.mobile_starting_zoom_offset);
                         break;
-#if defined(__ANDROID__)
-                    case PANE_SETTING_ANDROID_NARRATIVE_PORTRAIT_LAYOUT:
-                        set_sdl_android_narrative_portrait_layout(
-                            def.android_narrative_portrait_layout);
+#if defined(__ANDROID__) || defined(SIL_IOS)
+                    case PANE_SETTING_MOBILE_PORTRAIT_MODE:
+                        set_sdl_mobile_portrait_mode(def.mobile_portrait_mode);
                         break;
 #endif
                     case PANE_SETTING_ENABLE_SIDE_PANES:
@@ -3261,13 +3288,15 @@ void do_cmd_pane_settings(void)
                 else if (clicked_choice >= 0 && clicked_choice < n)
                 {
                     bool was_current = (clicked_choice == k);
+                    bool touch_primary = sdl_touch_only_device_active()
+                        && click_action == UI_MENU_CLICK_PRIMARY;
 
                     k = clicked_choice;
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     if (click_action == UI_MENU_CLICK_SECONDARY)
                         ch = '4';
-                    else if (was_current)
+                    else if (was_current || touch_primary)
                         ch = ' ';
                     else
                         continue;
@@ -3384,7 +3413,55 @@ void do_cmd_pane_settings(void)
         case ' ':
         {
             /* Toggle or activate current option */
-            if (k == PANE_SETTING_ENABLE_SIDE_PANES)
+            if (k == PANE_SETTING_MAIN_VIEW_SCALE)
+            {
+                int old_value = get_sdl_main_view_scale();
+                int value = old_value;
+
+                if (settings_pick_integer_range("Main Terminal Scale", NULL,
+                        get_sdl_min_main_view_scale(), get_sdl_max_scale(),
+                        old_value, false, &value)
+                    && value != old_value)
+                {
+                    set_sdl_main_view_scale(value);
+                    settings_changed = true;
+                    sdl_apply_config();
+                }
+            }
+            else if (k == PANE_SETTING_TERMINAL_MENU_SCALE_OFFSET)
+            {
+                int old_value = get_sdl_terminal_menu_scale_offset();
+                int value = old_value;
+
+                if (settings_pick_integer_range("Terminal Menu Scale Offset",
+                        NULL,
+                        SDL_TERMINAL_MENU_SCALE_OFFSET_MIN,
+                        SDL_TERMINAL_MENU_SCALE_OFFSET_MAX, old_value, true,
+                        &value)
+                    && value != old_value)
+                {
+                    set_sdl_terminal_menu_scale_offset(value);
+                    settings_changed = true;
+                    sdl_apply_config();
+                }
+            }
+            else if (k == PANE_SETTING_MOBILE_STARTING_ZOOM_OFFSET)
+            {
+                int old_value = get_sdl_mobile_starting_zoom_offset();
+                int value = old_value;
+
+                if (settings_pick_integer_range("Mobile Starting Zoom Offset",
+                        NULL,
+                        SDL_MOBILE_STARTING_ZOOM_OFFSET_MIN,
+                        SDL_MOBILE_STARTING_ZOOM_OFFSET_MAX, old_value, true,
+                        &value)
+                    && value != old_value)
+                {
+                    set_sdl_mobile_starting_zoom_offset(value);
+                    settings_changed = true;
+                }
+            }
+            else if (k == PANE_SETTING_ENABLE_SIDE_PANES)
             {
                 set_sdl_enable_right_panes(!get_sdl_enable_right_panes());
                 settings_changed = true;
@@ -3396,11 +3473,10 @@ void do_cmd_pane_settings(void)
                 settings_changed = true;
                 sdl_apply_config();
             }
-#if defined(__ANDROID__)
-            else if (k == PANE_SETTING_ANDROID_NARRATIVE_PORTRAIT_LAYOUT)
+#if defined(__ANDROID__) || defined(SIL_IOS)
+            else if (k == PANE_SETTING_MOBILE_PORTRAIT_MODE)
             {
-                set_sdl_android_narrative_portrait_layout(
-                    !get_sdl_android_narrative_portrait_layout());
+                set_sdl_mobile_portrait_mode(!get_sdl_mobile_portrait_mode());
                 settings_changed = true;
             }
 #endif
@@ -3513,12 +3589,12 @@ void do_cmd_pane_settings(void)
                     settings_changed = true;
                 }
             }
-#if defined(__ANDROID__)
-            else if (k == PANE_SETTING_ANDROID_NARRATIVE_PORTRAIT_LAYOUT)
+#if defined(__ANDROID__) || defined(SIL_IOS)
+            else if (k == PANE_SETTING_MOBILE_PORTRAIT_MODE)
             {
-                if (!get_sdl_android_narrative_portrait_layout())
+                if (!get_sdl_mobile_portrait_mode())
                 {
-                    set_sdl_android_narrative_portrait_layout(true);
+                    set_sdl_mobile_portrait_mode(true);
                     settings_changed = true;
                 }
             }
@@ -3625,12 +3701,12 @@ void do_cmd_pane_settings(void)
                     settings_changed = true;
                 }
             }
-#if defined(__ANDROID__)
-            else if (k == PANE_SETTING_ANDROID_NARRATIVE_PORTRAIT_LAYOUT)
+#if defined(__ANDROID__) || defined(SIL_IOS)
+            else if (k == PANE_SETTING_MOBILE_PORTRAIT_MODE)
             {
-                if (get_sdl_android_narrative_portrait_layout())
+                if (get_sdl_mobile_portrait_mode())
                 {
-                    set_sdl_android_narrative_portrait_layout(false);
+                    set_sdl_mobile_portrait_mode(false);
                     settings_changed = true;
                 }
             }
@@ -4188,6 +4264,8 @@ static int build_interface_pane_rows(struct iface_pane_row* rows, int max_rows,
             fields[field_count++] = IFACE_PANE_FIELD_ENABLED;
             fields[field_count++] = IFACE_PANE_FIELD_PLACEMENT;
             fields[field_count++] = IFACE_PANE_FIELD_FONT;
+            if (type == PANE_ROLLS)
+                fields[field_count++] = IFACE_PANE_FIELD_OVERLAY_LOG_BORDER;
         }
 
         if (row_count + field_count > max_rows)
@@ -4266,6 +4344,7 @@ static cptr iface_pane_row_label(const struct iface_pane_row* row)
     case IFACE_PANE_FIELD_BUTTONS: return "Assignments";
     case IFACE_PANE_FIELD_LP_LAUNCH: return "Launch State";
     case IFACE_PANE_FIELD_LP_COMPACT: return "Compact Mode";
+    case IFACE_PANE_FIELD_OVERLAY_LOG_BORDER: return "White Border";
     case IFACE_PANE_FIELD_DICE_LOCK: return "Lock Time";
     case IFACE_PANE_FIELD_DICE_OVERLAY: return "Result Time";
     case IFACE_PANE_FIELD_POPUP_NOTIFICATION: return "Display Time";
@@ -4319,6 +4398,10 @@ static void iface_pane_row_value(const struct iface_pane_row* row, char* buf,
                 ? "row" : "column",
             buflen);
         break;
+    case IFACE_PANE_FIELD_OVERLAY_LOG_BORDER:
+        SDL_strlcpy(buf, get_sdl_show_overlay_log_border() ? "on" : "off",
+            buflen);
+        break;
     case IFACE_PANE_FIELD_DICE_LOCK:
         iface_format_ms_value(buf, buflen, get_sdl_dice_roll_lock_ms());
         break;
@@ -4340,6 +4423,7 @@ static void iface_pane_row_apply_change(const struct iface_pane_row* row)
     {
     case IFACE_PANE_FIELD_LP_LAUNCH:
     case IFACE_PANE_FIELD_LP_COMPACT:
+    case IFACE_PANE_FIELD_OVERLAY_LOG_BORDER:
         sdl_request_redraw();
         break;
     case IFACE_PANE_FIELD_DICE_LOCK:
@@ -4562,6 +4646,17 @@ static bool iface_pane_row_pick_value(const struct iface_pane_row* row,
         }
         break;
 
+    case IFACE_PANE_FIELD_OVERLAY_LOG_BORDER:
+        value = get_sdl_show_overlay_log_border() ? 1 : 0;
+        if (iface_pane_pick_from_choices(row, off_on_choices,
+                (int)N_ELEMENTS(off_on_choices), value, &value, handled)
+            && value != (get_sdl_show_overlay_log_border() ? 1 : 0))
+        {
+            set_sdl_show_overlay_log_border(value != 0);
+            changed = true;
+        }
+        break;
+
     case IFACE_PANE_FIELD_DICE_LOCK:
     case IFACE_PANE_FIELD_DICE_OVERLAY:
     case IFACE_PANE_FIELD_POPUP_NOTIFICATION:
@@ -4714,6 +4809,17 @@ static bool iface_pane_row_adjust(const struct iface_pane_row* row, int delta)
                 : SDL_LEFT_PANEL_COMPACT_ROW);
         changed = true;
         break;
+    case IFACE_PANE_FIELD_OVERLAY_LOG_BORDER:
+    {
+        bool cur = get_sdl_show_overlay_log_border();
+        bool next = (delta == 0) ? !cur : (delta > 0);
+        if (next != cur)
+        {
+            set_sdl_show_overlay_log_border(next);
+            changed = true;
+        }
+        break;
+    }
     case IFACE_PANE_FIELD_DICE_LOCK:
     {
         int value = get_sdl_dice_roll_lock_ms();
@@ -4851,6 +4957,13 @@ static bool iface_pane_row_reset_to_default(const struct iface_pane_row* row)
         if (get_sdl_left_panel_compact_mode() != def.left_panel_compact_mode)
         {
             set_sdl_left_panel_compact_mode(def.left_panel_compact_mode);
+            changed = true;
+        }
+        break;
+    case IFACE_PANE_FIELD_OVERLAY_LOG_BORDER:
+        if (get_sdl_show_overlay_log_border() != def.show_overlay_log_border)
+        {
+            set_sdl_show_overlay_log_border(def.show_overlay_log_border);
             changed = true;
         }
         break;
@@ -8141,6 +8254,7 @@ static void do_cmd_mouse_settings(bool* settings_changed)
     enum {
         MOUSE_SETTING_ENABLE = 0,
         MOUSE_SETTING_MOVEMENT,
+        MOUSE_SETTING_TILE_POINTER,
         MOUSE_SETTING_TUTORIAL,
         MOUSE_SETTING_COUNT
     };
@@ -8174,6 +8288,11 @@ static void do_cmd_mouse_settings(bool* settings_changed)
                 SDL_strlcpy(action_buf,
                     mouse_movement_mode_label(get_sdl_mouse_movement_mode()),
                     sizeof(action_buf));
+            } else if (i == MOUSE_SETTING_TILE_POINTER) {
+                label = "Tile Pointer";
+                SDL_strlcpy(action_buf,
+                    get_sdl_mouse_tile_pointer() ? "On" : "Off",
+                    sizeof(action_buf));
             } else {
                 label = "Mouse tutorial";
             }
@@ -8202,6 +8321,8 @@ static void do_cmd_mouse_settings(bool* settings_changed)
                 [MOUSE_SETTING_MOVEMENT] =
                     "How clicking the map moves you: walk to the clicked spot, "
                     "single step toward it, or disabled.",
+                [MOUSE_SETTING_TILE_POINTER] =
+                    "Use tile row 12, column 31 as the mouse pointer.",
                 [MOUSE_SETTING_TUTORIAL] =
                     "Replay the mouse-controls tutorial.",
             };
@@ -8307,6 +8428,9 @@ static void do_cmd_mouse_settings(bool* settings_changed)
                 set_sdl_mouse_movement_mode(
                     mouse_movement_mode_cycle(get_sdl_mouse_movement_mode(), -1));
                 changed = true;
+            } else if (highlight == MOUSE_SETTING_TILE_POINTER) {
+                set_sdl_mouse_tile_pointer(false);
+                changed = true;
             }
             break;
 
@@ -8321,6 +8445,9 @@ static void do_cmd_mouse_settings(bool* settings_changed)
             } else if (highlight == MOUSE_SETTING_MOVEMENT) {
                 set_sdl_mouse_movement_mode(
                     mouse_movement_mode_cycle(get_sdl_mouse_movement_mode(), 1));
+                changed = true;
+            } else if (highlight == MOUSE_SETTING_TILE_POINTER) {
+                set_sdl_mouse_tile_pointer(!get_sdl_mouse_tile_pointer());
                 changed = true;
             } else if (highlight == MOUSE_SETTING_TUTORIAL) {
                 settings_semantic_menu_hide();
@@ -8338,6 +8465,10 @@ static void do_cmd_mouse_settings(bool* settings_changed)
             } else if (highlight == MOUSE_SETTING_MOVEMENT) {
                 set_sdl_mouse_movement_mode(get_sdl_mouse_movement_default_mode());
                 changed = true;
+            } else if (highlight == MOUSE_SETTING_TILE_POINTER) {
+                set_sdl_mouse_tile_pointer(
+                    get_sdl_mouse_default_tile_pointer());
+                changed = true;
             }
             break;
 
@@ -8345,6 +8476,7 @@ static void do_cmd_mouse_settings(bool* settings_changed)
         case 'M':
             set_sdl_mouse_enabled(get_sdl_mouse_default_enabled());
             set_sdl_mouse_movement_mode(get_sdl_mouse_movement_default_mode());
+            set_sdl_mouse_tile_pointer(get_sdl_mouse_default_tile_pointer());
             changed = true;
             break;
 

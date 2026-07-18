@@ -1151,6 +1151,7 @@ bool sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font
         // Integer scaling mode.
 #if defined(__ANDROID__) || defined(SIL_IOS)
         int requested_scale = scale;
+        SDL_Rect scale_reference;
         bool runtime_zoom = (g_main_view_zoom_scale > 0
             && scale == g_main_view_zoom_scale);
         int min_cols = runtime_zoom
@@ -1162,9 +1163,25 @@ bool sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font
                 SDL_MAIN_VIEW_ZOOM_MIN_MAP_SQUARES)
             : sdl_current_min_terminal_rows();
         int bottom_rows_for_minimum = 0;
-        int max_scale_for_min_cols = (rect.w / min_cols) * 2 / TILE_SIZE;
-        int max_scale_for_min_rows = rect.h / min_rows / TILE_SIZE;
+        int max_scale_for_min_cols;
+        int max_scale_for_min_rows;
         int effective_scale = requested_scale;
+
+        scale_reference = rect;
+        if (sdl_mobile_portrait_layout_active()) {
+            SDL_Rect screen = sdl_get_layout_screen_rect();
+
+            /* Orientation does not change the physical display's scale.
+             * Size portrait cells from the full screen with its axes
+             * reversed, not from the smaller map pane left after reserving
+             * the portrait HUD. */
+            if (sdl_rect_has_area(&screen))
+                sdl_mobile_portrait_scale_reference_rect(&screen,
+                    &scale_reference);
+        }
+        max_scale_for_min_cols = (scale_reference.w / min_cols) * 2
+            / TILE_SIZE;
+        max_scale_for_min_rows = scale_reference.h / min_rows / TILE_SIZE;
 
         if (!runtime_zoom) {
             bottom_rows_for_minimum =
@@ -1173,7 +1190,8 @@ bool sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font
                 min_rows -= bottom_rows_for_minimum;
                 if (min_rows < 1)
                     min_rows = 1;
-                max_scale_for_min_rows = rect.h / min_rows / TILE_SIZE;
+                max_scale_for_min_rows = scale_reference.h / min_rows
+                    / TILE_SIZE;
             }
         }
 

@@ -19,21 +19,7 @@ enum {
 static bool g_sdl_select_choice_page_only = false;
 static bool g_sdl_select_dynamic_description = false;
 static int g_sdl_select_menu_rows_per_column = 0;
-static SDL_Texture* g_sdl_narrative_portrait_texture = NULL;
-static int g_sdl_narrative_portrait_texture_w = 0;
-static int g_sdl_narrative_portrait_texture_h = 0;
-static bool g_sdl_narrative_portrait_rotation_active = false;
 static bool g_sdl_narrative_portrait_rendering = false;
-#if defined(__ANDROID__)
-static bool g_sdl_narrative_portrait_clockwise = false;
-static SDL_Rect g_sdl_narrative_portrait_safe_area = { 0 };
-static bool g_sdl_narrative_portrait_safe_clockwise = false;
-static int g_sdl_narrative_portrait_safe_window_w = 0;
-static int g_sdl_narrative_portrait_safe_window_h = 0;
-static Uint64 g_sdl_narrative_portrait_safe_checked_ms = 0;
-#endif
-static int g_sdl_narrative_portrait_window_w = 0;
-static int g_sdl_narrative_portrait_window_h = 0;
 
 static bool sdl_narrative_portrait_adjust_canvas(SDL_Rect* canvas);
 
@@ -487,23 +473,7 @@ void sdl_welcome_screen_hide(void)
     g_sdl_welcome_screen.status[0] = '\0';
     g_sdl_welcome_screen.hover_continue = false;
     g_sdl_welcome_screen.hover_quit = false;
-    g_sdl_narrative_portrait_rotation_active = false;
     g_sdl_narrative_portrait_rendering = false;
-    g_sdl_narrative_portrait_window_w = 0;
-    g_sdl_narrative_portrait_window_h = 0;
-#if defined(__ANDROID__)
-    g_sdl_narrative_portrait_safe_area = (SDL_Rect){ 0 };
-    g_sdl_narrative_portrait_safe_window_w = 0;
-    g_sdl_narrative_portrait_safe_window_h = 0;
-    g_sdl_narrative_portrait_safe_checked_ms = 0;
-#endif
-    if (g_sdl_narrative_portrait_texture)
-    {
-        SDL_DestroyTexture(g_sdl_narrative_portrait_texture);
-        g_sdl_narrative_portrait_texture = NULL;
-        g_sdl_narrative_portrait_texture_w = 0;
-        g_sdl_narrative_portrait_texture_h = 0;
-    }
     sdl_welcome_screen_clear_hits();
     sdl_welcome_screen_mark_dirty();
 }
@@ -2100,248 +2070,46 @@ static void sdl_welcome_screen_render_canvas(const SDL_Rect* canvas)
         sdl_welcome_render_status_canvas(canvas);
 }
 
-#if defined(__ANDROID__)
-static bool sdl_narrative_portrait_should_rotate_clockwise(void)
-{
-    SDL_DisplayID display;
-    SDL_DisplayOrientation orientation;
-
-    if (!g_state.window)
-        return false;
-
-    display = SDL_GetDisplayForWindow(g_state.window);
-    orientation = SDL_GetCurrentDisplayOrientation(display);
-
-    /* In reverse landscape the phone's left side is currently uppermost, so
-     * clockwise portrait content becomes upright when the phone is returned
-     * to its normal vertical position.  Normal landscape needs the inverse. */
-    return orientation == SDL_ORIENTATION_LANDSCAPE_FLIPPED;
-}
-
-static bool sdl_narrative_portrait_ensure_texture(int width, int height)
-{
-    if (g_sdl_narrative_portrait_texture
-        && (g_sdl_narrative_portrait_texture_w != width
-            || g_sdl_narrative_portrait_texture_h != height))
-    {
-        SDL_DestroyTexture(g_sdl_narrative_portrait_texture);
-        g_sdl_narrative_portrait_texture = NULL;
-        g_sdl_narrative_portrait_texture_w = 0;
-        g_sdl_narrative_portrait_texture_h = 0;
-    }
-
-    if (!g_sdl_narrative_portrait_texture)
-    {
-        g_sdl_narrative_portrait_texture = SDL_CreateTexture(
-            g_state.renderer, SDL_PIXELFORMAT_RGBA8888,
-            SDL_TEXTUREACCESS_TARGET, width, height);
-        if (!g_sdl_narrative_portrait_texture)
-            return false;
-
-        g_sdl_narrative_portrait_texture_w = width;
-        g_sdl_narrative_portrait_texture_h = height;
-        (void)SDL_SetTextureBlendMode(g_sdl_narrative_portrait_texture,
-            SDL_BLENDMODE_NONE);
-    }
-
-    return true;
-}
-#endif
-
-/* Select a portrait-sized target for a complete narrative screen. Android
- * remains landscape; only the rendered page and its logical coordinates are
- * swapped. */
+/* Narrative screens use their portrait presentation whenever the mobile
+ * window itself is portrait.  The old Android-only implementation rendered
+ * into a swapped texture and rotated both pixels and pointer coordinates;
+ * actual platform orientation makes that extra transform incorrect. */
 static bool sdl_narrative_portrait_adjust_canvas(SDL_Rect* canvas)
 {
-#if defined(__ANDROID__)
-    SDL_Rect window;
-    SDL_Rect portrait;
     SDL_Rect safe;
-    SDL_Rect portrait_safe;
-    bool clockwise;
 
-    if (canvas && g_state.renderer
-        && get_sdl_android_narrative_portrait_layout())
-    {
-        window = sdl_get_window_pixel_rect();
-        if (window.w > window.h && window.h > 0)
-        {
-            portrait = (SDL_Rect){ 0, 0, window.h, window.w };
-            if (sdl_narrative_portrait_ensure_texture(portrait.w, portrait.h))
-            {
-                Uint64 now_ms = SDL_GetTicks();
-                bool cached_full =
-                    g_sdl_narrative_portrait_safe_area.x == 0
-                    && g_sdl_narrative_portrait_safe_area.y == 0
-                    && g_sdl_narrative_portrait_safe_area.w == window.w
-                    && g_sdl_narrative_portrait_safe_area.h == window.h;
+    if (!canvas || !sdl_mobile_portrait_layout_active())
+        return false;
 
-                /* The Android window stays landscape, so its cutout-safe
-                 * rectangle must be transformed into the rotated portrait
-                 * page's coordinates.  Using the raw landscape safe rect (or
-                 * the full swapped canvas) puts the first/last lines beneath
-                 * a camera notch when the phone is held upright. */
-                clockwise = sdl_narrative_portrait_should_rotate_clockwise();
-                if (!sdl_rect_has_area(
-                        &g_sdl_narrative_portrait_safe_area)
-                    || g_sdl_narrative_portrait_safe_window_w != window.w
-                    || g_sdl_narrative_portrait_safe_window_h != window.h
-                    || g_sdl_narrative_portrait_safe_clockwise != clockwise
-                    || (cached_full
-                        && now_ms - g_sdl_narrative_portrait_safe_checked_ms
-                            >= 1000u))
-                {
-                    g_sdl_narrative_portrait_safe_area =
-                        sdl_get_android_display_cutout_rect();
-                    g_sdl_narrative_portrait_safe_window_w = window.w;
-                    g_sdl_narrative_portrait_safe_window_h = window.h;
-                    g_sdl_narrative_portrait_safe_clockwise = clockwise;
-                    g_sdl_narrative_portrait_safe_checked_ms = now_ms;
-                }
-                safe = g_sdl_narrative_portrait_safe_area;
-                if (!sdl_rect_has_area(&safe))
-                    safe = window;
-                if (clockwise)
-                {
-                    portrait_safe = (SDL_Rect){
-                        safe.y,
-                        window.w - (safe.x + safe.w),
-                        safe.h,
-                        safe.w,
-                    };
-                }
-                else
-                {
-                    portrait_safe = (SDL_Rect){
-                        window.h - (safe.y + safe.h),
-                        safe.x,
-                        safe.h,
-                        safe.w,
-                    };
-                }
-                if (!sdl_rect_has_area(&portrait_safe))
-                    portrait_safe = portrait;
-                *canvas = portrait_safe;
-                return true;
-            }
-        }
-    }
-#else
-    (void)canvas;
-#endif
+    safe = sdl_get_layout_screen_rect();
+    if (!sdl_rect_has_area(&safe))
+        return false;
 
-    return false;
+    *canvas = safe;
+    return true;
+
 }
 
 static bool sdl_narrative_portrait_begin(SDL_Rect* canvas)
 {
-    g_sdl_narrative_portrait_rotation_active = false;
-    g_sdl_narrative_portrait_rendering = false;
-
-#if defined(__ANDROID__)
-    SDL_Rect original = canvas ? *canvas : (SDL_Rect){ 0 };
-
-    if (sdl_narrative_portrait_adjust_canvas(canvas)
-        && SDL_SetRenderTarget(g_state.renderer,
-            g_sdl_narrative_portrait_texture))
-    {
-        g_sdl_narrative_portrait_rendering = true;
-        return true;
-    }
-    if (canvas)
-        *canvas = original;
-#else
-    (void)canvas;
-#endif
-
     if (g_state.renderer)
         (void)SDL_SetRenderTarget(g_state.renderer, NULL);
-    return false;
+    g_sdl_narrative_portrait_rendering =
+        sdl_narrative_portrait_adjust_canvas(canvas);
+    return g_sdl_narrative_portrait_rendering;
 }
 
 static void sdl_narrative_portrait_finish(bool portrait)
 {
-    g_sdl_narrative_portrait_rendering = false;
-#if defined(__ANDROID__)
-    SDL_Rect window;
-    SDL_FPoint origin;
-    SDL_FPoint right;
-    SDL_FPoint down;
-    bool clockwise;
-
-    if (!portrait || !g_state.renderer)
-        return;
-
-    window = sdl_get_window_pixel_rect();
-    if (!SDL_SetRenderTarget(g_state.renderer, NULL))
-        return;
-    SDL_SetRenderClipRect(g_state.renderer, NULL);
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
-    SDL_RenderClear(g_state.renderer);
-
-    clockwise = sdl_narrative_portrait_should_rotate_clockwise();
-    if (clockwise)
-    {
-        origin = (SDL_FPoint){ (float)window.w, 0.0f };
-        right = (SDL_FPoint){ (float)window.w, (float)window.h };
-        down = (SDL_FPoint){ 0.0f, 0.0f };
-    }
-    else
-    {
-        origin = (SDL_FPoint){ 0.0f, (float)window.h };
-        right = (SDL_FPoint){ 0.0f, 0.0f };
-        down = (SDL_FPoint){ (float)window.w, (float)window.h };
-    }
-
-    if (!SDL_RenderTextureAffine(g_state.renderer,
-            g_sdl_narrative_portrait_texture, NULL, &origin, &right, &down))
-    {
-        return;
-    }
-
-    g_sdl_narrative_portrait_rotation_active = true;
-    g_sdl_narrative_portrait_clockwise = clockwise;
-    g_sdl_narrative_portrait_window_w = window.w;
-    g_sdl_narrative_portrait_window_h = window.h;
-#else
     (void)portrait;
-#endif
+    g_sdl_narrative_portrait_rendering = false;
 }
 
 bool sdl_narrative_portrait_transform_pointer(float* x, float* y)
 {
-#if defined(__ANDROID__)
-    float layout_x;
-    float layout_y;
-
-    if (!x || !y || !g_sdl_narrative_portrait_rotation_active
-        || g_sdl_narrative_portrait_window_w <= 0
-        || g_sdl_narrative_portrait_window_h <= 0)
-    {
-        return false;
-    }
-
-    if (g_sdl_narrative_portrait_clockwise)
-    {
-        layout_x = *y;
-        layout_y = (float)g_sdl_narrative_portrait_window_w - *x;
-    }
-    else
-    {
-        layout_x = (float)g_sdl_narrative_portrait_window_h - *y;
-        layout_y = *x;
-    }
-
-    *x = sdl_char_sheet_clampf(layout_x, 0.0f,
-        (float)g_sdl_narrative_portrait_window_h);
-    *y = sdl_char_sheet_clampf(layout_y, 0.0f,
-        (float)g_sdl_narrative_portrait_window_w);
-    return true;
-#else
     (void)x;
     (void)y;
     return false;
-#endif
 }
 
 void sdl_welcome_screen_render(void)
@@ -13721,7 +13489,7 @@ void sdl_character_sheet_screen_render(void)
     }
     else
     {
-        g_sdl_narrative_portrait_rotation_active = false;
+        g_sdl_narrative_portrait_rendering = false;
         if (g_state.renderer)
             (void)SDL_SetRenderTarget(g_state.renderer, NULL);
         sdl_character_sheet_screen_render_canvas(NULL);

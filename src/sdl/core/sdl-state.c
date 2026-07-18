@@ -703,6 +703,7 @@ int g_default_gamepad_shoulder_combo_binding = GAMEPAD_BIND_NONE;
 bool g_default_gamepad_bindings_ready = false;
 bool g_default_mouse_enabled = true;
 int g_default_mouse_movement_mode = SDL_MOUSE_MOVEMENT_ON;
+bool g_default_mouse_tile_pointer = false;
 bool g_default_mouse_settings_ready = false;
 int g_default_touch_pane_bindings[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_BUTTON_COUNT];
 char g_default_touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_LABEL_LEN];

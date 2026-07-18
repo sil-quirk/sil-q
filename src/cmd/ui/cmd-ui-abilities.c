@@ -2208,6 +2208,13 @@ typedef struct ability_browser_layout
     int ability_divider_col;
     int desc_col;
     int desc_w;
+    bool stacked;
+    int ability_row;
+    int ability_rows;
+    int ability_entry_rows;
+    int desc_header_row;
+    int desc_row;
+    int desc_rows;
 } ability_browser_layout;
 
 typedef struct ability_browser_entry
@@ -2457,6 +2464,47 @@ static void ability_browser_init_layout(ability_browser_layout* layout)
     layout->desc_w = layout->visible_col + layout->visible_w - layout->desc_col;
     if (layout->desc_w < 1)
         layout->desc_w = 1;
+    layout->stacked = false;
+    layout->ability_row = layout->list_row;
+    layout->ability_rows = layout->list_rows;
+    layout->ability_entry_rows = 1;
+    layout->desc_header_row = layout->header_row;
+    layout->desc_row = layout->list_row;
+    layout->desc_rows = layout->list_rows;
+
+    if (sdl_mobile_portrait_layout_active() && layout->list_rows >= 3)
+    {
+        int ability_rows = (layout->list_rows * 2) / 5;
+        int desc_rows;
+
+        if (layout->list_rows >= 6 && ability_rows < 3)
+            ability_rows = 3;
+        if (ability_rows < 1)
+            ability_rows = 1;
+        if (ability_rows > 6)
+            ability_rows = 6;
+        desc_rows = layout->list_rows - ability_rows - 1;
+        if (desc_rows < 1)
+        {
+            desc_rows = 1;
+            ability_rows = MAX(1, layout->list_rows - desc_rows - 1);
+        }
+
+        layout->stacked = true;
+        layout->ability_col = layout->visible_col;
+        layout->ability_w = layout->visible_w;
+        layout->ability_divider_col = -1;
+        layout->desc_col = layout->visible_col;
+        layout->desc_w = layout->visible_w;
+        layout->ability_row = layout->list_row;
+        layout->ability_rows = ability_rows;
+        layout->ability_entry_rows = (layout->ability_w < 42) ? 3 : 2;
+        if (layout->ability_entry_rows > layout->ability_rows)
+            layout->ability_entry_rows = layout->ability_rows;
+        layout->desc_header_row = layout->ability_row + ability_rows;
+        layout->desc_row = layout->desc_header_row + 1;
+        layout->desc_rows = desc_rows;
+    }
 }
 
 static void ability_desc_add_line(ability_browser_desc_line lines[],
@@ -2519,6 +2567,47 @@ static int ability_browser_wrap_take(cptr text, int max_bytes, int max_cols)
         return bytes;
 
     return utf8_sequence_len_n(text, max_bytes);
+}
+
+static bool ability_browser_wrap_next(cptr* cursor, int width, char* line,
+    size_t line_len)
+{
+    cptr p;
+    int take;
+    int copy_len;
+
+    if (!cursor || !*cursor || !line || line_len == 0 || width <= 0)
+        return false;
+
+    p = *cursor;
+    while (*p == ' ' || *p == '\t' || *p == '\n')
+        p++;
+    if (!*p) {
+        *cursor = p;
+        line[0] = '\0';
+        return false;
+    }
+
+    take = ability_browser_wrap_take(p, (int)strlen(p), width);
+    if (take <= 0)
+        return false;
+    copy_len = take;
+    while (copy_len > 0
+        && (p[copy_len - 1] == ' ' || p[copy_len - 1] == '\t'))
+    {
+        copy_len--;
+    }
+    copy_len = utf8_safe_prefix_len(p, copy_len);
+    if (copy_len >= (int)line_len)
+        copy_len = utf8_safe_prefix_len(p, (int)line_len - 1);
+
+    SDL_memcpy(line, p, (size_t)copy_len);
+    line[copy_len] = '\0';
+    p += take;
+    while (*p == ' ' || *p == '\t' || *p == '\n')
+        p++;
+    *cursor = p;
+    return true;
 }
 
 static void ability_desc_add_wrapped_segment(ability_browser_desc_line lines[],
@@ -3081,6 +3170,8 @@ static void ability_browser_draw_ability_list(
     int name_col = level_col + 4;
     int state_col = layout->ability_col + layout->ability_w - 8;
     int name_w = state_col - name_col - 1;
+    int entry_rows = MAX(layout->ability_entry_rows, 1);
+    int visible_entries = MAX(layout->ability_rows / entry_rows, 1);
 
     if (name_w < 1)
         name_w = 1;
@@ -3090,10 +3181,10 @@ static void ability_browser_draw_ability_list(
     ability_browser_put_fitted(layout->ability_col, layout->header_row,
         layout->ability_w, TERM_SLATE, "Lvl Ability                       State");
 
-    for (int i = 0; i < layout->list_rows; i++)
+    for (int i = 0; i < visible_entries; i++)
     {
         int idx = entry_top + i;
-        int y = layout->list_row + i;
+        int y = layout->ability_row + i * entry_rows;
         const ability_browser_entry* entry;
         char state[32];
         char level[8];
@@ -3104,6 +3195,7 @@ static void ability_browser_draw_ability_list(
         byte prefix_attr;
         byte level_attr;
         byte state_attr;
+        cptr name_cursor;
 
         if (idx >= entry_count)
             break;
@@ -3118,8 +3210,12 @@ static void ability_browser_draw_ability_list(
         level_attr = highlighted ? row_attr : TERM_SLATE;
         state_attr = highlighted ? row_attr : entry->attr;
 
-        ability_browser_fill_row(layout->ability_col, y, layout->ability_w,
-            highlighted ? row_attr : TERM_DARK);
+        for (int line_idx = 0; line_idx < entry_rows; line_idx++) {
+            ability_browser_fill_row(layout->ability_col, y + line_idx,
+                layout->ability_w, highlighted ? row_attr : TERM_DARK);
+            ui_menu_click_add(ABILITY_MENU_CLICK_ABILITY_BASE + idx,
+                layout->ability_col, y + line_idx, layout->ability_w);
+        }
 
         if (selected)
             indexed_menu_focus_prefix(prefix, sizeof(prefix), idx);
@@ -3129,16 +3225,24 @@ static void ability_browser_draw_ability_list(
 
         strnfmt(level, sizeof(level), "%2d", entry->b_ptr->level);
         ability_browser_put_fitted(level_col, y, 2, level_attr, level);
-        ability_browser_put_fitted(name_col, y, name_w, row_attr,
-            entry->name);
+        name_cursor = entry->name;
+        for (int line_idx = 0; line_idx < entry_rows; line_idx++) {
+            char name_line[96];
+
+            if (!ability_browser_wrap_next(&name_cursor, name_w, name_line,
+                    sizeof(name_line)))
+            {
+                name_line[0] = '\0';
+            }
+            ability_browser_put_fitted(name_col, y + line_idx, name_w,
+                row_attr, name_line);
+        }
 
         ability_browser_entry_state(state, sizeof(state), skilltype, entry);
         ability_browser_put_fitted(state_col, y,
             layout->ability_col + layout->ability_w - state_col,
             state_attr, state);
 
-        ui_menu_click_add(ABILITY_MENU_CLICK_ABILITY_BASE + idx,
-            layout->ability_col, y, layout->ability_w);
     }
 }
 
@@ -3906,9 +4010,11 @@ static void ability_browser_draw_description(
     bool focused)
 {
     char label[64];
-    int visible_rows = layout->list_rows;
+    int visible_rows = layout->desc_rows;
+    int header_row = layout->stacked ? layout->desc_header_row
+                                     : layout->header_row;
 
-    ability_browser_put_fitted(layout->desc_col, layout->header_row,
+    ability_browser_put_fitted(layout->desc_col, header_row,
         layout->desc_w, focused ? TERM_L_BLUE : TERM_SLATE, "Information");
 
     if (line_count > visible_rows)
@@ -3917,13 +4023,13 @@ static void ability_browser_draw_description(
             MIN(desc_top + visible_rows, line_count), line_count);
         ability_browser_put_fitted(
             layout->desc_col + MAX(0, layout->desc_w - (int)strlen(label)),
-            layout->header_row, (int)strlen(label), TERM_L_BLUE, label);
+            header_row, (int)strlen(label), TERM_L_BLUE, label);
     }
 
     for (int i = 0; i < visible_rows; i++)
     {
         int idx = desc_top + i;
-        int y = layout->list_row + i;
+        int y = layout->desc_row + i;
 
         Term_erase(layout->desc_col, y, layout->desc_w);
         if (idx >= line_count)
@@ -5245,6 +5351,7 @@ void do_cmd_ability_screen(void)
         int desc_line_count;
         int desc_max_top;
         int desc_wrap_w;
+        int ability_visible_entries;
         int hover_choice;
         int skill_hover = -1;
         bool train_hovered = false;
@@ -5252,6 +5359,8 @@ void do_cmd_ability_screen(void)
         bool steamdeck = steamdeck_controls_active();
 
         ability_browser_init_layout(&layout);
+        ability_visible_entries = MAX(1, layout.ability_rows
+            / MAX(layout.ability_entry_rows, 1));
         skill_options = ability_menu_skill_options();
         if (skill_options < 1)
             skill_options = 1;
@@ -5283,7 +5392,8 @@ void do_cmd_ability_screen(void)
             /* Touch-only menus are viewport-driven: dragging pans the list,
              * and tapping selects.  Do not let the off-screen selection pull
              * the viewport back on the next redraw. */
-            int max_entry_top = MAX(0, entry_count - layout.list_rows);
+            int max_entry_top = MAX(0,
+                entry_count - ability_visible_entries);
             (void)ui_scroll_area_take_touch_scrolled();
             if (entry_top > max_entry_top)
                 entry_top = max_entry_top;
@@ -5292,8 +5402,8 @@ void do_cmd_ability_screen(void)
         {
             if (entry_cur < entry_top)
                 entry_top = entry_cur;
-            if (entry_cur >= entry_top + layout.list_rows)
-                entry_top = entry_cur - layout.list_rows + 1;
+            if (entry_cur >= entry_top + ability_visible_entries)
+                entry_top = entry_cur - ability_visible_entries + 1;
         }
         if (entry_top < 0)
             entry_top = 0;
@@ -5306,7 +5416,7 @@ void do_cmd_ability_screen(void)
         desc_line_count = ability_browser_build_description(skilltype,
             (entry_count > 0) ? &entries[entry_cur] : NULL, desc_lines,
             desc_wrap_w);
-        desc_max_top = MAX(0, desc_line_count - layout.list_rows);
+        desc_max_top = MAX(0, desc_line_count - layout.desc_rows);
         if (desc_top > desc_max_top)
             desc_top = desc_max_top;
         if (desc_top < 0)
@@ -5319,8 +5429,8 @@ void do_cmd_ability_screen(void)
         ui_menu_click_set_touch_exit_button(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
         ui_scroll_area_begin_cols(layout.ability_col,
-            layout.ability_col + layout.ability_w - 1, layout.list_row,
-            MAX(layout.list_row, layout.status_row - 1),
+            layout.ability_col + layout.ability_w - 1, layout.ability_row,
+            layout.ability_row + layout.ability_rows - 1,
             SDL_TOUCH_MENU_CATEGORY_OTHER);
         ui_scroll_area_set_keys('8', '2', '6', '4');
         if (sdl_touch_only_device_active())
@@ -5328,13 +5438,13 @@ void do_cmd_ability_screen(void)
             /* Touch-only: drag pans the ability list without moving the
              * selection (tap an ability to pick it). */
             ui_scroll_area_set_offset_target(&entry_top,
-                MAX(0, entry_count - layout.list_rows));
+                MAX(0, entry_count - ability_visible_entries));
         }
         if (layout.desc_w > 0)
         {
             (void)ui_scroll_area_add_cols(layout.desc_col,
-                layout.desc_col + layout.desc_w - 1, layout.list_row,
-                MAX(layout.list_row, layout.status_row - 1),
+                layout.desc_col + layout.desc_w - 1, layout.desc_row,
+                layout.desc_row + layout.desc_rows - 1,
                 SDL_TOUCH_MENU_CATEGORY_OTHER);
             ui_scroll_area_set_keys('8', '2', '6', '4');
             if (sdl_touch_only_device_active())
@@ -5404,10 +5514,11 @@ void do_cmd_ability_screen(void)
 
         if (column == 0 && entry_count > 0)
             Term_gotoxy(layout.ability_col,
-                layout.list_row + (entry_cur - entry_top));
+                layout.ability_row + (entry_cur - entry_top)
+                    * MAX(layout.ability_entry_rows, 1));
         else
             Term_gotoxy(layout.desc_col,
-                layout.list_row + MIN(layout.list_rows - 1,
+                layout.desc_row + MIN(layout.desc_rows - 1,
                     MAX(0, desc_top ? 1 : 0)));
 
         hide_cursor = true;
@@ -5548,7 +5659,7 @@ void do_cmd_ability_screen(void)
 
         if (ch == '9')
         {
-            desc_top -= layout.list_rows;
+            desc_top -= layout.desc_rows;
             if (desc_top < 0)
                 desc_top = 0;
             column = 1;
@@ -5557,7 +5668,7 @@ void do_cmd_ability_screen(void)
 
         if (ch == '3')
         {
-            desc_top += layout.list_rows;
+            desc_top += layout.desc_rows;
             if (desc_top > desc_max_top)
                 desc_top = desc_max_top;
             column = 1;

@@ -2,7 +2,11 @@
 setlocal
 REM Build Sil-More for native Windows with pinned SDL source submodules.
 REM This script uses MSYS2's MinGW64 environment for the toolchain.
-REM Builds TWO versions: standard (user folder) and local build (SIL_USE_LOCAL_DATA)
+REM Builds standard, portable, or both versions (SIL_USE_LOCAL_DATA controls portable mode).
+
+set "BUILD_TARGET=%~1"
+if "%BUILD_TARGET%"=="" set "BUILD_TARGET=all"
+if /I not "%BUILD_TARGET%"=="all" if /I not "%BUILD_TARGET%"=="standard" if /I not "%BUILD_TARGET%"=="portable" goto :invalid_target
 
 echo Building Sil-More for Windows with pinned SDL sources using CMake...
 echo.
@@ -22,6 +26,8 @@ echo.
 REM ========================================
 REM BUILD 1: Standard build (user folder mode)
 REM ========================================
+if /I "%BUILD_TARGET%"=="portable" goto :build_portable
+
 echo [1/2] Building standard version (user folder mode)...
 echo.
 
@@ -117,9 +123,12 @@ echo.
 echo Standard version complete: sil-more-windows-sdl3\sil-more.exe
 echo.
 
+if /I "%BUILD_TARGET%"=="standard" goto :build_complete
+
 REM ========================================
 REM BUILD 2: Local build (SIL_USE_LOCAL_DATA mode)
 REM ========================================
+:build_portable
 echo [2/2] Building local version (SIL_USE_LOCAL_DATA mode)...
 echo.
 
@@ -213,6 +222,9 @@ copy /Y lib\xtra\graf\16x16.png sil-more-windows-sdl3-portable\lib\xtra\graf\
 echo.
 echo Local version complete: sil-more-windows-sdl3-portable\sil-more.exe
 echo.
+
+if /I "%BUILD_TARGET%"=="portable" goto :build_complete
+
 echo ========================================
 echo Both builds complete!
 echo ========================================
@@ -221,7 +233,16 @@ echo Standard (user folder): sil-more-windows-sdl3\sil-more.exe
 echo Local (lib folder):     sil-more-windows-sdl3-portable\sil-more.exe
 echo.
 
+:build_complete
+if /I "%BUILD_TARGET%"=="standard" echo Standard build and deployment complete.
+if /I "%BUILD_TARGET%"=="portable" echo Portable build and deployment complete.
+exit /b 0
+
 goto :EOF
+
+:invalid_target
+echo Usage: build-cmake.bat [all^|standard^|portable]
+exit /b 2
 
 :StripWavFiles
 if exist "%~1" (

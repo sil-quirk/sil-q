@@ -17,6 +17,7 @@ void sdl_quit_hook(cptr str)
 
     // Release cached mouse route search buffers.
     sdl_mouse_path_search_free();
+    sdl_mouse_cursor_shutdown();
     
     // Clean up story fonts
     sdl_story_font_cache_clear();
@@ -449,6 +450,9 @@ errr init_sdl(int argc, char **argv)
     }
 
     sdl_ensure_window_size_for_min_terminal(&screen, &window_width, &window_height);
+
+    /* SDL consults this hint while it creates the mobile window. */
+    sdl_set_mobile_orientation_hint(config.mobile_portrait_mode);
 
     sdl_window_create(window_width, window_height, config.fullscreen, config.tiles);
 

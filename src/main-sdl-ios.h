@@ -32,6 +32,11 @@ bool sdl_ios_get_safe_area_insets(SDL_Window* window,
  * values, hence safeAreaInsetsDidChange does not fire and SDL never re-asks. */
 void sdl_ios_install_orientation_observer(SDL_Window* window);
 
+/* Ask UIKit to rotate the existing SDL window after SDL_HINT_ORIENTATIONS has
+ * been updated.  On iOS 16+ this uses the public scene-geometry API; older
+ * systems can only re-evaluate the supported-orientation mask. */
+void sdl_ios_request_orientation(bool portrait);
+
 #ifdef __cplusplus
 }
 #endif

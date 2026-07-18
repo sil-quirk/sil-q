@@ -58,6 +58,8 @@ errr callback_sdl_xtra(int n, int v)
                 sdl_question_menu_pending_timeout_ms(now_ns);
             int popup_notification_timeout_ms =
                 sdl_popup_notification_pending_timeout_ms(now_ns);
+            int mouse_cursor_timeout_ms =
+                sdl_mouse_cursor_animation_timeout_ms(now_ns);
             int round_wheel_timeout_ms =
                 sdl_touch_round_pending_timeout_ms(now_ns);
             int thumb_touch_timeout_ms =
@@ -126,6 +128,11 @@ errr callback_sdl_xtra(int n, int v)
             {
                 timeout_ms = popup_notification_timeout_ms;
             }
+            if (timeout_ms < 0 || (mouse_cursor_timeout_ms >= 0
+                    && mouse_cursor_timeout_ms < timeout_ms))
+            {
+                timeout_ms = mouse_cursor_timeout_ms;
+            }
             if (timeout_ms < 0 || (round_wheel_timeout_ms >= 0
                     && round_wheel_timeout_ms < timeout_ms))
             {
@@ -184,6 +191,7 @@ errr callback_sdl_xtra(int n, int v)
             sdl_log_pane_menu_flush_pending_press(flush_ns);
             sdl_side_pane_menu_flush_pending_press(flush_ns);
             sdl_touch_round_flush_pending_highlight(flush_ns);
+            sdl_mouse_cursor_animation_update(flush_ns);
             sdl_music_update(); /* Update music after handling event */
         } else {
             /* Non-blocking scan so animation loops (intro fades, etc.) keep running */
@@ -216,6 +224,7 @@ errr callback_sdl_xtra(int n, int v)
             sdl_log_pane_menu_flush_pending_press(flush_ns);
             sdl_side_pane_menu_flush_pending_press(flush_ns);
             sdl_touch_round_flush_pending_highlight(flush_ns);
+            sdl_mouse_cursor_animation_update(flush_ns);
 
             /* Avoid pegging a CPU core when we're repeatedly asked to poll */
             if (!handled) {
@@ -253,6 +262,7 @@ errr callback_sdl_xtra(int n, int v)
             sdl_touch_thumb_flush_pending_press(flush_ns);
             sdl_log_pane_menu_flush_pending_press(flush_ns);
             sdl_side_pane_menu_flush_pending_press(flush_ns);
+            sdl_mouse_cursor_animation_update(flush_ns);
         }
         sdl_present_if_needed(d);
         return 0;
@@ -308,6 +318,7 @@ errr callback_sdl_xtra(int n, int v)
                 sdl_touch_thumb_flush_pending_press(flush_ns);
                 sdl_log_pane_menu_flush_pending_press(flush_ns);
                 sdl_side_pane_menu_flush_pending_press(flush_ns);
+                sdl_mouse_cursor_animation_update(flush_ns);
             }
         }
         return 0;

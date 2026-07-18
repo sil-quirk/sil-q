@@ -773,8 +773,11 @@ bool sdl_touch_thumb_layout_active(void)
 {
     if (!sdl_touch_thumb_config_enabled())
         return false;
-    if (!sdl_left_panel_pane_collapsed())
+    if (!sdl_mobile_portrait_layout_active()
+        && !sdl_left_panel_pane_collapsed())
+    {
         return false;
+    }
     /* Normal gameplay. */
     if (sdl_mouse_gameplay_context_active()
         && sdl_left_panel_pane_runtime_active())
@@ -827,6 +830,36 @@ bool sdl_touch_thumb_compute_rects(SDL_FRect* out_rects)
     }
     if (!sdl_touch_thumb_layout_active())
         return false;
+
+    if (sdl_mobile_portrait_layout_active()) {
+        SDL_Rect touch_column;
+        float gap;
+        float button_h;
+
+        if (!sdl_mobile_portrait_control_regions(NULL, &touch_column))
+        {
+            return false;
+        }
+        gap = (float)touch_column.h / 48.0f;
+        if (gap < 8.0f)
+            gap = 8.0f;
+        button_h = ((float)touch_column.h - gap) / 2.0f;
+        if (button_h < 28.0f)
+            return false;
+        if (out_rects) {
+            out_rects[0] = (SDL_FRect){
+                (float)touch_column.x, (float)touch_column.y,
+                (float)touch_column.w, button_h
+            };
+            out_rects[1] = (SDL_FRect){
+                (float)touch_column.x,
+                (float)touch_column.y + button_h + gap,
+                (float)touch_column.w, button_h
+            };
+        }
+        return true;
+    }
+
     if (!view->term_ready || view->cell_w <= 0 || view->cell_h <= 0)
         return false;
 
@@ -909,6 +942,11 @@ static bool sdl_touch_thumb_compute_runtime_rects(
 
     out_rects[SDL_TOUCH_THUMB_TOP_BUTTON] = base[0];
     out_rects[SDL_TOUCH_THUMB_BOTTOM_BUTTON] = base[1];
+
+    if (sdl_mobile_portrait_layout_active()) {
+        out_rects[SDL_TOUCH_THUMB_SIDECAR_BUTTON] = (SDL_FRect){ 0 };
+        return true;
+    }
 
     gap = base[1].y - (base[0].y + base[0].h);
     if (gap < 4.0f)
@@ -1367,7 +1405,8 @@ bool sdl_touch_thumb_handle_pointer_up(float x, float y, bool mouse,
 bool sdl_touch_round_layer_config_enabled(void)
 {
     return sdl_touch_only_mobile_device_active()
-        && config.touch_round_movement_enabled;
+        && (config.touch_round_movement_enabled
+            || sdl_mobile_portrait_layout_active());
 }
 
 bool sdl_touch_round_layer_controls_active(void)
@@ -1497,6 +1536,7 @@ bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
     float right_edge;
     float right_margin;
     bool anchor_right;
+    bool anchor_center = false;
     bool sized = false;
 
     if (!sdl_touch_round_compute_clip_rect(&clip))
@@ -1525,43 +1565,82 @@ bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
         if (!sdl_rect_has_area(&screen))
             return false;
 
-        right_edge = (float)(screen.x + screen.w);
+        if (sdl_mobile_portrait_layout_active()) {
+            SDL_Rect wheel_region;
+            float band_top;
+            float band_bottom;
+            float band_h;
+            float max_r_w;
+
+            if (!sdl_mobile_portrait_control_regions(&wheel_region, NULL))
+            {
+                return false;
+            }
+            band_top = (float)wheel_region.y + margin;
+            band_bottom = (float)(wheel_region.y + wheel_region.h)
+                - margin;
+            band_h = band_bottom - band_top;
+            if (band_h < 56.0f)
+                return false;
+
+            /* Portrait lets the wheel fill the whole lower-left region.  The
+             * configured desktop radius is intentionally ignored here. */
+            max_r_w = ((float)wheel_region.w - margin * 2.0f) * 0.5f;
+            radius = MIN(max_r_w, band_h * 0.5f);
+            if (radius < 28.0f)
+                return false;
+
+            render_clip = wheel_region;
+            clip = render_clip;
+            right_edge = (float)(wheel_region.x + wheel_region.w);
+            right_margin = 0.0f;
+            cx = (float)wheel_region.x
+                + (float)wheel_region.w * 0.5f;
+            cy = (band_top + band_bottom) * 0.5f;
+            anchor_center = true;
+            sized = true;
+        }
+
+        if (!sized)
+            right_edge = (float)(screen.x + screen.w);
         if (!sdl_touch_pane_is_left_placement()
-            && sdl_touch_pane_current_rect(&touch_rect))
+            && !sized && sdl_touch_pane_current_rect(&touch_rect))
         {
             right_edge = (float)touch_rect.x;
         }
-        if (right_edge <= (float)screen.x + 56.0f)
+        if (!sized && right_edge <= (float)screen.x + 56.0f)
             return false;
 
-        band_top = (float)screen.y + margin;
-        band_bottom = (float)(screen.y + screen.h) - margin;
-        sdl_touch_round_clip_band_to_panes(&screen, right_edge, &band_top,
-            &band_bottom);
-        band_h = band_bottom - band_top;
-        if (band_h < 56.0f)
-            return false;
+        if (!sized) {
+            band_top = (float)screen.y + margin;
+            band_bottom = (float)(screen.y + screen.h) - margin;
+            sdl_touch_round_clip_band_to_panes(&screen, right_edge, &band_top,
+                &band_bottom);
+            band_h = band_bottom - band_top;
+            if (band_h < 56.0f)
+                return false;
 
-        radius = band_h * 0.5f;
-        max_r_w = (right_edge - (float)screen.x - margin * 2.0f) * 0.5f;
-        if (max_r_w > 0.0f && radius > max_r_w)
-            radius = max_r_w;
-        if (radius < 28.0f)
-            return false;
+            radius = band_h * 0.5f;
+            max_r_w = (right_edge - (float)screen.x - margin * 2.0f) * 0.5f;
+            if (max_r_w > 0.0f && radius > max_r_w)
+                radius = max_r_w;
+            if (radius < 28.0f)
+                return false;
 
-        render_clip = (SDL_Rect){
-            .x = screen.x,
-            .y = (int)band_top,
-            .w = (int)(right_edge - (float)screen.x),
-            .h = (int)(band_h + 0.5f),
-        };
-        if (!sdl_rect_has_area(&render_clip))
-            return false;
+            render_clip = (SDL_Rect){
+                .x = screen.x,
+                .y = (int)band_top,
+                .w = (int)(right_edge - (float)screen.x),
+                .h = (int)(band_h + 0.5f),
+            };
+            if (!sdl_rect_has_area(&render_clip))
+                return false;
 
-        clip = render_clip;
-        right_margin = 0.0f;
-        cy = (band_top + band_bottom) * 0.5f;
-        sized = true;
+            clip = render_clip;
+            right_margin = 0.0f;
+            cy = (band_top + band_bottom) * 0.5f;
+            sized = true;
+        }
     }
 
     if (!sized) {
@@ -1584,9 +1663,11 @@ bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
         return false;
 
     inner_radius = sdl_touch_round_inner_radius_px(radius);
-    cx = anchor_right
-        ? right_edge - right_margin - radius
-        : (float)clip.x + margin + radius;
+    if (!anchor_center) {
+        cx = anchor_right
+            ? right_edge - right_margin - radius
+            : (float)clip.x + margin + radius;
+    }
 
     /* Clamp to the same rectangle that will be used for rendering. */
     if (cx - radius < (float)render_clip.x)
@@ -3380,6 +3461,11 @@ void sdl_touch_hidden_indicator_render(void)
     bool top_panel_indicator;
     bool proto_touch = sdl_touch_pane_proto_mode_active();
 
+    /* Portrait keeps quick access visibly open as part of the fixed bottom
+     * control cluster, so a collapse/expand indicator would be misleading. */
+    if (sdl_mobile_portrait_layout_active())
+        return;
+
     if (!proto_touch && !sdl_touch_pane_is_config_enabled()
         && !sdl_touch_top_panel_layout_visible())
         return;
@@ -3408,6 +3494,9 @@ bool sdl_touch_hidden_indicator_handle_pointer_down(float x, float y,
 
     (void)touch;
 
+    if (sdl_mobile_portrait_layout_active())
+        return false;
+
     if (!sdl_touch_top_panel_layout_visible())
         return false;
     if (!sdl_main_screen_click_shortcuts_active())
@@ -3432,6 +3521,8 @@ bool sdl_touch_top_panel_pointer_claims_point(float x, float y)
         return false;
     if (sdl_touch_top_panel_point_to_slot(x, y, NULL))
         return true;
+    if (sdl_mobile_portrait_layout_active())
+        return false;
     if (sdl_touch_top_panel_indicator_geometry(
             g_touch_top_panel_open, &top_hit, NULL)
         && sdl_point_in_frect(&top_hit, x, y))
@@ -3648,6 +3739,8 @@ static bool sdl_touch_top_panel_pane_enabled(void)
 {
     const struct pane_config* pc = sdl_touch_top_panel_pane_config();
 
+    if (sdl_mobile_portrait_layout_active())
+        return true;
     return pc ? pc->enabled : true;
 }
 
@@ -3655,6 +3748,8 @@ static enum pane_placement sdl_touch_top_panel_pane_placement(void)
 {
     const struct pane_config* pc = sdl_touch_top_panel_pane_config();
 
+    if (sdl_mobile_portrait_layout_active())
+        return PLACE_BOTTOM_CENTER;
     if (pc && pane_type_allows_placement(PANE_OVERLAY_MENU, pc->where))
         return pc->where;
     return PLACE_BOTTOM_CENTER;
@@ -3827,6 +3922,17 @@ bool sdl_touch_top_panel_current_anchor(SDL_Rect* out_screen,
     if (!sdl_touch_top_panel_pane_enabled())
         return false;
 
+    if (sdl_mobile_portrait_layout_active()) {
+        screen = sdl_get_layout_screen_rect();
+        if (out_screen)
+            *out_screen = screen;
+        if (out_anchor)
+            *out_anchor = screen;
+        if (out_where)
+            *out_where = PLACE_BOTTOM_CENTER;
+        return true;
+    }
+
     if (sdl_rect_has_area(&g_pane_rects[PANE_MAIN]))
         screen = g_pane_rects[PANE_MAIN];
 
@@ -3994,6 +4100,9 @@ int sdl_touch_top_panel_physical_button_capacity(bool second_row)
     int rows = second_row ? 2 : 1;
     int fit;
 
+    if (sdl_mobile_portrait_layout_active())
+        return SDL_TOUCH_TOP_PANEL_BUTTON_COUNT;
+
     if (!sdl_touch_top_panel_current_anchor(&screen, &anchor, &where))
         return 0;
 
@@ -4026,7 +4135,8 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
         return false;
     }
 
-    screen_w = (float)screen->w;
+    screen_w = sdl_mobile_portrait_layout_active()
+        ? (float)anchor->w : (float)screen->w;
     active_count = sdl_touch_top_panel_visible_slots(visible_slots,
         SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
     if (active_count <= 0)
@@ -4035,8 +4145,11 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
     side_margin = sdl_touch_pane_clampf(screen_w * 0.02f, 6.0f, 18.0f);
     max_panel_w = screen_w - side_margin * 2.0f;
     sdl_touch_top_panel_button_metrics(&button_size, &gap);
-    rows = (config.touch_top_panel_second_row && active_count > 1) ? 2 : 1;
-    if (rows == 1 && active_count > 1) {
+    rows = (!sdl_mobile_portrait_layout_active()
+        && config.touch_top_panel_second_row && active_count > 1) ? 2 : 1;
+    if (!sdl_mobile_portrait_layout_active()
+        && rows == 1 && active_count > 1)
+    {
         int one_row_fit = sdl_touch_top_panel_fit_button_count(screen, anchor,
             where, active_count, 1, button_size, gap);
         int two_row_fit = sdl_touch_top_panel_fit_button_count(screen, anchor,
@@ -4047,7 +4160,7 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
     }
 #if SIL_SDL_MOBILE_BUILD
     /* A chosen second row keeps every quick-access cell visible. */
-    if (rows == 1) {
+    if (rows == 1 && !sdl_mobile_portrait_layout_active()) {
         active_count = sdl_touch_top_panel_fit_button_count(screen, anchor,
             where, active_count, rows, button_size, gap);
     }

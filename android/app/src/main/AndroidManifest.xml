@@ -13,7 +13,7 @@
             android:exported="true"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|uiMode"
             android:launchMode="singleTask"
-            android:screenOrientation="userLandscape">
+            android:screenOrientation="fullUser">
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

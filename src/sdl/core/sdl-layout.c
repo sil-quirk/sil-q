@@ -63,6 +63,8 @@ bool sdl_view_is_overlay_log_pane(const sdl_view* view)
 
     if (type != PANE_ROLLS)
         return false;
+    if (sdl_mobile_portrait_layout_active())
+        return true;
 
     for (int i = 0; i < pane_config_count; i++) {
         if (pane_config[i].pane != PANE_ROLLS)
@@ -534,6 +536,338 @@ SDL_Rect sdl_get_layout_screen_rect(void)
     return window_pixels;
 }
 
+bool sdl_mobile_portrait_layout_active(void)
+{
+#if SIL_SDL_MOBILE_BUILD
+    SDL_Rect screen = sdl_get_layout_screen_rect();
+
+    return config.mobile_portrait_mode
+        && sdl_rect_has_area(&screen) && screen.h > screen.w;
+#else
+    return false;
+#endif
+}
+
+void sdl_mobile_portrait_scale_reference_rect(const SDL_Rect* source,
+    SDL_Rect* out)
+{
+    if (!out)
+        return;
+
+    *out = source ? *source : (SDL_Rect){ 0 };
+    if (source && sdl_mobile_portrait_layout_active()
+        && source->h > source->w)
+    {
+        out->w = source->h;
+        out->h = source->w;
+    }
+}
+
+static int sdl_mobile_portrait_margin(const SDL_Rect* screen)
+{
+    int margin = sdl_overlay_margin_px();
+
+    if (screen && margin < screen->w / 80)
+        margin = screen->w / 80;
+    if (margin < 6)
+        margin = 6;
+    return margin;
+}
+
+static int sdl_mobile_portrait_gap(const SDL_Rect* screen)
+{
+    int gap = sdl_mobile_portrait_margin(screen) / 3;
+
+    return MAX(gap, 8);
+}
+
+static int sdl_mobile_portrait_log_height(const SDL_Rect* screen)
+{
+    int cell_h = sdl_effective_pane_cell_height_for_type(PANE_ROLLS);
+    int height;
+    int max_height = screen ? screen->h / 5 : 0;
+
+    if (cell_h < 1)
+        cell_h = 1;
+    height = cell_h * SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS;
+    if (max_height > 0 && height > max_height)
+        height = max_height;
+    return MAX(height, cell_h);
+}
+
+static int sdl_mobile_portrait_menu_height(const SDL_Rect* screen)
+{
+    int font_px = sdl_main_menu_pane_font_px();
+    int height = font_px * 184 / 100;
+    int max_height = screen ? screen->h * 18 / 100 : 0;
+
+    if (height < font_px * 3 / 2)
+        height = font_px * 3 / 2;
+    if (max_height > 0 && height > max_height)
+        height = max_height;
+    return MAX(height, 1);
+}
+
+static int sdl_mobile_portrait_status_height(const SDL_Rect* screen)
+{
+    int font_px = sdl_effective_pane_cell_height_for_type(PANE_STATUS);
+    int row_h;
+    int pad_y;
+    int height;
+    int max_height = screen ? screen->h / 8 : 0;
+
+    if (font_px < 8)
+        font_px = 8;
+    row_h = (font_px * 135 + 50) / 100;
+    if (row_h < font_px + 2)
+        row_h = font_px + 2;
+    pad_y = (font_px * 32 + 50) / 100;
+    if (pad_y < 4)
+        pad_y = 4;
+    height = row_h * 2 + pad_y * 2;
+    if (max_height > 0 && height > max_height)
+        height = max_height;
+    return MAX(height, row_h);
+}
+
+static int sdl_mobile_portrait_left_panel_height(void)
+{
+    int left_cell_h = sdl_effective_pane_cell_height_for_type(
+        PANE_LEFT_PANEL);
+    int rows;
+
+    if (left_cell_h < 1)
+        left_cell_h = 1;
+
+    /* The compact renderer adds a bottom border row to its content canvas.
+     * Column mode has the three source rows plus its leading blank row;
+     * row mode packs the sources into one row.  Match that complete canvas so
+     * the portrait slot never scales the left panel vertically. */
+    rows = sdl_left_panel_compact_row_mode()
+        ? 2 : SDL_LEFT_PANEL_COLLAPSED_ROWS + 2;
+    return left_cell_h * rows;
+}
+
+static int sdl_mobile_portrait_combat_height(void)
+{
+    int cell_h = sdl_effective_pane_cell_height_for_type(PANE_COMBAT);
+
+    if (cell_h < 1)
+        cell_h = 1;
+    return cell_h * (sdl_combat_overlay_source_row_count() + 1);
+}
+
+static int sdl_mobile_portrait_depth_height(const SDL_Rect* screen)
+{
+    int depth_cell_h = sdl_effective_pane_cell_height_for_type(PANE_DEPTH);
+
+    if (depth_cell_h < 1)
+        depth_cell_h = 1;
+    return depth_cell_h * 4 + sdl_mobile_portrait_margin(screen);
+}
+
+static int sdl_mobile_portrait_overlay_top(const SDL_Rect* screen)
+{
+    if (!screen)
+        return 0;
+    return screen->y + sdl_mobile_portrait_menu_height(screen)
+        + sdl_mobile_portrait_gap(screen);
+}
+
+static int sdl_mobile_portrait_overlay_stack_bottom(const SDL_Rect* screen)
+{
+    int top;
+    int gap;
+    int left_bottom;
+    int right_bottom;
+
+    if (!screen)
+        return 0;
+    top = sdl_mobile_portrait_overlay_top(screen);
+    gap = sdl_mobile_portrait_gap(screen);
+    left_bottom = top + sdl_mobile_portrait_left_panel_height() + gap
+        + sdl_mobile_portrait_combat_height();
+    right_bottom = top + sdl_mobile_portrait_log_height(screen) + gap
+        + sdl_mobile_portrait_depth_height(screen) + gap
+        + sdl_mobile_portrait_status_height(screen);
+
+    return MAX(left_bottom, right_bottom) + gap;
+}
+
+int sdl_mobile_portrait_hud_panel_max_width(enum pane_type pane)
+{
+    SDL_Rect screen;
+    int margin;
+    int available;
+
+    if (!sdl_mobile_portrait_layout_active())
+        return 0;
+
+    screen = sdl_get_layout_screen_rect();
+    margin = sdl_mobile_portrait_margin(&screen);
+
+    available = screen.w - margin * 3;
+    if (available < 1)
+        return screen.w;
+
+    available = available * ((pane == PANE_LEFT_PANEL
+        || pane == PANE_COMBAT) ? 42 : 58) / 100;
+    if (available < 1)
+        available = 1;
+    return available;
+}
+
+bool sdl_mobile_portrait_control_regions(SDL_Rect* out_left,
+    SDL_Rect* out_right)
+{
+    SDL_Rect screen;
+    SDL_FRect quick_panel;
+    int margin;
+    int gap;
+    int available_w;
+    int left_w;
+    int right_w;
+    int bottom;
+    int maximum_h;
+    int dock_h;
+    int dock_y;
+
+    if (out_left)
+        *out_left = (SDL_Rect){ 0 };
+    if (out_right)
+        *out_right = (SDL_Rect){ 0 };
+    if (!sdl_mobile_portrait_layout_active())
+        return false;
+
+    screen = sdl_get_layout_screen_rect();
+    if (!sdl_rect_has_area(&screen))
+        return false;
+    margin = sdl_mobile_portrait_margin(&screen);
+    gap = sdl_mobile_portrait_gap(&screen);
+
+    available_w = screen.w - margin * 2;
+    if (available_w < 56)
+        return false;
+
+    bottom = screen.y + screen.h - margin;
+    if (sdl_touch_top_panel_compute_layout_for_screen(&screen, NULL,
+            &quick_panel)
+        && quick_panel.y > (float)screen.y)
+    {
+        bottom = (int)quick_panel.y - gap;
+    }
+    maximum_h = bottom - sdl_mobile_portrait_overlay_stack_bottom(&screen);
+    if (maximum_h < 112)
+        return false;
+
+    right_w = available_w * 26 / 100;
+    left_w = available_w - gap - right_w;
+    if (left_w < 56 || right_w < 56)
+        return false;
+    dock_h = MIN(left_w, maximum_h);
+    if (dock_h < 112)
+        return false;
+    dock_y = bottom - dock_h;
+
+    /* The wheel owns every available pixel left of the two-button column. */
+    if (out_left) {
+        *out_left = (SDL_Rect){
+            .x = screen.x + margin,
+            .y = dock_y,
+            .w = left_w,
+            .h = dock_h,
+        };
+    }
+    if (out_right) {
+        *out_right = (SDL_Rect){
+            .x = screen.x + margin + left_w + gap,
+            .y = dock_y,
+            .w = right_w,
+            .h = dock_h,
+        };
+    }
+    return true;
+}
+
+bool sdl_mobile_portrait_hud_panel_rect(enum pane_type pane, int panel_w,
+    int panel_h, SDL_FRect* out)
+{
+    SDL_Rect screen;
+    int margin;
+    int gap;
+    int top_y;
+    int left_h;
+    int log_h;
+    int depth_h;
+    int max_w;
+    float x;
+    float y;
+
+    if (out)
+        *out = (SDL_FRect){ 0 };
+    if (!out || panel_w <= 0 || panel_h <= 0
+        || !sdl_mobile_portrait_layout_active())
+    {
+        return false;
+    }
+
+    screen = sdl_get_layout_screen_rect();
+    if (!sdl_rect_has_area(&screen))
+        return false;
+
+    margin = sdl_mobile_portrait_margin(&screen);
+    gap = sdl_mobile_portrait_gap(&screen);
+
+    max_w = sdl_mobile_portrait_hud_panel_max_width(pane);
+    if (max_w > 0 && panel_w > max_w)
+        panel_w = max_w;
+    if (panel_w > screen.w - margin * 2)
+        panel_w = screen.w - margin * 2;
+    if (panel_w < 1)
+        return false;
+
+    top_y = sdl_mobile_portrait_overlay_top(&screen);
+    left_h = sdl_mobile_portrait_left_panel_height();
+    log_h = sdl_mobile_portrait_log_height(&screen);
+    depth_h = sdl_mobile_portrait_depth_height(&screen);
+    x = (float)(screen.x + margin);
+    y = (float)top_y;
+    switch (pane) {
+    case PANE_DEPTH:
+        x = (float)(screen.x + screen.w - margin - panel_w);
+        y = (float)(top_y + log_h + gap);
+        if (panel_h > depth_h)
+            panel_h = depth_h;
+        break;
+    case PANE_STATUS:
+        x = (float)(screen.x + screen.w - margin - panel_w);
+        y = (float)(top_y + log_h + gap + depth_h + gap);
+        break;
+    case PANE_LEFT_PANEL:
+        if (panel_h > left_h)
+            panel_h = left_h;
+        break;
+    case PANE_COMBAT:
+        y = (float)(top_y + left_h + gap);
+        break;
+    default:
+        return false;
+    }
+
+    if (y + (float)panel_h > (float)(screen.y + screen.h - margin))
+        y = (float)(screen.y + screen.h - margin - panel_h);
+    if (y < (float)screen.y)
+        y = (float)screen.y;
+
+    *out = (SDL_FRect){
+        .x = x,
+        .y = y,
+        .w = (float)panel_w,
+        .h = (float)panel_h,
+    };
+    return true;
+}
+
 bool sdl_mobile_prefer_safe_edge_alignment(void)
 {
 #if defined(__ANDROID__) || defined(SIL_IOS)
@@ -835,6 +1169,9 @@ enum pane_placement sdl_left_panel_pane_placement(void)
 {
     int index = sdl_left_panel_pane_config_index();
     enum pane_placement placement = PLACE_TOP_LEFT;
+
+    if (sdl_mobile_portrait_layout_active())
+        return PLACE_TOP_LEFT;
 
     if (index >= 0)
         placement = pane_config[index].where;
@@ -1722,6 +2059,12 @@ bool sdl_left_panel_pane_rect_for_metrics(const sdl_view* view,
     if (visual_w <= metrics->total_w || visual_h <= 0)
         return false;
 
+    if (sdl_mobile_portrait_hud_panel_rect(PANE_LEFT_PANEL,
+            metrics->total_w, metrics->corner_h, out_rect))
+    {
+        return true;
+    }
+
     where = sdl_left_panel_pane_placement();
     x = (float)(view->rect.x + view->margin_x);
     y = (float)(view->rect.y + view->margin_y);
@@ -2197,7 +2540,8 @@ bool sdl_left_panel_pane_runtime_active(void)
 
 bool sdl_left_panel_pane_collapsed(void)
 {
-    return !g_left_panel_pane_expanded;
+    return sdl_mobile_portrait_layout_active()
+        || !g_left_panel_pane_expanded;
 }
 
 int sdl_left_panel_compact_mode_normalized(int mode)
@@ -2778,15 +3122,287 @@ void sdl_note_touch_event_device(SDL_TouchID touch_id)
     sdl_refresh_supporting_panes_layout();
 }
 
+enum {
+    SDL_MOUSE_POINTER_TILE_ROW = 12,
+    SDL_MOUSE_POINTER_TILE_COL = 31,
+    SDL_MOUSE_POINTER_FRAME_NORMAL = 0,
+    SDL_MOUSE_POINTER_FRAME_GROW,
+    SDL_MOUSE_POINTER_FRAME_PEAK,
+    SDL_MOUSE_POINTER_FRAME_COUNT,
+    SDL_MOUSE_POINTER_PULSE_STEP_NS = 40000000,
+    SDL_MOUSE_POINTER_RELEASE_DURATION_NS =
+        SDL_MOUSE_POINTER_PULSE_STEP_NS * 2,
+};
+
+static SDL_Cursor* g_tile_mouse_cursors[SDL_MOUSE_POINTER_FRAME_COUNT];
+static bool g_tile_mouse_cursor_attempted[SDL_MOUSE_POINTER_FRAME_COUNT];
+static int g_tile_mouse_cursor_base_size = 0;
+static Uint32 g_tile_mouse_cursor_pressed_buttons = 0;
+static Uint64 g_tile_mouse_cursor_transition_started_ns = 0;
+static bool g_tile_mouse_cursor_releasing = false;
+
+static int sdl_tile_mouse_cursor_base_size(void)
+{
+    int scale = config.main_view_scale;
+
+    if (scale < 1)
+        scale = 1;
+    return TILE_SIZE * scale;
+}
+
+static int sdl_tile_mouse_cursor_frame(Uint64 now_ns)
+{
+    Uint64 elapsed;
+
+    if (!g_tile_mouse_cursor_pressed_buttons
+        && !g_tile_mouse_cursor_releasing)
+    {
+        return SDL_MOUSE_POINTER_FRAME_NORMAL;
+    }
+    if (now_ns < g_tile_mouse_cursor_transition_started_ns)
+        return SDL_MOUSE_POINTER_FRAME_GROW;
+
+    elapsed = now_ns - g_tile_mouse_cursor_transition_started_ns;
+    if (g_tile_mouse_cursor_pressed_buttons) {
+        if (elapsed < SDL_MOUSE_POINTER_PULSE_STEP_NS)
+            return SDL_MOUSE_POINTER_FRAME_GROW;
+        return SDL_MOUSE_POINTER_FRAME_PEAK;
+    }
+    if (elapsed < SDL_MOUSE_POINTER_PULSE_STEP_NS)
+        return SDL_MOUSE_POINTER_FRAME_PEAK;
+    if (elapsed < SDL_MOUSE_POINTER_RELEASE_DURATION_NS)
+        return SDL_MOUSE_POINTER_FRAME_GROW;
+
+    g_tile_mouse_cursor_transition_started_ns = 0;
+    g_tile_mouse_cursor_releasing = false;
+    return SDL_MOUSE_POINTER_FRAME_NORMAL;
+}
+
+static int sdl_tile_mouse_cursor_frame_size(int base_size, int frame)
+{
+    if (frame == SDL_MOUSE_POINTER_FRAME_PEAK)
+        return base_size + MAX(3, base_size / 8);
+    if (frame == SDL_MOUSE_POINTER_FRAME_GROW)
+        return base_size + MAX(2, base_size / 16);
+    return base_size;
+}
+
+static void sdl_tile_mouse_cursor_cache_clear(void)
+{
+    SDL_Cursor* active = SDL_GetCursor();
+
+    for (int i = 0; i < SDL_MOUSE_POINTER_FRAME_COUNT; i++) {
+        if (active == g_tile_mouse_cursors[i]) {
+            SDL_SetCursor(SDL_GetDefaultCursor());
+            break;
+        }
+    }
+    for (int i = 0; i < SDL_MOUSE_POINTER_FRAME_COUNT; i++) {
+        if (g_tile_mouse_cursors[i])
+            SDL_DestroyCursor(g_tile_mouse_cursors[i]);
+        g_tile_mouse_cursors[i] = NULL;
+        g_tile_mouse_cursor_attempted[i] = false;
+    }
+    g_tile_mouse_cursor_base_size = 0;
+}
+
+static SDL_Cursor* sdl_tile_mouse_cursor_create(int base_size, int frame)
+{
+    SDL_Surface* tileset_surface = NULL;
+    SDL_Surface* cursor_surface = NULL;
+    SDL_Cursor* cursor = NULL;
+    int pointer_size = sdl_tile_mouse_cursor_frame_size(base_size, frame);
+    SDL_Rect source_rect = {
+        SDL_MOUSE_POINTER_TILE_COL * TILE_SIZE,
+        SDL_MOUSE_POINTER_TILE_ROW * TILE_SIZE,
+        TILE_SIZE,
+        TILE_SIZE,
+    };
+    SDL_Rect destination_rect = {
+        0,
+        0,
+        pointer_size,
+        pointer_size,
+    };
+
+    if (frame < 0 || frame >= SDL_MOUSE_POINTER_FRAME_COUNT)
+        return NULL;
+    if (g_tile_mouse_cursors[frame] || g_tile_mouse_cursor_attempted[frame])
+        return g_tile_mouse_cursors[frame];
+
+    g_tile_mouse_cursor_attempted[frame] = true;
+    tileset_surface = IMG_Load("lib/xtra/graf/16x16.png");
+    if (!tileset_surface) {
+        log_warn("Could not load tile mouse pointer: %s", SDL_GetError());
+        return NULL;
+    }
+    if (source_rect.x + source_rect.w > tileset_surface->w
+        || source_rect.y + source_rect.h > tileset_surface->h)
+    {
+        log_warn("Tile mouse pointer row %d column %d is outside the tileset",
+            SDL_MOUSE_POINTER_TILE_ROW, SDL_MOUSE_POINTER_TILE_COL);
+        goto cleanup;
+    }
+
+    cursor_surface = SDL_CreateSurface(pointer_size, pointer_size,
+        SDL_PIXELFORMAT_RGBA8888);
+    if (!cursor_surface) {
+        log_warn("Could not allocate tile mouse pointer surface: %s",
+            SDL_GetError());
+        goto cleanup;
+    }
+
+    SDL_SetSurfaceBlendMode(tileset_surface, SDL_BLENDMODE_NONE);
+    if (!SDL_BlitSurfaceScaled(tileset_surface, &source_rect,
+            cursor_surface, &destination_rect, SDL_SCALEMODE_NEAREST))
+    {
+        log_warn("Could not copy tile mouse pointer surface: %s",
+            SDL_GetError());
+        goto cleanup;
+    }
+
+    cursor = SDL_CreateColorCursor(cursor_surface,
+        pointer_size / 2, pointer_size / 2);
+    if (cursor)
+        g_tile_mouse_cursors[frame] = cursor;
+    else
+        log_warn("Could not create tile mouse pointer: %s", SDL_GetError());
+
+cleanup:
+    SDL_DestroySurface(cursor_surface);
+    SDL_DestroySurface(tileset_surface);
+    return cursor;
+}
+
+static SDL_Cursor* sdl_tile_mouse_cursor(void)
+{
+    int base_size = sdl_tile_mouse_cursor_base_size();
+    int frame = sdl_tile_mouse_cursor_frame(SDL_GetTicksNS());
+    SDL_Cursor* normal;
+
+    if (g_tile_mouse_cursor_base_size != base_size) {
+        sdl_tile_mouse_cursor_cache_clear();
+        g_tile_mouse_cursor_base_size = base_size;
+    }
+
+    normal = sdl_tile_mouse_cursor_create(base_size,
+        SDL_MOUSE_POINTER_FRAME_NORMAL);
+    if (frame == SDL_MOUSE_POINTER_FRAME_NORMAL)
+        return normal;
+
+    return sdl_tile_mouse_cursor_create(base_size, frame)
+        ? g_tile_mouse_cursors[frame] : normal;
+}
+
 void sdl_update_cursor_visibility(void)
 {
     bool show_cursor = config.mouse_enabled
         && !(config.fullscreen && g_direct_touch_present);
 
+    if (config.mouse_tile_pointer && config.mouse_enabled) {
+        SDL_Cursor* tile_cursor = sdl_tile_mouse_cursor();
+
+        if (tile_cursor)
+            SDL_SetCursor(tile_cursor);
+        else
+            SDL_SetCursor(SDL_GetDefaultCursor());
+    } else {
+        g_tile_mouse_cursor_pressed_buttons = 0;
+        g_tile_mouse_cursor_transition_started_ns = 0;
+        g_tile_mouse_cursor_releasing = false;
+        SDL_SetCursor(SDL_GetDefaultCursor());
+    }
+
     if (show_cursor)
         SDL_ShowCursor();
     else
         SDL_HideCursor();
+}
+
+void sdl_mouse_cursor_button_state(int button, bool pressed)
+{
+    Uint32 button_mask;
+    bool was_pressed;
+
+    if (!config.mouse_enabled || !config.mouse_tile_pointer)
+        return;
+    if (button < 1 || button > 32)
+        return;
+
+    button_mask = 1u << (button - 1);
+    was_pressed = (g_tile_mouse_cursor_pressed_buttons != 0);
+    if (pressed) {
+        g_tile_mouse_cursor_pressed_buttons |= button_mask;
+        if (!was_pressed) {
+            g_tile_mouse_cursor_transition_started_ns = SDL_GetTicksNS();
+            g_tile_mouse_cursor_releasing = false;
+        }
+    } else {
+        g_tile_mouse_cursor_pressed_buttons &= ~button_mask;
+        if (was_pressed && !g_tile_mouse_cursor_pressed_buttons) {
+            g_tile_mouse_cursor_transition_started_ns = SDL_GetTicksNS();
+            g_tile_mouse_cursor_releasing = true;
+        }
+    }
+
+    sdl_update_cursor_visibility();
+}
+
+int sdl_mouse_cursor_animation_timeout_ms(Uint64 now_ns)
+{
+    Uint64 elapsed;
+    Uint64 next_boundary;
+    Uint64 remaining;
+
+    if ((!g_tile_mouse_cursor_pressed_buttons
+            && !g_tile_mouse_cursor_releasing)
+        || !config.mouse_enabled || !config.mouse_tile_pointer)
+    {
+        return -1;
+    }
+    if (now_ns < g_tile_mouse_cursor_transition_started_ns)
+        return 0;
+
+    elapsed = now_ns - g_tile_mouse_cursor_transition_started_ns;
+    if (g_tile_mouse_cursor_pressed_buttons) {
+        if (elapsed >= SDL_MOUSE_POINTER_PULSE_STEP_NS)
+            return -1;
+        next_boundary = SDL_MOUSE_POINTER_PULSE_STEP_NS;
+    } else {
+        if (elapsed >= SDL_MOUSE_POINTER_RELEASE_DURATION_NS)
+            return 0;
+        next_boundary = (elapsed < SDL_MOUSE_POINTER_PULSE_STEP_NS)
+            ? SDL_MOUSE_POINTER_PULSE_STEP_NS
+            : SDL_MOUSE_POINTER_RELEASE_DURATION_NS;
+    }
+    remaining = next_boundary - elapsed;
+    return (int)((remaining + 999999) / 1000000);
+}
+
+void sdl_mouse_cursor_animation_update(Uint64 now_ns)
+{
+    if (!g_tile_mouse_cursor_pressed_buttons
+        && !g_tile_mouse_cursor_releasing)
+    {
+        return;
+    }
+    if (g_tile_mouse_cursor_releasing
+        && now_ns >= g_tile_mouse_cursor_transition_started_ns
+        && now_ns - g_tile_mouse_cursor_transition_started_ns
+            >= SDL_MOUSE_POINTER_RELEASE_DURATION_NS)
+    {
+        g_tile_mouse_cursor_transition_started_ns = 0;
+        g_tile_mouse_cursor_releasing = false;
+    }
+    sdl_update_cursor_visibility();
+}
+
+void sdl_mouse_cursor_shutdown(void)
+{
+    g_tile_mouse_cursor_pressed_buttons = 0;
+    g_tile_mouse_cursor_transition_started_ns = 0;
+    g_tile_mouse_cursor_releasing = false;
+    sdl_tile_mouse_cursor_cache_clear();
 }
 
 void sdl_log_mouse_devices(void)
@@ -2816,24 +3432,81 @@ int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
 {
     int active_count = 0;
     bool proto_touch = sdl_touch_pane_proto_mode_active();
+    bool portrait = sdl_mobile_portrait_layout_active();
+
+    if (portrait) {
+        include_side = false;
+        include_bottom = false;
+    }
 
     if (proto_touch)
         sdl_ensure_touch_pane_config_present();
 
     for (int i = 0; i < pane_config_count && active_count < MAX_PANE_CONFIGS; i++) {
-        enum pane_placement where = pane_config[i].where;
-        bool is_touch_pane = (pane_config[i].pane == PANE_TOUCH);
-        bool is_status_pane = (pane_config[i].pane == PANE_STATUS);
-        bool is_left_panel = (pane_config[i].pane == PANE_LEFT_PANEL);
-        bool is_depth_pane = (pane_config[i].pane == PANE_DEPTH);
-        bool is_combat_pane = (pane_config[i].pane == PANE_COMBAT);
-        bool is_description_pane = (pane_config[i].pane == PANE_DESCRIPTION);
-        bool is_overlay_menu_pane =
-            (pane_config[i].pane == PANE_OVERLAY_MENU);
-        bool is_overlay_log_pane = (pane_config[i].pane == PANE_ROLLS)
+        struct pane_config effective = pane_config[i];
+        enum pane_placement where;
+        bool is_touch_pane;
+        bool is_status_pane;
+        bool is_left_panel;
+        bool is_depth_pane;
+        bool is_combat_pane;
+        bool is_description_pane;
+        bool is_overlay_menu_pane;
+        bool is_overlay_log_pane;
+
+        if (portrait) {
+            switch (effective.pane) {
+            case PANE_LOG:
+                effective.enabled = false;
+                break;
+            case PANE_ROLLS:
+                effective.enabled = true;
+                effective.where = PLACE_TOP_RIGHT;
+                effective.rect.rows = SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS;
+                effective.rect.cols = 0;
+                break;
+            case PANE_LEFT_PANEL:
+                effective.enabled = true;
+                effective.where = PLACE_TOP_LEFT;
+                break;
+            case PANE_STATUS:
+                effective.enabled = true;
+                effective.where = PLACE_TOP_RIGHT;
+                break;
+            case PANE_DEPTH:
+                effective.enabled = true;
+                effective.where = PLACE_TOP_RIGHT;
+                break;
+            case PANE_COMBAT:
+                effective.enabled = true;
+                effective.where = PLACE_TOP_LEFT;
+                break;
+            case PANE_OVERLAY_MENU:
+                effective.enabled = true;
+                effective.where = PLACE_BOTTOM_CENTER;
+                break;
+            case PANE_TOUCH:
+                effective.enabled = false;
+                break;
+            default:
+                if (pane_placement_is_side(effective.where))
+                    effective.enabled = false;
+                break;
+            }
+        }
+
+        where = effective.where;
+        is_touch_pane = (effective.pane == PANE_TOUCH);
+        is_status_pane = (effective.pane == PANE_STATUS);
+        is_left_panel = (effective.pane == PANE_LEFT_PANEL);
+        is_depth_pane = (effective.pane == PANE_DEPTH);
+        is_combat_pane = (effective.pane == PANE_COMBAT);
+        is_description_pane = (effective.pane == PANE_DESCRIPTION);
+        is_overlay_menu_pane = (effective.pane == PANE_OVERLAY_MENU);
+        is_overlay_log_pane = effective.pane == PANE_ROLLS
             && pane_placement_is_overlay(where);
 
-        if (pane_config[i].pane == PANE_MAIN_MENU)
+        if (effective.pane == PANE_MAIN_MENU)
             continue;
         if (touch_only && !is_touch_pane && !is_status_pane
             && !is_left_panel && !is_depth_pane
@@ -2858,7 +3531,7 @@ int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
                 continue;
         }
 
-        active[active_count] = pane_config[i];
+        active[active_count] = effective;
         if (is_touch_pane && proto_touch) {
             active[active_count].enabled = true;
             if (!pane_placement_is_side(active[active_count].where))
@@ -2884,6 +3557,11 @@ int sdl_main_view_layout_scale(void)
 
     if (scale <= 0)
         scale = g_terminal_menu_scale_override;
+    if (scale <= 0 && sdl_mobile_portrait_layout_active()
+        && g_main_view_zoom_scale > 0)
+    {
+        scale = g_main_view_zoom_scale;
+    }
     if (scale <= 0)
         scale = sdl_configured_main_view_scale();
 
@@ -3003,12 +3681,34 @@ int sdl_effective_pane_font_size_for_config(const struct pane_config* pc)
 
 int sdl_effective_pane_font_size_for_type(enum pane_type type)
 {
+    int size;
+
     for (int i = 0; i < pane_config_count; i++) {
-        if (pane_config[i].pane == type)
-            return sdl_effective_pane_font_size_for_config(&pane_config[i]);
+        if (pane_config[i].pane == type) {
+            size = sdl_effective_pane_font_size_for_config(&pane_config[i]);
+            goto resolved;
+        }
     }
 
-    return sdl_resolve_pane_font_size(type, config.aux_view_font_size);
+    size = sdl_resolve_pane_font_size(type, config.aux_view_font_size);
+
+resolved:
+    if (type == PANE_COMBAT && sdl_mobile_portrait_layout_active()) {
+        int max_panel_w =
+            sdl_mobile_portrait_hud_panel_max_width(PANE_COMBAT);
+        int max_cell_w = max_panel_w / (PANE_COMBAT_OVERLAY_COLS + 2);
+        float system_scale = (g_state.system_scale > 0.0f)
+            ? g_state.system_scale : 1.0f;
+        int max_size = (int)((float)(max_cell_w * 2 + 1)
+            / system_scale);
+
+        if (max_size < 8)
+            max_size = 8;
+        if (size > max_size)
+            size = max_size;
+    }
+
+    return size;
 }
 
 int sdl_aux_cell_height_for_font_size(int font_size)
@@ -3137,6 +3837,11 @@ bool sdl_prune_unusable_panes(struct pane_config* active,
         }
         if (type == PANE_COMBAT && min_rows > PANE_COMBAT_OVERLAY_MIN_ROWS)
             min_rows = PANE_COMBAT_OVERLAY_MIN_ROWS;
+        if (sdl_mobile_portrait_layout_active() && type == PANE_ROLLS) {
+            /* Portrait intentionally wraps the log inside the narrower
+             * right column instead of requiring the landscape combat width. */
+            min_cols = 12;
+        }
 
         if (cols >= min_cols && rows >= min_rows)
             continue;
@@ -3357,6 +4062,47 @@ void sdl_apply_dynamic_auto_pane_sizes(struct pane_config* active,
     active[touch_idx].rect.cols = desired_touch_cols;
 }
 
+static void sdl_mobile_portrait_adjust_panes(const SDL_Rect* screen,
+    SDL_Rect* panes, const int* cell_heights, int margin_px)
+{
+    SDL_Rect* rolls_pane;
+    SDL_Rect* main_pane;
+    int margin;
+    int log_h;
+    int right_w;
+
+    if (!screen || !panes || !cell_heights
+        || !sdl_mobile_portrait_layout_active())
+    {
+        return;
+    }
+
+    rolls_pane = &panes[PANE_ROLLS];
+    main_pane = &panes[PANE_MAIN];
+    if (!sdl_rect_has_area(main_pane))
+        return;
+
+    margin = MAX(margin_px, sdl_mobile_portrait_margin(screen));
+    log_h = sdl_mobile_portrait_log_height(screen);
+    if (log_h < cell_heights[PANE_ROLLS])
+        log_h = cell_heights[PANE_ROLLS];
+    right_w = sdl_mobile_portrait_hud_panel_max_width(PANE_ROLLS);
+    if (right_w < 1)
+        right_w = screen->w - margin * 2;
+
+    *rolls_pane = (SDL_Rect){
+        .x = screen->x + screen->w - margin - right_w,
+        .y = sdl_mobile_portrait_overlay_top(screen),
+        .w = right_w,
+        .h = log_h,
+    };
+
+    /* Every portrait HUD component is an overlay.  Pane composition must not
+     * reduce the terminal rectangle or change the configured scale. */
+    *main_pane = *screen;
+    panes[PANE_LOG] = (SDL_Rect){ 0 };
+}
+
 void sdl_place_active_panes(const SDL_Rect* screen, SDL_Rect* panes,
     bool include_side, bool include_bottom, bool touch_only)
 {
@@ -3382,6 +4128,8 @@ void sdl_place_active_panes(const SDL_Rect* screen, SDL_Rect* panes,
     for (int attempt = 0; attempt <= active_count; attempt++) {
         place_panes(active, active_count, panes, screen, cell_widths,
             cell_heights, margin_px);
+        sdl_mobile_portrait_adjust_panes(screen, panes, cell_heights,
+            margin_px);
         if (!sdl_prune_unusable_panes(active, active_count, panes, cell_widths,
                 cell_heights))
             break;
@@ -3445,6 +4193,8 @@ void sdl_place_active_panes_fitting_main(const SDL_Rect* screen,
     for (int attempt = 0; attempt <= active_count; attempt++) {
         place_panes(active, active_count, panes, screen, cell_widths,
             cell_heights, margin_px);
+        sdl_mobile_portrait_adjust_panes(screen, panes, cell_heights,
+            margin_px);
         if (!sdl_prune_unusable_panes(active, active_count, panes,
                 cell_widths, cell_heights))
         {
@@ -3464,13 +4214,17 @@ void sdl_place_active_panes_fitting_main(const SDL_Rect* screen,
 int sdl_bottom_pane_group_rows_for_minimum(const SDL_Rect* panes,
     enum pane_placement where)
 {
+    struct pane_config active[MAX_PANE_CONFIGS] = { 0 };
+    int active_count;
     int rows = 0;
 
     if (!panes)
         return 0;
 
-    for (int i = 0; i < pane_config_count; i++) {
-        const struct pane_config* pc = &pane_config[i];
+    active_count = sdl_build_active_pane_config(active,
+        config.enable_right_panes, config.enable_bottom_panes, false);
+    for (int i = 0; i < active_count; i++) {
+        const struct pane_config* pc = &active[i];
         const SDL_Rect* rect;
         int cell_h;
         int pane_rows;
@@ -3520,6 +4274,11 @@ void sdl_compute_pruned_split_panes_for_mode_ex(const SDL_Rect* screen,
     int cell_h;
     int cols = 0;
     int rows = 0;
+
+    if (sdl_mobile_portrait_layout_active()) {
+        include_side = false;
+        include_bottom = false;
+    }
 
     if (panes)
         memset(panes, 0, sizeof(SDL_Rect) * PANE_MAX);
@@ -3829,6 +4588,13 @@ int sdl_max_scale_for_layout(const SDL_Rect* screen, int mode)
     if (!sdl_min_terminal_mode_is_valid(mode))
         return SDL_MAIN_VIEW_MIN_SCALE;
 
+    if (sdl_mobile_portrait_layout_active() && screen->h > screen->w) {
+        SDL_Rect reference;
+
+        sdl_mobile_portrait_scale_reference_rect(screen, &reference);
+        return sdl_max_scale_for_rect_mode(&reference, mode);
+    }
+
     min_cols = sdl_min_terminal_cols_for_mode(mode);
     min_rows = sdl_min_terminal_rows_for_mode(mode);
 
@@ -4089,6 +4855,8 @@ bool sdl_recover_layout_for_current_window(const char* reason,
     bool notify_user, sdl_layout_recovery_result* recovery)
 {
     SDL_Rect screen;
+    bool portrait;
+    int effective_scale;
     sdl_layout_recovery_result local = {
         .mode_changed = false,
         .scale_changed = false,
@@ -4106,6 +4874,17 @@ bool sdl_recover_layout_for_current_window(const char* reason,
     screen = sdl_get_layout_screen_rect();
     if (!sdl_rect_has_area(&screen))
         return false;
+    portrait = sdl_mobile_portrait_layout_active();
+    effective_scale = config.main_view_scale;
+
+    /* Rotating the same physical display must not silently change its scale
+     * or terminal profile.  Portrait has its own rotated minimum footprint,
+     * enforced when gameplay starts. */
+    if (portrait) {
+        if (recovery)
+            *recovery = local;
+        return false;
+    }
 
     if (config.min_terminal_mode == SDL_MIN_TERMINAL_NORMAL
         && !sdl_mode_scale_fits_window(&screen, SDL_MIN_TERMINAL_NORMAL,
@@ -4120,7 +4899,7 @@ bool sdl_recover_layout_for_current_window(const char* reason,
     }
 
     if (!sdl_mode_scale_fits_window(&screen, config.min_terminal_mode,
-            config.main_view_scale, NULL, NULL))
+            effective_scale, NULL, NULL))
     {
         int max_scale = sdl_max_scale_for_window_mode(config.min_terminal_mode);
         int min_scale = sdl_main_view_scale_floor();
@@ -4128,14 +4907,14 @@ bool sdl_recover_layout_for_current_window(const char* reason,
         if (max_scale < min_scale)
             max_scale = min_scale;
 
-        if (config.main_view_scale > max_scale) {
+        if (effective_scale > max_scale) {
             log_info("%s: clamping main_view_scale from %d to %d for %s minimum terminal",
                 reason ? reason : "layout change",
-                config.main_view_scale, max_scale,
+                effective_scale, max_scale,
                 sdl_min_terminal_mode_name(config.min_terminal_mode));
             config.main_view_scale = max_scale;
             local.scale_changed = true;
-            local.new_scale = config.main_view_scale;
+            local.new_scale = max_scale;
         }
     }
 

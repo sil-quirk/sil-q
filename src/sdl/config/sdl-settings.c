@@ -14,6 +14,9 @@ void get_sdl_config_info(char* buf, size_t size)
     offset += (size_t)strnfmt(buf + offset, size - offset,
         "Mobile Starting Zoom Offset: %+d\n",
         config.mobile_starting_zoom_offset);
+    offset += (size_t)strnfmt(buf + offset, size - offset,
+        "Mobile Portrait Mode: %s\n",
+        config.mobile_portrait_mode ? "Yes" : "No");
     offset += (size_t)strnfmt(buf + offset, size - offset, "Minimum Terminal Size: %s (%dx%d)\n",
         sdl_min_terminal_mode_name(config.min_terminal_mode),
         sdl_current_min_terminal_cols(), sdl_current_min_terminal_rows());
@@ -179,14 +182,81 @@ void set_sdl_mobile_starting_zoom_offset(int value)
     config.mobile_starting_zoom_offset = value;
 }
 
-bool get_sdl_android_narrative_portrait_layout(void)
+void sdl_set_mobile_orientation_hint(bool portrait)
 {
-    return config.android_narrative_portrait_layout;
+#if defined(__ANDROID__) || defined(SIL_IOS)
+    const char* orientations = portrait
+        ? "Portrait PortraitUpsideDown"
+        : "LandscapeLeft LandscapeRight";
+
+    if (!SDL_SetHint(SDL_HINT_ORIENTATIONS, orientations))
+        log_warn("Could not set SDL mobile orientation hint to %s", orientations);
+#else
+    (void)portrait;
+#endif
 }
 
-void set_sdl_android_narrative_portrait_layout(bool value)
+#if defined(__ANDROID__)
+static void sdl_android_request_orientation(bool portrait)
 {
-    config.android_narrative_portrait_layout = value;
+    JNIEnv* env = (JNIEnv*)SDL_GetAndroidJNIEnv();
+    jobject activity = (jobject)SDL_GetAndroidActivity();
+    jclass activity_class = NULL;
+
+    if (!env || !activity)
+        goto cleanup;
+
+    activity_class = (*env)->GetObjectClass(env, activity);
+    if (!activity_class)
+        goto cleanup;
+
+    {
+        jmethodID request_orientation = (*env)->GetMethodID(env,
+            activity_class, "requestGameOrientation", "(Z)V");
+
+        if (!request_orientation) {
+            if ((*env)->ExceptionCheck(env))
+                (*env)->ExceptionClear(env);
+            log_warn("Android activity has no orientation request bridge");
+            goto cleanup;
+        }
+        (*env)->CallVoidMethod(env, activity, request_orientation,
+            portrait ? JNI_TRUE : JNI_FALSE);
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+            log_warn("Android rejected the mobile orientation request");
+        }
+    }
+
+cleanup:
+    if (activity_class)
+        (*env)->DeleteLocalRef(env, activity_class);
+    if (env && activity)
+        (*env)->DeleteLocalRef(env, activity);
+}
+#endif
+
+bool get_sdl_mobile_portrait_mode(void)
+{
+    return config.mobile_portrait_mode;
+}
+
+void set_sdl_mobile_portrait_mode(bool value)
+{
+    if (config.mobile_portrait_mode == value)
+        return;
+
+    config.mobile_portrait_mode = value;
+    sdl_set_mobile_orientation_hint(value);
+    g_main_view_zoom_scale = 0;
+
+#if defined(__ANDROID__)
+    sdl_android_request_orientation(value);
+#elif defined(SIL_IOS)
+    sdl_ios_request_orientation(value);
+#endif
+
+    g_state.need_present = true;
 }
 
 int get_sdl_min_main_view_scale(void)
@@ -1004,6 +1074,16 @@ void set_sdl_show_pane_borders(bool value)
     config.show_pane_borders = value;
 }
 
+bool get_sdl_show_overlay_log_border(void)
+{
+    return config.show_overlay_log_border;
+}
+
+void set_sdl_show_overlay_log_border(bool value)
+{
+    config.show_overlay_log_border = value;
+}
+
 bool get_sdl_hide_left_panel(void)
 {
     return g_hide_left_panel;
@@ -1108,6 +1188,7 @@ void sdl_mouse_load_default_settings(void)
         g_startup_device_class);
     g_default_mouse_enabled = defaults.mouse_enabled;
     g_default_mouse_movement_mode = defaults.mouse_movement_mode;
+    g_default_mouse_tile_pointer = defaults.mouse_tile_pointer;
     g_default_mouse_settings_ready = true;
 }
 
@@ -1605,6 +1686,26 @@ bool get_sdl_mouse_default_enabled(void)
 {
     sdl_mouse_load_default_settings();
     return g_default_mouse_enabled;
+}
+
+bool get_sdl_mouse_tile_pointer(void)
+{
+    return config.mouse_tile_pointer;
+}
+
+void set_sdl_mouse_tile_pointer(bool enabled)
+{
+    if (config.mouse_tile_pointer == enabled)
+        return;
+
+    config.mouse_tile_pointer = enabled;
+    sdl_update_cursor_visibility();
+}
+
+bool get_sdl_mouse_default_tile_pointer(void)
+{
+    sdl_mouse_load_default_settings();
+    return g_default_mouse_tile_pointer;
 }
 
 int get_sdl_touch_pane_binding(int index)
@@ -2918,8 +3019,14 @@ int get_sdl_terminal_menu_scale(void)
     if (supporting_panes_hidden) {
         sdl_refresh_safe_area();
         screen = sdl_get_layout_screen_rect();
-        if (sdl_rect_has_area(&screen))
-            max_scale = sdl_max_scale_for_rect_mode(&screen, menu_mode);
+        if (sdl_rect_has_area(&screen)) {
+            SDL_Rect scale_reference;
+
+            sdl_mobile_portrait_scale_reference_rect(&screen,
+                &scale_reference);
+            max_scale = sdl_max_scale_for_rect_mode(&scale_reference,
+                menu_mode);
+        }
     } else {
         max_scale = sdl_max_scale_for_window_mode(menu_mode);
     }

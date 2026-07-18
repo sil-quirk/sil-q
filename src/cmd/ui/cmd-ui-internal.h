@@ -138,6 +138,15 @@ struct knowledge_browser_layout
     int divider_col;
     int list_col;
     int list_w;
+    /* The ordinary browser is a side-by-side group/list view.  Mobile
+     * portrait inventory uses the same data and rendering helpers, but gives
+     * each list its own full-width vertical band. */
+    bool stacked;
+    int group_row;
+    int group_rows;
+    int entry_header_row;
+    int entry_row;
+    int entry_rows;
 };
 
 struct knowledge_browser_state
@@ -151,6 +160,9 @@ struct knowledge_browser_state
 };
 
 extern int g_knowledge_last_page;
+
+/* SDL viewport predicate: true only for a genuine mobile portrait layout. */
+extern bool sdl_mobile_portrait_layout_active(void);
 
 bool indexed_menu_letters_enabled(void);
 void indexed_menu_entry_label(char* buf, size_t buflen, int index, cptr text);

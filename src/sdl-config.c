@@ -2794,18 +2794,22 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                 config->mobile_starting_zoom_offset);
         }
 
-        item = cJSON_GetObjectItemCaseSensitive(sdl,
-            "androidNarrativePortraitLayout");
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "mobilePortraitMode");
         if (!cJSON_IsBool(item))
         {
-            /* Preserve the original welcome-only setting when upgrading. */
+            /* Migrate the former render-only Android portrait settings. */
+            item = cJSON_GetObjectItemCaseSensitive(sdl,
+                "androidNarrativePortraitLayout");
+        }
+        if (!cJSON_IsBool(item))
+        {
             item = cJSON_GetObjectItemCaseSensitive(sdl,
                 "androidWelcomePortraitLayout");
         }
         if (cJSON_IsBool(item)) {
-            config->android_narrative_portrait_layout = cJSON_IsTrue(item);
-            log_debug("Loaded androidNarrativePortraitLayout: %s",
-                config->android_narrative_portrait_layout ? "true" : "false");
+            config->mobile_portrait_mode = cJSON_IsTrue(item);
+            log_debug("Loaded mobilePortraitMode: %s",
+                config->mobile_portrait_mode ? "true" : "false");
         }
         
         item = cJSON_GetObjectItemCaseSensitive(sdl, "auxViewFontSize");
@@ -2871,6 +2875,14 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
         if (cJSON_IsBool(item)) {
             config->show_pane_borders = cJSON_IsTrue(item);
             log_debug("Loaded showPaneBorders: %s", config->show_pane_borders ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl,
+            "showOverlayLogBorder");
+        if (cJSON_IsBool(item)) {
+            config->show_overlay_log_border = cJSON_IsTrue(item);
+            log_debug("Loaded showOverlayLogBorder: %s",
+                config->show_overlay_log_border ? "true" : "false");
         }
 
         item = cJSON_GetObjectItemCaseSensitive(sdl, "leftPanelExpandedOnLaunch");
@@ -3851,6 +3863,8 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                 "enabled");
             cJSON* movement_mode = cJSON_GetObjectItemCaseSensitive(mouse_control,
                 "movementMode");
+            cJSON* tile_pointer = cJSON_GetObjectItemCaseSensitive(mouse_control,
+                "tilePointer");
 
             if (cJSON_IsBool(enabled)) {
                 config->mouse_enabled = cJSON_IsTrue(enabled);
@@ -3868,6 +3882,12 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                     normalize_mouse_movement_mode(movement_mode->valueint);
                 log_debug("Loaded numeric mouseControl.movementMode: %s",
                     mouse_movement_mode_to_string(config->mouse_movement_mode));
+            }
+
+            if (cJSON_IsBool(tile_pointer)) {
+                config->mouse_tile_pointer = cJSON_IsTrue(tile_pointer);
+                log_debug("Loaded mouseControl.tilePointer: %s",
+                    config->mouse_tile_pointer ? "true" : "false");
             }
         }
 
@@ -3904,8 +3924,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
         config->terminal_menu_scale_offset);
     cJSON_AddNumberToObject(sdl, "mobileStartingZoomOffset",
         config->mobile_starting_zoom_offset);
-    cJSON_AddBoolToObject(sdl, "androidNarrativePortraitLayout",
-        config->android_narrative_portrait_layout);
+    cJSON_AddBoolToObject(sdl, "mobilePortraitMode",
+        config->mobile_portrait_mode);
     cJSON_AddNumberToObject(sdl, "auxViewFontSize", config->aux_view_font_size);
     cJSON_AddNumberToObject(sdl, "margin", config->margin);
     cJSON_AddBoolToObject(sdl, "fullscreen", config->fullscreen);
@@ -3915,6 +3935,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddBoolToObject(sdl, "enableRightPanes", config->enable_right_panes);
     cJSON_AddBoolToObject(sdl, "enableBottomPanes", config->enable_bottom_panes);
     cJSON_AddBoolToObject(sdl, "showPaneBorders", config->show_pane_borders);
+    cJSON_AddBoolToObject(sdl, "showOverlayLogBorder",
+        config->show_overlay_log_border);
     cJSON_AddBoolToObject(sdl, "leftPanelExpandedOnLaunch",
         config->left_panel_expanded_on_launch);
     cJSON_AddStringToObject(sdl, "leftPanelCompactMode",
@@ -4137,6 +4159,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                 config->mouse_enabled);
             cJSON_AddStringToObject(mouse_control, "movementMode",
                 mouse_movement_mode_to_string(config->mouse_movement_mode));
+            cJSON_AddBoolToObject(mouse_control, "tilePointer",
+                config->mouse_tile_pointer);
             cJSON_AddItemToObject(root, "mouseControl", mouse_control);
         }
     }
@@ -4480,7 +4504,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
         SDL_TERMINAL_MENU_SCALE_OFFSET_DEFAULT;
     config->mobile_starting_zoom_offset =
         SDL_MOBILE_STARTING_ZOOM_OFFSET_DEFAULT;
-    config->android_narrative_portrait_layout = false;
+    config->mobile_portrait_mode = false;
     config->aux_view_font_size = 0;
     config->margin = 4;
     config->fullscreen = true;
@@ -4493,6 +4517,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->enable_right_panes = false;
     config->enable_bottom_panes = true;
     config->show_pane_borders = true;
+    config->show_overlay_log_border = true;
 #if defined(__ANDROID__) || defined(SIL_IOS)
     config->left_panel_expanded_on_launch = false;
 #else
@@ -4563,6 +4588,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->gamepad_trigger_threshold = 16000;
     config->mouse_enabled = true;
     config->mouse_movement_mode = SDL_MOUSE_MOVEMENT_ON;
+    config->mouse_tile_pointer = false;
     sdl_config_set_default_gamepad_bindings(config);
     sdl_config_set_default_touch_pane_bindings(config);
     sdl_config_clear_touch_pane_labels(config);

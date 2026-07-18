@@ -159,9 +159,9 @@ struct sdl_config {
     int terminal_menu_scale_offset;
     // Extra scale steps applied when mobile gameplay first appears.
     int mobile_starting_zoom_offset;
-    // On Android, render narrative screens as rotated full-screen portrait
-    // pages without changing the window or device orientation.
-    bool android_narrative_portrait_layout;
+    // On mobile, request a real portrait device orientation.  Landscape
+    // remains the default for existing desktop and handheld layouts.
+    bool mobile_portrait_mode;
     // Default supporting-pane font size. Zero means auto from the configured
     // main view scale, independent of temporary main-map zoom.
     int aux_view_font_size;
@@ -172,6 +172,7 @@ struct sdl_config {
     bool enable_right_panes;
     bool enable_bottom_panes;
     bool show_pane_borders;
+    bool show_overlay_log_border;
     bool left_panel_expanded_on_launch;
     int left_panel_compact_mode;
     int min_terminal_mode;
@@ -247,6 +248,7 @@ struct sdl_config {
     int gamepad_shoulder_combo_binding;   // Binding for L1+R1 combo action
     bool mouse_enabled;
     int mouse_movement_mode;
+    bool mouse_tile_pointer;
     int touch_profile;
     bool touch_pane_default_open;
     bool touch_pane_key_labels_visible;

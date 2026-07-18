@@ -104,4 +104,54 @@ void sdl_ios_install_orientation_observer(SDL_Window* window)
         }];
 }
 
+void sdl_ios_request_orientation(bool portrait)
+{
+    UIInterfaceOrientationMask mask = portrait
+        ? UIInterfaceOrientationMaskPortrait
+        : UIInterfaceOrientationMaskLandscape;
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow* uiwin = nil;
+        UIViewController* root = nil;
+        UIWindowScene* scene = nil;
+
+        if (g_observer_window) {
+            SDL_PropertiesID props = SDL_GetWindowProperties(g_observer_window);
+
+            if (props) {
+                uiwin = (__bridge UIWindow*)SDL_GetPointerProperty(props,
+                    SDL_PROP_WINDOW_UIKIT_WINDOW_POINTER, NULL);
+            }
+        }
+        if (uiwin) {
+            root = uiwin.rootViewController;
+            scene = uiwin.windowScene;
+        }
+
+        if (@available(iOS 16.0, *)) {
+            if (scene) {
+                UIWindowSceneGeometryPreferencesIOS* preferences =
+                    [[UIWindowSceneGeometryPreferencesIOS alloc]
+                        initWithInterfaceOrientations:mask];
+                [scene requestGeometryUpdateWithPreferences:preferences
+                    errorHandler:^(NSError* error) {
+                        NSLog(@"Sil-More orientation request failed: %@", error);
+                    }];
+                return;
+            }
+        }
+
+        /* The older public API cannot force an orientation.  It does cause
+         * UIKit to re-check SDL's hint-derived supported-orientation mask. */
+        if (root) {
+            if ([root respondsToSelector:
+                    @selector(setNeedsUpdateOfSupportedInterfaceOrientations)])
+            {
+                [root setNeedsUpdateOfSupportedInterfaceOrientations];
+            }
+            [UIViewController attemptRotationToDeviceOrientation];
+        }
+    });
+}
+
 #endif /* SIL_IOS */

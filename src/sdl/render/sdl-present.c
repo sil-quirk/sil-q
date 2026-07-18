@@ -1691,7 +1691,6 @@ bool sdl_render_current_window_frame(void)
     sdl_mouse_path_render();
     sdl_combat_overlay_pane_render();
     sdl_status_pane_render();
-    sdl_main_menu_pane_render();
     sdl_popup_notification_render();
     sdl_depth_menu_pane_render();
     sdl_narrative_banner_render();
@@ -1701,13 +1700,9 @@ bool sdl_render_current_window_frame(void)
     sdl_touch_round_render();
 
     if (visible_views > 1) {
-        if (config.show_pane_borders)
-            SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 128);
-        else
-            SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
-
         for (int i = 0; i < MAX_TERM_DATA; i++) {
             sdl_view* view = &g_views[i];
+            bool overlay_log;
 
             if (!view->canvas)
                 continue;
@@ -1725,6 +1720,17 @@ bool sdl_render_current_window_frame(void)
                 continue;
             }
 
+            overlay_log = i == PANE_ROLLS
+                && sdl_view_is_overlay_log_pane(view);
+            if (overlay_log && !get_sdl_show_overlay_log_border())
+                continue;
+
+            if (overlay_log || config.show_pane_borders)
+                SDL_SetRenderDrawColor(g_state.renderer,
+                    255, 255, 255, 128);
+            else
+                SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+
             /* Draw only internal leading edges.  This keeps separators
              * between panes without painting a frame around the window. */
             SDL_Rect edge_rect = view->rect;
@@ -1735,7 +1741,7 @@ bool sdl_render_current_window_frame(void)
             /* The overlay log only paints a narrow right-hand band, so inset
              * its border to where that band (and the messages) begin, and close
              * it off with a bottom edge. */
-            if (i == PANE_ROLLS && sdl_view_is_overlay_log_pane(view))
+            if (overlay_log)
             {
                 int pad = view->cell_w / 8;
                 int inset;
@@ -1763,6 +1769,11 @@ bool sdl_render_current_window_frame(void)
         }
 
         if (side_map_visible) {
+            if (config.show_pane_borders)
+                SDL_SetRenderDrawColor(g_state.renderer,
+                    255, 255, 255, 128);
+            else
+                SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
             sdl_draw_pane_edges(&side_map_rect,
                 (layout_screen.w > 0 && side_map_rect.x > layout_screen.x),
                 (layout_screen.h > 0 && side_map_rect.y > layout_screen.y),
@@ -1777,6 +1788,9 @@ bool sdl_render_current_window_frame(void)
     if (!g_touch_tutorial_suppress_runtime_top_panel)
         sdl_touch_top_panel_render();
     sdl_touch_hidden_indicator_render();
+    /* The Main Menu is the topmost gameplay pane.  Draw it after pane borders
+     * and touch controls so neither can obscure its panel or labels. */
+    sdl_main_menu_pane_render();
     sdl_touch_pane_render_reset_prompt();
     sdl_touch_pane_render_yes_no_prompt();
     sdl_log_pane_menu_render();

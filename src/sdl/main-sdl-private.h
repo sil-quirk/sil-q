@@ -778,11 +778,13 @@ typedef struct status_pane_layout {
     SDL_FRect panel;
     status_pane_layout_item items[SDL_STATUS_PANE_MAX_ENTRIES];
     int layout_count;
+    int content_w;
     int font_px;
     int row_h;
     int pad_x;
     int pad_y;
     int item_pad_x;
+    bool right_align;
 } status_pane_layout;
 
 typedef enum log_pane_menu_action {
@@ -1498,6 +1500,7 @@ extern int g_default_gamepad_shoulder_combo_binding;
 extern bool g_default_gamepad_bindings_ready;
 extern bool g_default_mouse_enabled;
 extern int g_default_mouse_movement_mode;
+extern bool g_default_mouse_tile_pointer;
 extern bool g_default_mouse_settings_ready;
 extern int g_default_touch_pane_bindings[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_BUTTON_COUNT];
 extern char g_default_touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
@@ -1805,6 +1808,10 @@ bool sdl_query_direct_touch_present(void);
 bool sdl_refresh_direct_touch_present(void);
 void sdl_note_touch_event_device(SDL_TouchID touch_id);
 void sdl_update_cursor_visibility(void);
+void sdl_mouse_cursor_button_state(int button, bool pressed);
+int sdl_mouse_cursor_animation_timeout_ms(Uint64 now_ns);
+void sdl_mouse_cursor_animation_update(Uint64 now_ns);
+void sdl_mouse_cursor_shutdown(void);
 void sdl_log_mouse_devices(void);
 int sdl_build_active_pane_config(struct pane_config* active, bool include_side, bool include_bottom, bool touch_only);
 int sdl_configured_main_view_scale(void);
@@ -1864,6 +1871,14 @@ bool sdl_recover_layout_for_current_window(const char* reason, bool notify_user,
 bool sdl_prompt_reset_sdl_defaults(const char* issue_summary, int screen_width, int screen_height);
 bool sdl_resolution_matches_pair(int width, int height, int native_w, int native_h);
 bool sdl_is_desktop_handheld_resolution(int width, int height);
+bool sdl_mobile_portrait_layout_active(void);
+void sdl_mobile_portrait_scale_reference_rect(const SDL_Rect* source,
+    SDL_Rect* out);
+int sdl_mobile_portrait_hud_panel_max_width(enum pane_type pane);
+bool sdl_mobile_portrait_hud_panel_rect(enum pane_type pane, int panel_w,
+    int panel_h, SDL_FRect* out);
+bool sdl_mobile_portrait_control_regions(SDL_Rect* out_left,
+    SDL_Rect* out_right);
 sdl_startup_device_class sdl_prompt_desktop_startup_input_device( int screen_width, int screen_height);
 bool sdl_touch_pane_binding_is_direction(int binding);
 bool sdl_touch_pane_slot_uses_long_press(int slot, int binding);
@@ -3191,8 +3206,9 @@ int get_sdl_terminal_menu_scale_offset(void);
 void set_sdl_terminal_menu_scale_offset(int value);
 int get_sdl_mobile_starting_zoom_offset(void);
 void set_sdl_mobile_starting_zoom_offset(int value);
-bool get_sdl_android_narrative_portrait_layout(void);
-void set_sdl_android_narrative_portrait_layout(bool value);
+bool get_sdl_mobile_portrait_mode(void);
+void set_sdl_mobile_portrait_mode(bool value);
+void sdl_set_mobile_orientation_hint(bool portrait);
 int get_sdl_min_terminal_mode(void);
 void set_sdl_min_terminal_mode(int value);
 void set_sdl_main_view_scale(int value);
@@ -3238,6 +3254,8 @@ bool get_sdl_enable_bottom_panes(void);
 void set_sdl_enable_bottom_panes(bool value);
 bool get_sdl_show_pane_borders(void);
 void set_sdl_show_pane_borders(bool value);
+bool get_sdl_show_overlay_log_border(void);
+void set_sdl_show_overlay_log_border(bool value);
 bool get_sdl_hide_left_panel(void);
 void sdl_push_saved_screen_left_panel_pane(void);
 void sdl_pop_saved_screen_left_panel_pane(void);
@@ -3298,6 +3316,9 @@ int get_sdl_mouse_movement_default_mode(void);
 bool get_sdl_mouse_enabled(void);
 void set_sdl_mouse_enabled(bool enabled);
 bool get_sdl_mouse_default_enabled(void);
+bool get_sdl_mouse_tile_pointer(void);
+void set_sdl_mouse_tile_pointer(bool enabled);
+bool get_sdl_mouse_default_tile_pointer(void);
 int get_sdl_touch_pane_binding(int index);
 int get_sdl_touch_pane_binding_for_panel(int panel, int index);
 void set_sdl_touch_pane_binding(int index, int binding);
