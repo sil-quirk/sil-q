@@ -130,7 +130,7 @@ static bool run_history_is_current(const run_history_entry* entry)
 static high_score forced_highlight_entry;
 static bool forced_highlight_active = false;
 static bool force_interactive_scores = false;
-static bool score_last_layout_short = true;
+static bool score_last_layout_short = false;
 
 static void score_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
 {
@@ -491,133 +491,6 @@ static void truncate_with_ellipsis(const char* src, char* dst, size_t dst_size,
     strnfmt(dst, dst_size, "%.*s...", max_width - 3, src);
 }
 
-static void score_ui_choose_fit(char* out, size_t out_len, int term_wid,
-                                int col, const char** candidates, int count)
-{
-    int max_width = term_wid - col;
-
-    if (!out || out_len == 0)
-        return;
-
-    out[0] = '\0';
-
-    if (!candidates || count <= 0 || max_width <= 0)
-        return;
-
-    for (int i = 0; i < count; i++)
-    {
-        if (!candidates[i])
-            continue;
-        if ((int)strlen(candidates[i]) <= max_width)
-        {
-            SDL_strlcpy(out, candidates[i], out_len);
-            return;
-        }
-    }
-
-    truncate_with_ellipsis(candidates[count - 1], out, out_len, max_width);
-}
-
-static void score_ui_build_halls_footer(char* footer, size_t footer_len,
-                                        bool steamdeck, int term_wid,
-                                        int page, int total_pages,
-                                        const char* open_label,
-                                        const char* history_label,
-                                        const char* order_label,
-                                        const char* layout_label,
-                                        const char* exit_label)
-{
-    char full[224];
-    char medium[192];
-    char short1[128];
-    char short2[96];
-    char tiny[64];
-    char minimum[32];
-    const char* candidates[6];
-    int count = 0;
-
-    if (!footer || footer_len == 0)
-        return;
-
-    footer[0] = '\0';
-
-    if (sdl_touch_only_device_active())
-    {
-        /* Keep Runs/Order/Layout/Prev/Next present so the consumer's tappable
-         * tokens still register on touch (it scans this footer for them). */
-        if (total_pages > 1)
-        {
-            strnfmt(full, sizeof(full),
-                "Tap a row to view  Runs  Order  Layout  Prev/Next  "
-                "tap away to exit  %d/%d", page + 1, total_pages);
-            strnfmt(medium, sizeof(medium),
-                "Tap view  Runs  Order  Layout  Prev/Next  %d/%d",
-                page + 1, total_pages);
-        }
-        else
-        {
-            strnfmt(full, sizeof(full),
-                "Tap a row to view  Runs  Order  Layout  "
-                "tap away to exit  %d/%d", page + 1, total_pages);
-            strnfmt(medium, sizeof(medium),
-                "Tap view  Runs  Order  Layout  %d/%d", page + 1, total_pages);
-        }
-        strnfmt(short1, sizeof(short1), "Tap view  Runs  Order  %d/%d",
-            page + 1, total_pages);
-        SDL_strlcpy(short2, short1, sizeof(short2));
-        SDL_strlcpy(tiny, short1, sizeof(tiny));
-        strnfmt(minimum, sizeof(minimum), "%d/%d", page + 1, total_pages);
-    }
-    else if (steamdeck)
-    {
-        strnfmt(full, sizeof(full),
-            "[%s] Open  [%s] Runs  [%s] Order  [%s] Layout  [%s] Exit  D-pad Move %d/%d",
-            open_label, history_label, order_label, layout_label, exit_label,
-            page + 1, total_pages);
-        strnfmt(medium, sizeof(medium),
-            "[%s] Open  [%s] Runs  [%s] Order  [%s] Layout  [%s] Exit  %d/%d",
-            open_label, history_label, order_label, layout_label, exit_label,
-            page + 1, total_pages);
-        strnfmt(short1, sizeof(short1),
-            "[%s] Open  [%s] Runs  [%s] Ord  [%s] Lay  [%s] Exit  %d/%d",
-            open_label, history_label, order_label, layout_label, exit_label,
-            page + 1, total_pages);
-        strnfmt(short2, sizeof(short2),
-            "[%s] Open  [%s] Runs  [%s] Exit  %d/%d", open_label,
-            history_label, exit_label, page + 1, total_pages);
-        strnfmt(tiny, sizeof(tiny), "[%s] Open  [%s] Runs  %d/%d",
-            open_label, history_label, page + 1, total_pages);
-        strnfmt(minimum, sizeof(minimum), "%d/%d", page + 1, total_pages);
-    }
-    else
-    {
-        strnfmt(full, sizeof(full),
-            "Dir Move/Open  N/P Page  Enter Open  R Runs  S Order  L Layout  Esc Exit %d/%d",
-            page + 1, total_pages);
-        strnfmt(medium, sizeof(medium),
-            "Enter Open  R Runs  S Order  L Layout  Esc Exit  N/P Page %d/%d",
-            page + 1, total_pages);
-        strnfmt(short1, sizeof(short1),
-            "Enter Open  R Runs  S Ord  L Lay  Esc Exit  N/P %d/%d",
-            page + 1, total_pages);
-        strnfmt(short2, sizeof(short2),
-            "Enter Open  R Runs  Esc Exit  %d/%d",
-            page + 1, total_pages);
-        strnfmt(tiny, sizeof(tiny), "R Runs  Enter Open  Esc Exit  %d/%d",
-            page + 1, total_pages);
-        strnfmt(minimum, sizeof(minimum), "%d/%d", page + 1, total_pages);
-    }
-
-    candidates[count++] = full;
-    candidates[count++] = medium;
-    candidates[count++] = short1;
-    candidates[count++] = short2;
-    candidates[count++] = tiny;
-    candidates[count++] = minimum;
-
-    score_ui_choose_fit(footer, footer_len, term_wid, 1, candidates, count);
-}
-
 static int run_history_detail_body_rows(int term_hgt, int first_row)
 {
     int footer_row = term_hgt - 2;
@@ -757,159 +630,6 @@ static void run_detail_text_view_blank(run_detail_text_view* view)
     if (!view)
         return;
     view->logical_row++;
-}
-static void display_single_score_short(byte attr, int place, int row, const high_score* entry)
-{
-    char depth_commas[16];
-    char verdict_buf[96];
-    const char* verdict;
-    int wid, hgt;
-
-    /* Get actual terminal width */
-    score_ui_get_term_size(&wid, &hgt);
-    const int line_width = wid;
-
-    int depth_ft = atoi(entry->cur_dun) * 50;
-    comma_number(depth_commas, depth_ft);
-
-    int pts = score_points(entry);
-    int silmarils = parse_score_int(entry->silmarils, sizeof(entry->silmarils), 0);
-    bool morgoth = (entry->morgoth_slain[0] == 't');
-
-    /* Build indicators string */
-    char indicators[8] = "";
-    int ind_pos = 0;
-    
-    /* Add Silmaril indicators */
-    for (int i = 0; i < silmarils && i < 3; i++) {
-        indicators[ind_pos++] = '*';
-    }
-    
-    /* Add Morgoth indicator */
-    if (morgoth) {
-        indicators[ind_pos++] = 'V';
-    }
-    indicators[ind_pos] = '\0';
-
-    /* Build verdict with appropriate formatting */
-    if (entry->escaped[0] == 't') {
-        if (indicators[0]) {
-            strnfmt(verdict_buf, sizeof(verdict_buf), "Escaped with %s", indicators);
-        } else {
-            strnfmt(verdict_buf, sizeof(verdict_buf), "Escaped Angband");
-        }
-        verdict = verdict_buf;
-    } else if (streq(entry->how, "(alive and well)")) {
-        verdict = "Alive";
-    } else if (morgoth) {
-        /* Morgoth victory is a special end state; avoid "Slain by ..." wording. */
-        if (indicators[0]) {
-            strnfmt(verdict_buf, sizeof(verdict_buf),
-                    "Victorious over Morgoth's illusion (%s) at %sft %s",
-                    entry->how, depth_commas, indicators);
-        } else {
-            strnfmt(verdict_buf, sizeof(verdict_buf),
-                    "Victorious over Morgoth's illusion (%s) at %sft",
-                    entry->how, depth_commas);
-        }
-        verdict = verdict_buf;
-    } else {
-        /* For deaths, include depth and indicators - keep ft visible */
-        if (indicators[0]) {
-            strnfmt(verdict_buf, sizeof(verdict_buf), "Slain by %s at %sft %s", 
-                    entry->how, depth_commas, indicators);
-        } else {
-            strnfmt(verdict_buf, sizeof(verdict_buf), "Slain by %s at %sft", 
-                    entry->how, depth_commas);
-        }
-        verdict = verdict_buf;
-    }
-
-    const char* name_src = entry->who[0] ? entry->who : "(unknown)";
-
-    /* Column layout with maximum verdict display:
-     * "1. Maedhros   777  Slain by a Young fire-drake at 800ft with indicators"
-     *  ^^^ ^^^^^^^^ ^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     *  Pl  Name(12) Scr  Verdict (uses all remaining terminal width)
-     */
-    const int place_width = 4;      /* "1. " */
-    const int name_width = 15;      /* Fixed minimum name column */
-    const int score_width = 5;      /* Right-aligned score */
-    const int gap = 2;              /* Spaces between score and verdict */
-    
-    /* Verdict gets all remaining space on the line, minus 1 for cleaner right margin */
-    int verdict_start = place_width + name_width + score_width + gap;
-    int verdict_width = line_width - verdict_start - 1;  /* -1 for right margin */
-    if (verdict_width < 1) verdict_width = 1;
-
-    /* Build the line */
-    char line[256];
-    for (size_t i = 0; i < sizeof(line); i++) line[i] = ' ';
-    
-    int pos = 0;
-    
-    /* Place number: "1. " */
-    char place_buf[8];
-    strnfmt(place_buf, sizeof(place_buf), "%2d. ", place);
-    memcpy(line + pos, place_buf, strlen(place_buf));
-    pos = place_width;  /* Jump to fixed position */
-    
-    /* Name field: left-aligned in 20-char column */
-    char name_field[64];
-    truncate_preserving_words(name_src, name_field, sizeof(name_field), name_width);
-    int name_len = (int)strlen(name_field);
-    if (name_len > name_width) name_len = name_width;
-    memcpy(line + pos, name_field, name_len);
-    pos = place_width + name_width;  /* Jump to fixed position */
-    
-    /* Score field: right-aligned in 5-char column */
-    char score_buf[16];
-    strnfmt(score_buf, sizeof(score_buf), "%d", pts);
-    int score_len = (int)strlen(score_buf);
-    if (score_len > score_width) {
-        /* Truncate from left if too long */
-        memcpy(line + pos + score_width - score_len, score_buf + (score_len - score_width), score_width);
-    } else {
-        memcpy(line + pos + score_width - score_len, score_buf, score_len);
-    }
-    pos = place_width + name_width + score_width + gap;  /* Jump past score + gap */
-    
-    /* Verdict field: keep "at XXft" visible at end if truncating needed */
-    const char* verdict_str = verdict;
-    int verdict_len = (int)strlen(verdict_str);
-    
-    if (verdict_len > verdict_width) {
-        /* Find the " at " part which contains the depth info - keep it visible */
-        const char* at_pos = strstr(verdict_str, " at ");
-        if (at_pos) {
-            int at_offset = (int)(at_pos - verdict_str);
-            int tail_len = verdict_len - at_offset;  /* Length from " at " onward */
-            
-            if (tail_len < verdict_width) {
-                /* We can fit the tail, so truncate the beginning */
-                int prefix_len = verdict_width - tail_len;
-                memcpy(line + pos, verdict_str, prefix_len);
-                memcpy(line + pos + prefix_len, at_pos, tail_len);
-                pos += verdict_width;
-            } else {
-                /* Even the tail is too long, just show what fits starting from beginning */
-                memcpy(line + pos, verdict_str, verdict_width);
-                pos += verdict_width;
-            }
-        } else {
-            /* No " at " found, just show beginning of verdict */
-            memcpy(line + pos, verdict_str, verdict_width);
-            pos += verdict_width;
-        }
-    } else {
-        /* Verdict fits completely */
-        memcpy(line + pos, verdict_str, verdict_len);
-        pos += verdict_len;
-    }
-    
-    line[pos] = '\0';
-
-    c_put_str(attr, line, 3 + row, 0);
 }
 extern void display_single_score(
     byte attr, int row, int col, int place, int fake, high_score* the_score)
@@ -1166,6 +886,128 @@ extern void display_single_score(
         c_put_str(TERM_L_DARK, "         V", row + 4, col);
     }
 }
+
+static void score_ui_halls_date(const high_score* entry, char* out,
+    size_t out_len)
+{
+    const char* when;
+
+    if (!out || out_len == 0)
+        return;
+    out[0] = '\0';
+    if (!entry)
+        return;
+
+    when = entry->day;
+    while (*when && isspace((unsigned char)*when))
+        when++;
+    if (*when == '@' && strlen(when) == 9)
+    {
+        char month[4];
+
+        strnfmt(month, sizeof(month), "%.2s", when + 5);
+        atomonth(atoi(month), month);
+        strnfmt(out, out_len, "%d %.3s %.4s", atoi(when + 7), month,
+            when + 1);
+        return;
+    }
+    SDL_strlcpy(out, when, out_len);
+}
+
+static void score_ui_build_halls_card(const high_score* entry, int place,
+    char* rank, size_t rank_len, char* name, size_t name_len,
+    char* score, size_t score_len, char* outcome, size_t outcome_len,
+    char* details, size_t details_len, char* honors, size_t honors_len)
+{
+    char score_commas[24];
+    char turn_commas[24];
+    char depth_commas[24];
+    char deepest_commas[24];
+    char date[32];
+    int character = entry ? atoi(entry->p_h) : -1;
+    int turns = entry ? atoi(entry->turns) : 0;
+    int depth = entry ? atoi(entry->cur_dun) * 50 : 0;
+    int deepest = entry ? atoi(entry->max_dun) * 50 : 0;
+    int silmarils = entry
+        ? parse_score_int(entry->silmarils, sizeof(entry->silmarils), 0) : 0;
+    bool morgoth = entry && entry->morgoth_slain[0] == 't';
+    bool escaped = entry && entry->escaped[0] == 't';
+    bool alive = entry && streq(entry->how, "(alive and well)");
+    cptr hero = (entry && entry->who[0]) ? entry->who : "Unknown hero";
+
+    strnfmt(rank, rank_len, "#%d", place);
+    if (entry && z_info && c_info && c_name
+        && character >= 0 && character < z_info->c_max)
+    {
+        strnfmt(name, name_len, "%s%s", hero,
+            c_name + c_info[character].alt_name);
+    }
+    else
+        SDL_strlcpy(name, hero, name_len);
+
+    comma_number(score_commas, entry ? score_points(entry) : 0);
+    strnfmt(score, score_len, "%s pts", score_commas);
+    comma_number(turn_commas, turns);
+    comma_number(depth_commas, depth);
+    comma_number(deepest_commas, deepest);
+    score_ui_halls_date(entry, date, sizeof(date));
+
+    if (escaped)
+    {
+        if (silmarils > 0 || morgoth)
+            SDL_strlcpy(outcome,
+                "Escaped the iron hells and bore the light back to Valinor.",
+                outcome_len);
+        else
+            SDL_strlcpy(outcome,
+                "Escaped the iron hells of Angband empty-handed.",
+                outcome_len);
+    }
+    else if (alive)
+        SDL_strlcpy(outcome, "Lives still, deep within Angband's vaults.",
+            outcome_len);
+    else if (morgoth)
+        strnfmt(outcome, outcome_len,
+            "Victorious over Morgoth's illusion; fate: %s.",
+            (entry && entry->how[0]) ? entry->how : "unknown");
+    else
+        strnfmt(outcome, outcome_len, "Slain by %s at %s ft.",
+            (entry && entry->how[0]) ? entry->how : "an unknown doom",
+            depth_commas);
+
+    if (date[0])
+        strnfmt(details, details_len,
+            "%s turns  |  deepest descent %s ft  |  %s", turn_commas,
+            deepest_commas, date);
+    else
+        strnfmt(details, details_len,
+            "%s turns  |  deepest descent %s ft", turn_commas,
+            deepest_commas);
+
+    honors[0] = '\0';
+    if (silmarils > 0)
+        strnfmt(honors, honors_len, "%d Silmaril%s", silmarils,
+            silmarils == 1 ? "" : "s");
+    if (morgoth)
+    {
+        if (honors[0])
+            SDL_strlcat(honors, "  |  Morgoth", honors_len);
+        else
+            SDL_strlcpy(honors, "Morgoth", honors_len);
+    }
+    if (escaped && !honors[0])
+        SDL_strlcpy(honors, "Escaped", honors_len);
+    else if (alive && !honors[0])
+        SDL_strlcpy(honors, "Living", honors_len);
+}
+
+static char score_ui_finish_halls(char response)
+{
+    ui_menu_click_clear();
+    sdl_halls_screen_hide();
+    return response;
+}
+
 static char display_scores_pages(const high_score* entries, int count,
                                  int* highlight_index, score_view_order order,
                                  bool detailed, int page_size)
@@ -1180,67 +1022,28 @@ static char display_scores_pages(const high_score* entries, int count,
         SCORE_CLICK_HISTORY = -7
     };
     bool steamdeck = steamdeck_controls_active();
-    char order_label[16] = "";
-    char layout_label[16] = "";
-    char exit_label[16] = "";
-    char open_label[16] = "";
-    char history_label[16] = "";
-    int term_wid = 80;
-    int term_hgt = 24;
-    int footer_row;
-    bool compact;
     int start_index = 0;
-
-    if (steamdeck) {
-        /* Steam Deck UI: Y=order, X=layout, B=exit, A=open */
-        score_prompt_label(steamdeck_secondary_key(), "Y", order_label, sizeof(order_label));
-        score_prompt_label(steamdeck_alt_action_key(), "X", layout_label, sizeof(layout_label));
-        score_prompt_label(steamdeck_back_key(), "B", exit_label, sizeof(exit_label));
-        score_prompt_label(steamdeck_confirm_key(), "A", open_label, sizeof(open_label));
-        score_prompt_label(steamdeck_info_key(), "RS", history_label, sizeof(history_label));
-    }
-
-    score_ui_get_term_size(&term_wid, &term_hgt);
-    footer_row = term_hgt - 1;
-    if (footer_row < 4)
-        footer_row = 4;
-    compact = score_ui_compact_width(term_wid);
-
-    Term_clear();
 
     if (!entries || count <= 0)
     {
-        c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
-        c_put_str(TERM_SLATE, "No recorded heroes yet.", 3, 0);
-        char hint_buf[96];
-        if (sdl_touch_only_device_active())
-            SDL_strlcpy(hint_buf, "Tap Run History  tap away to exit",
-                sizeof(hint_buf));
-        else if (steamdeck)
-            strnfmt(hint_buf, sizeof(hint_buf), "[%s] Run History  [%s] Exit",
-                history_label, exit_label);
-        else
-            SDL_strlcpy(hint_buf, "[R] Run History  [Esc] Exit",
-                sizeof(hint_buf));
-        score_ui_put_fit(TERM_L_WHITE, hint_buf, footer_row, 2, term_wid);
         ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_outside_cancel_enabled(true);
-        ui_menu_click_add_text_token(SCORE_CLICK_HISTORY, 2, footer_row,
-            hint_buf, "Run");
-        ui_menu_click_add_text_token(SCORE_CLICK_HISTORY, 2, footer_row,
-            hint_buf, "History");
-        ui_menu_click_add_text_token(SCORE_CLICK_HISTORY, 2, footer_row,
-            hint_buf, "[R]");
-        ui_menu_click_add_text_token(SCORE_CLICK_EXIT, 2, footer_row,
-            hint_buf, "Exit");
-        ui_menu_click_add_text_token(SCORE_CLICK_EXIT, 2, footer_row,
-            hint_buf, "Esc");
+        (void)sdl_halls_screen_begin(
+            "Here are remembered the fates of those who entered Angband.",
+            "No memorials have yet been inscribed.", false,
+            SCORE_CLICK_EXIT);
+        sdl_halls_screen_set_empty("No recorded heroes yet.");
+        sdl_halls_screen_add_action(SCORE_CLICK_HISTORY, "Run History",
+            TERM_L_BLUE, true);
+        sdl_halls_screen_add_action(SCORE_CLICK_EXIT, "Back", TERM_L_WHITE,
+            true);
+        Term_fresh();
         while (true)
         {
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
             char ch;
-            bool click_generated_command = false;
             bool saved_hide_cursor = hide_cursor;
             hide_cursor = true;
             ch = inkey();
@@ -1252,56 +1055,35 @@ static char display_scores_pages(const high_score* entries, int count,
                 if (click_action == UI_MENU_CLICK_HOVER)
                     continue;
                 if (clicked_choice == SCORE_CLICK_HISTORY)
-                    return 'r';
-                click_generated_command = true;
-                break;
+                    return score_ui_finish_halls('r');
+                return score_ui_finish_halls(0);
             }
 
             if (ch == UI_MENU_CLICK_WAKE_KEY)
                 continue;
-            if (!click_generated_command)
-                ch = (char)steamdeck_menu_key(ch, 0, 0);
+            ch = (char)steamdeck_menu_key(ch, 0, 0);
             if ((steamdeck && ch == steamdeck_info_key())
                 || ch == 'r' || ch == 'R' || ch == 'h' || ch == 'H')
-            {
-                ui_menu_click_clear();
-                return 'r';
-            }
-
-            ui_menu_click_clear();
-            break;
+                return score_ui_finish_halls('r');
+            return score_ui_finish_halls(0);
         }
-        ui_menu_click_clear();
-        return 0;
     }
 
     if (!highlight_index)
-        return 0;
+        return score_ui_finish_halls(0);
     if (*highlight_index < 0 || *highlight_index >= count)
         *highlight_index = 0;
 
     while (true)
     {
-        int body_rows;
         int entries_per_page;
-        int layout_col;
         int max_start;
         int page;
         int total_pages;
         bool has_more;
         bool has_prev;
 
-        score_ui_get_term_size(&term_wid, &term_hgt);
-        footer_row = term_hgt - 1;
-        if (footer_row < 4)
-            footer_row = 4;
-        compact = score_ui_compact_width(term_wid);
-
-        body_rows = footer_row - 3;
-        if (body_rows < 1)
-            body_rows = 1;
-
-        entries_per_page = detailed ? (body_rows / 4) : body_rows;
+        entries_per_page = sdl_halls_screen_page_capacity(detailed);
         if (detailed && entries_per_page > page_size)
             entries_per_page = page_size;
         if (entries_per_page < 1) entries_per_page = 1;
@@ -1325,104 +1107,64 @@ static char display_scores_pages(const high_score* entries, int count,
         has_more = (start_index + entries_per_page < count);
         has_prev = (start_index > 0);
 
-        Term_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_outside_cancel_enabled(true);
-        c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
+        {
+            char page_status[160];
 
-        char order_buf[64];
-        strnfmt(order_buf, sizeof(order_buf), "%s", score_view_order_label(order));
-        c_put_str(TERM_L_WHITE, order_buf, 2, 0);
-
-        char layout_buf[32];
-        strnfmt(layout_buf, sizeof(layout_buf), "Layout: %s", detailed ? "Full" : "Short");
-        layout_col = term_wid - (int)strlen(layout_buf) - 1;
-        if (!compact && layout_col > (int)strlen(order_buf) + 2)
-            c_put_str(TERM_SLATE, layout_buf, 2, layout_col);
+            strnfmt(page_status, sizeof(page_status),
+                "%s  |  %s memorials  |  page %d of %d",
+                score_view_order_label(order), detailed ? "full" : "brief",
+                page + 1, total_pages);
+            (void)sdl_halls_screen_begin(
+                "Here are remembered the fates of those who entered Angband.",
+                page_status, detailed, SCORE_CLICK_EXIT);
+        }
 
         for (int row = 0; row < entries_per_page && (start_index + row) < count; row++)
         {
             int idx = start_index + row;
             bool is_highlight = (idx == *highlight_index);
-            byte attr = score_entry_color(&entries[idx], is_highlight);
+            byte attr = score_entry_color(&entries[idx], false);
+            char rank[16];
+            char name[64];
+            char score[32];
+            char outcome[256];
+            char details[256];
+            char honors[96];
 
-            if (detailed)
-            {
-                display_single_score(attr, row * 4, 0, start_index + row + 1, false, (high_score*)&entries[idx]);
-                ui_menu_click_add_full_row(idx, row * 4 + 3);
-                ui_menu_click_add_full_row(idx, row * 4 + 4);
-                ui_menu_click_add_full_row(idx, row * 4 + 5);
-            }
-            else
-            {
-                display_single_score_short(attr, start_index + row + 1, row, &entries[idx]);
-                ui_menu_click_add_full_row(idx, row + 3);
-            }
+            score_ui_build_halls_card(&entries[idx], idx + 1, rank,
+                sizeof(rank), name, sizeof(name), score, sizeof(score),
+                outcome, sizeof(outcome), details, sizeof(details), honors,
+                sizeof(honors));
+            sdl_halls_screen_add_entry(idx, rank, name, score, outcome,
+                details, honors, attr, is_highlight);
         }
 
-        char footer[224];
-        score_ui_build_halls_footer(footer, sizeof(footer), steamdeck,
-            term_wid, page, total_pages, open_label, history_label,
-            order_label, layout_label, exit_label);
-        score_ui_put_fit(TERM_L_WHITE, footer, footer_row, 1, term_wid);
-        ui_menu_click_add_text_token(SCORE_CLICK_OPEN, 1, footer_row, footer,
-            "Open");
-        ui_menu_click_add_text_token(SCORE_CLICK_OPEN, 1, footer_row, footer,
-            "open");
-        ui_menu_click_add_text_token(SCORE_CLICK_OPEN, 1, footer_row, footer,
-            "Enter");
-        ui_menu_click_add_text_token(SCORE_CLICK_HISTORY, 1, footer_row,
-            footer, "Runs");
-        ui_menu_click_add_text_token(SCORE_CLICK_HISTORY, 1, footer_row,
-            footer, "Run");
-        ui_menu_click_add_text_token(SCORE_CLICK_HISTORY, 1, footer_row,
-            footer, "History");
-        ui_menu_click_add_text_token(SCORE_CLICK_HISTORY, 1, footer_row,
-            footer, "[R]");
-        ui_menu_click_add_text_token(SCORE_CLICK_ORDER, 1, footer_row, footer,
-            "Order");
-        ui_menu_click_add_text_token(SCORE_CLICK_ORDER, 1, footer_row, footer,
-            "order");
-        ui_menu_click_add_text_token(SCORE_CLICK_ORDER, 1, footer_row, footer,
-            "Ord");
-        ui_menu_click_add_text_token(SCORE_CLICK_ORDER, 1, footer_row, footer,
-            "[S]");
-        ui_menu_click_add_text_token(SCORE_CLICK_LAYOUT, 1, footer_row, footer,
-            "Layout");
-        ui_menu_click_add_text_token(SCORE_CLICK_LAYOUT, 1, footer_row, footer,
-            "layout");
-        ui_menu_click_add_text_token(SCORE_CLICK_LAYOUT, 1, footer_row, footer,
-            "Lay");
-        ui_menu_click_add_text_token(SCORE_CLICK_LAYOUT, 1, footer_row, footer,
-            "[L]");
-        ui_menu_click_add_text_token(SCORE_CLICK_EXIT, 1, footer_row, footer,
-            "Exit");
-        ui_menu_click_add_text_token(SCORE_CLICK_EXIT, 1, footer_row, footer,
-            "exit");
-        ui_menu_click_add_text_token(SCORE_CLICK_EXIT, 1, footer_row, footer,
-            "Esc");
-        ui_menu_click_add_text_token(SCORE_CLICK_EXIT, 1, footer_row, footer,
-            "ESC");
-        ui_menu_click_add_text_token(SCORE_CLICK_NEXT, 1, footer_row, footer,
-            "Next");
-        ui_menu_click_add_text_token(SCORE_CLICK_NEXT, 1, footer_row, footer,
-            "next");
-        ui_menu_click_add_text_token(SCORE_CLICK_NEXT, 1, footer_row, footer,
-            "[N]");
-        ui_menu_click_add_text_token(SCORE_CLICK_PREV, 1, footer_row, footer,
-            "Prev");
-        ui_menu_click_add_text_token(SCORE_CLICK_PREV, 1, footer_row, footer,
-            "prev");
-        ui_menu_click_add_text_token(SCORE_CLICK_PREV, 1, footer_row, footer,
-            "[P]");
+        sdl_halls_screen_add_action(SCORE_CLICK_EXIT, "Back", TERM_L_WHITE,
+            true);
+        sdl_halls_screen_add_action(SCORE_CLICK_HISTORY, "Run History",
+            TERM_L_BLUE, true);
+        sdl_halls_screen_add_action(SCORE_CLICK_ORDER,
+            order == SCORE_VIEW_ORDER_SCORE ? "Order: Score" : "Order: Date",
+            TERM_L_WHITE, true);
+        sdl_halls_screen_add_action(SCORE_CLICK_LAYOUT,
+            detailed ? "View: Full" : "View: Brief", TERM_L_WHITE, true);
+        if (!sdl_touch_only_device_active())
+            sdl_halls_screen_add_action(SCORE_CLICK_OPEN, "Open Hero",
+                TERM_L_BLUE, true);
+        sdl_halls_screen_add_action(SCORE_CLICK_PREV, "Previous", TERM_SLATE,
+            has_prev);
+        sdl_halls_screen_add_action(SCORE_CLICK_NEXT, "Next", TERM_SLATE,
+            has_more);
+        Term_fresh();
 
         bool saved_hide_cursor = hide_cursor;
         hide_cursor = true;
         char ch = inkey();
         hide_cursor = saved_hide_cursor;
         bool click_generated_command = false;
-        prt("", footer_row, 0);
 
         {
             int clicked_choice = 0;
@@ -1436,6 +1178,7 @@ static char display_scores_pages(const high_score* entries, int count,
                     *highlight_index = clicked_choice;
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
+                    sdl_halls_screen_hide();
                     if (!show_run_history_detail_for_score(&entries[*highlight_index]))
                         bell("No run history is available for that character.");
                     continue;
@@ -1473,7 +1216,7 @@ static char display_scores_pages(const high_score* entries, int count,
             int secondary_key = steamdeck_secondary_key();
             
             if (ch == back_key)
-                return ESCAPE;  /* B = back */
+                return score_ui_finish_halls(ESCAPE);  /* B = back */
             if (ch == confirm_key)
                 ch = '\r';  /* A = open */
             if (ch == steamdeck_info_key())
@@ -1485,13 +1228,13 @@ static char display_scores_pages(const high_score* entries, int count,
         }
 
         if (ch == ESCAPE)
-            return ESCAPE;
+            return score_ui_finish_halls(ESCAPE);
         if (ch == 'r' || ch == 'R' || ch == 'h' || ch == 'H')
-            return 'r';
+            return score_ui_finish_halls('r');
         if (ch == 's' || ch == 'S' || ch == 'o' || ch == 'O')
-            return ch;
+            return score_ui_finish_halls(ch);
         if (ch == 'l' || ch == 'L')
-            return ch;
+            return score_ui_finish_halls(ch);
 
         switch (ch)
         {
@@ -1559,16 +1302,17 @@ static char display_scores_pages(const high_score* entries, int count,
 #ifdef ARROW_RIGHT
         case ARROW_RIGHT:
 #endif
+            sdl_halls_screen_hide();
             if (!show_run_history_detail_for_score(&entries[*highlight_index]))
                 bell("No run history is available for that character.");
             break;
 
         default:
-            return 0;
+            return score_ui_finish_halls(0);
         }
     }
 
-    return 0;
+    return score_ui_finish_halls(0);
 }
 void display_scores(int from, int to)
 {
@@ -1672,7 +1416,6 @@ void show_scores(bool longscore)
              preview_allowed ? 1 : 0);
 
     sdl_suspend_main_view_zoom_for_saved_screen();
-    sdl_push_terminal_menu_scale();
 
     high_score ordered_by_score[MAX_HISCORES + 1];
     high_score ordered_by_time[MAX_HISCORES + 1];
@@ -1684,12 +1427,6 @@ void show_scores(bool longscore)
     int page_size = 5;
     bool detailed = !score_last_layout_short;
     score_view_order order = SCORE_VIEW_ORDER_SCORE;
-    int term_wid = 80;
-    int term_hgt = 24;
-
-    score_ui_get_term_size(&term_wid, &term_hgt);
-    if (score_ui_compact_width(term_wid) || term_hgt < 20)
-        detailed = false;
 
     high_score highlight_buffer;
     const high_score* highlight_entry = NULL;
@@ -1726,6 +1463,7 @@ void show_scores(bool longscore)
     }
 
     screen_push_supporting_panes_hidden();
+    screen_push_touch_pane_hidden();
     while (true)
     {
         const high_score* list = (order == SCORE_VIEW_ORDER_SCORE) ? ordered_by_score : ordered_by_time;
@@ -1793,8 +1531,8 @@ void show_scores(bool longscore)
     {
         sdl_set_present_suppressed(true);
     }
+    screen_pop_touch_pane_hidden();
     screen_pop_supporting_panes_hidden();
-    sdl_pop_terminal_menu_scale();
     if (sdl_resume_main_view_zoom_for_saved_screen()
         && character_generated && p_ptr && p_ptr->playing
         && character_dungeon)

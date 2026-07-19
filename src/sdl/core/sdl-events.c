@@ -1234,6 +1234,8 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
     } else if (sdl_poetry_screen_captures_pointer()
         && sdl_poetry_screen_consume_pointer(ev)) {
         return;
+    } else if (sdl_halls_screen_handle_pointer_event(ev)) {
+        return;
     } else if (sdl_hint_quest_menu_active()
         && sdl_hint_quest_menu_handle_event(ev)) {
         return;

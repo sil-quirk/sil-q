@@ -54,6 +54,8 @@ errr callback_sdl_xtra(int n, int v)
                 sdl_side_pane_menu_pending_timeout_ms(now_ns);
             int select_page_turn_timeout_ms =
                 sdl_select_page_turn_timeout_ms(now_ns);
+            int hint_quest_turn_timeout_ms =
+                sdl_hint_quest_menu_pending_timeout_ms(now_ns);
             int question_menu_timeout_ms =
                 sdl_question_menu_pending_timeout_ms(now_ns);
             int popup_notification_timeout_ms =
@@ -117,6 +119,11 @@ errr callback_sdl_xtra(int n, int v)
                     && select_page_turn_timeout_ms < timeout_ms))
             {
                 timeout_ms = select_page_turn_timeout_ms;
+            }
+            if (timeout_ms < 0 || (hint_quest_turn_timeout_ms >= 0
+                    && hint_quest_turn_timeout_ms < timeout_ms))
+            {
+                timeout_ms = hint_quest_turn_timeout_ms;
             }
             if (timeout_ms < 0 || (question_menu_timeout_ms >= 0
                     && question_menu_timeout_ms < timeout_ms))

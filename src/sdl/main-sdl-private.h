@@ -284,7 +284,8 @@ typedef struct sdl_left_panel_metrics {
     int total_w;
     int panel_rows;
     int panel_render_h;
-    int bottom_border_h;
+    int top_padding_h;
+    int bottom_padding_h;
     int corner_h;
     int visual_rows;
     int source_h;
@@ -1746,7 +1747,7 @@ int sdl_combat_overlay_visible_row_count(int panel_rows);
 bool sdl_combat_overlay_visible_source_row_at_index(int index,
     int panel_rows, int* out_row);
 bool sdl_combat_overlay_source_row_visible(int source_row);
-bool sdl_left_panel_source_row_hidden_by_combat_overlay(int source_row);
+bool sdl_left_panel_source_row_hidden(int source_row);
 int sdl_left_panel_output_row_for_source_row(int source_row);
 int sdl_left_panel_source_row_for_output_row(int output_row);
 bool sdl_left_panel_pane_map_coverage(int* start_col, int* cols, int* start_row, int* rows);
@@ -1893,6 +1894,7 @@ float sdl_overlay_panel_y(const SDL_Rect* anchor, enum pane_placement where, int
 SDL_FRect sdl_overlay_panel_rect(const SDL_Rect* anchor, enum pane_placement where, int panel_w, int panel_h, const SDL_Rect* screen);
 bool sdl_status_pane_current_rect(SDL_Rect* out_rect, enum pane_placement* out_where);
 const struct pane_config* sdl_combat_overlay_pane_config(void);
+bool sdl_combat_overlay_connected_to_left_panel(bool* out_combat_below);
 bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect);
 bool sdl_combat_overlay_pane_content_rect(SDL_Rect* out_rect);
 float sdl_touch_pane_clampf(float value, float min_value, float max_value);
@@ -1943,6 +1945,8 @@ void sdl_welcome_render_status_canvas(const SDL_Rect* canvas);
 void sdl_welcome_render_menu_footer_canvas(const SDL_Rect* canvas);
 bool sdl_narrative_portrait_transform_pointer(float* x, float* y);
 void sdl_welcome_screen_render(void);
+void sdl_halls_screen_render(void);
+bool sdl_halls_screen_handle_pointer_event(const SDL_Event* ev);
 void sdl_poetry_screen_begin(cptr title, cptr body, cptr transition,
     cptr prompt);
 void sdl_poetry_sequence_layout_begin(void);
@@ -3645,6 +3649,7 @@ bool sdl_question_menu_handle_pointer(float x, float y, int action);
 bool sdl_question_menu_handle_hover_pointer(float x, float y);
 void sdl_hint_quest_menu_render(void);
 bool sdl_hint_quest_menu_handle_event(const SDL_Event* ev);
+int sdl_hint_quest_menu_pending_timeout_ms(Uint64 now_ns);
 bool sdl_question_menu_handle_touch_down(float x, float y,
     SDL_FingerID finger_id);
 bool sdl_question_menu_handle_touch_motion(float x, float y,

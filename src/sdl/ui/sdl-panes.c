@@ -274,6 +274,30 @@ static bool sdl_combat_overlay_adjacent_to_left_panel(
     return true;
 }
 
+bool sdl_combat_overlay_connected_to_left_panel(bool* out_combat_below)
+{
+    const struct pane_config* pc = sdl_combat_overlay_pane_config();
+    bool combat_after_left = false;
+
+    if (out_combat_below)
+        *out_combat_below = false;
+
+    if (!pc
+        || !sdl_left_panel_pane_presentation_active()
+        || !sdl_combat_overlay_pane_presentation_active()
+        || !sdl_combat_overlay_adjacent_to_left_panel(pc->where,
+            &combat_after_left))
+    {
+        return false;
+    }
+
+    if (out_combat_below) {
+        *out_combat_below = combat_after_left
+            != sdl_left_panel_pane_placement_is_bottom(pc->where);
+    }
+    return true;
+}
+
 bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect)
 {
     const struct pane_config* pc = sdl_combat_overlay_pane_config();
@@ -286,6 +310,10 @@ bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect)
     int content_h;
     int panel_w;
     int panel_h;
+    int top_padding_h;
+    int bottom_padding_h;
+    bool combat_below = false;
+    bool connected;
 
     if (out_rect)
         *out_rect = (SDL_Rect){ 0 };
@@ -312,7 +340,10 @@ bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect)
     if (content_w < 1 || content_h < 1)
         return false;
     panel_w = content_w + cell_w * 2;
-    panel_h = content_h + cell_h;
+    connected = sdl_combat_overlay_connected_to_left_panel(&combat_below);
+    top_padding_h = (connected && combat_below) ? 0 : cell_w;
+    bottom_padding_h = (connected && !combat_below) ? 0 : cell_w;
+    panel_h = content_h + top_padding_h + bottom_padding_h;
 
     rect = *pane;
     if (rect.w > panel_w) {
@@ -466,6 +497,9 @@ bool sdl_combat_overlay_pane_content_rect(SDL_Rect* out_rect)
     int content_w;
     int content_h;
     int margin_x;
+    int margin_y;
+    bool combat_below = false;
+    bool connected;
     bool align_with_compact_left_row;
 
     if (out_rect)
@@ -484,6 +518,8 @@ bool sdl_combat_overlay_pane_content_rect(SDL_Rect* out_rect)
     content_h = sdl_combat_overlay_source_row_count() * cell_h;
     if (content_w < 1 || content_h < 1)
         return false;
+    connected = sdl_combat_overlay_connected_to_left_panel(&combat_below);
+    margin_y = (connected && combat_below) ? 0 : cell_w;
 
     align_with_compact_left_row = pc
         && sdl_left_panel_pane_runtime_active()
@@ -493,6 +529,8 @@ bool sdl_combat_overlay_pane_content_rect(SDL_Rect* out_rect)
         && sdl_rect_has_area(left);
     if (align_with_compact_left_row) {
         rect = panel;
+        rect.y += margin_y;
+        rect.h -= margin_y;
         if (rect.w > content_w)
             rect.w = content_w;
         if (sdl_left_panel_pane_placement_is_right(pc->where)) {
@@ -509,9 +547,9 @@ bool sdl_combat_overlay_pane_content_rect(SDL_Rect* out_rect)
 
         rect = (SDL_Rect){
             .x = panel.x + margin_x,
-            .y = panel.y,
+            .y = panel.y + margin_y,
             .w = panel.w - margin_x * 2,
-            .h = panel.h,
+            .h = panel.h - margin_y,
         };
         if (rect.w > content_w)
             rect.w = content_w;

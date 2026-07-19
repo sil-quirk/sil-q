@@ -1140,7 +1140,10 @@ static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
 
     if (tabbed || quest_status_touch_active)
         ui_menu_click_clear();
-    sdl_hint_quest_menu_hide();
+    if (tabbed && next_page != HINT_QUEST_PAGE_EXIT)
+        sdl_hint_quest_menu_prepare_page_turn(next_page);
+    else
+        sdl_hint_quest_menu_hide();
     quest_status_tabs_active = false;
     quest_status_tabs_focus = false;
     quest_status_touch_active = false;

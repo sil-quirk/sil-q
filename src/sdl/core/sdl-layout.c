@@ -1709,7 +1709,7 @@ static int sdl_left_panel_visible_row_count_for_source_rows(int source_rows)
         return 0;
 
     for (int row = 0; row < source_rows; row++) {
-        if (!sdl_left_panel_source_row_hidden_by_combat_overlay(row))
+        if (!sdl_left_panel_source_row_hidden(row))
             visible_rows++;
     }
 
@@ -1725,9 +1725,12 @@ bool sdl_left_panel_metrics_for_view(const sdl_view* view,
     int panel_rows;
     int render_rows;
     int panel_render_h;
-    int bottom_border_h;
+    int top_padding_h;
+    int bottom_padding_h;
     int corner_h;
     int source_h;
+    bool combat_below = false;
+    bool connected_to_combat;
     sdl_left_panel_metrics local_metrics = { 0 };
 
     if (metrics)
@@ -1827,7 +1830,6 @@ bool sdl_left_panel_metrics_for_view(const sdl_view* view,
         }
     }
 
-    bottom_border_h = 0;
     panel_render_h = render_rows * cell_h;
     if (panel_render_h > source_h) {
         render_rows = source_h / cell_h;
@@ -1837,7 +1839,29 @@ bool sdl_left_panel_metrics_for_view(const sdl_view* view,
         if (panel_render_h > source_h)
             panel_render_h = source_h;
     }
-    corner_h = panel_render_h;
+    connected_to_combat = sdl_combat_overlay_connected_to_left_panel(
+        &combat_below);
+    top_padding_h = (connected_to_combat && !combat_below) ? 0 : cell_w;
+    bottom_padding_h = (connected_to_combat && combat_below) ? 0 : cell_w;
+    {
+        int available_padding_h = source_h - panel_render_h;
+        int requested_padding_h = top_padding_h + bottom_padding_h;
+
+        /* Match the black side padding without sacrificing a content row when
+         * the main view is unusually short.  Only exposed edges get padding. */
+        if (requested_padding_h > available_padding_h) {
+            if (top_padding_h && bottom_padding_h) {
+                top_padding_h = MAX(0, available_padding_h / 2);
+                bottom_padding_h = MAX(0,
+                    available_padding_h - top_padding_h);
+            } else if (top_padding_h) {
+                top_padding_h = MAX(0, available_padding_h);
+            } else if (bottom_padding_h) {
+                bottom_padding_h = MAX(0, available_padding_h);
+            }
+        }
+    }
+    corner_h = panel_render_h + top_padding_h + bottom_padding_h;
 
     if (metrics) {
         *metrics = local_metrics;
@@ -1855,7 +1879,8 @@ bool sdl_left_panel_metrics_for_view(const sdl_view* view,
             + (metrics->separator_w * 2);
         metrics->panel_rows = panel_rows;
         metrics->panel_render_h = panel_render_h;
-        metrics->bottom_border_h = bottom_border_h;
+        metrics->top_padding_h = top_padding_h;
+        metrics->bottom_padding_h = bottom_padding_h;
         metrics->corner_h = corner_h;
         metrics->visual_rows = sdl_main_view_visual_rows(view);
         metrics->source_h = source_h;
@@ -2114,8 +2139,13 @@ bool sdl_combat_overlay_source_row_visible(int source_row)
     return g_left_panel_combat_hidden_rows[source_row];
 }
 
-bool sdl_left_panel_source_row_hidden_by_combat_overlay(int source_row)
+bool sdl_left_panel_source_row_hidden(int source_row)
 {
+    /* The full status source begins at ROW_NAME; row zero is only terminal
+     * scaffolding and must not become an empty displayed row. */
+    if (!sdl_left_panel_pane_collapsed() && source_row < ROW_NAME)
+        return true;
+
     return sdl_combat_overlay_source_row_visible(source_row);
 }
 
@@ -2125,11 +2155,11 @@ int sdl_left_panel_output_row_for_source_row(int source_row)
 
     if (source_row < 0)
         return -1;
-    if (sdl_left_panel_source_row_hidden_by_combat_overlay(source_row))
+    if (sdl_left_panel_source_row_hidden(source_row))
         return -1;
 
     for (int row = 0; row < source_row; row++) {
-        if (!sdl_left_panel_source_row_hidden_by_combat_overlay(row))
+        if (!sdl_left_panel_source_row_hidden(row))
             output_row++;
     }
 
@@ -2144,7 +2174,7 @@ int sdl_left_panel_source_row_for_output_row(int output_row)
         return -1;
 
     for (int source_row = 0; source_row < ROW_EVN + 16; source_row++) {
-        if (sdl_left_panel_source_row_hidden_by_combat_overlay(source_row))
+        if (sdl_left_panel_source_row_hidden(source_row))
             continue;
         if (visible_row == output_row)
             return source_row;

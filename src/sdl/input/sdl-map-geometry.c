@@ -217,6 +217,7 @@ bool sdl_left_panel_source_cell_rect(int col, int row, int cols,
 
     panel_content_x = panel_rect.x
         + (float)sdl_left_panel_content_x_for_metrics(&metrics);
+    panel_rect.y += (float)metrics.top_padding_h;
 
     if (metrics.collapsed) {
         bool have = false;
@@ -508,7 +509,8 @@ bool sdl_main_view_point_to_cell(float x, float y, int* out_col, int* out_row)
             && y >= panel_rect.y && y < panel_rect.y + panel_rect.h)
         {
             panel_local_x = x - panel_rect.x;
-            panel_local_y = y - panel_rect.y;
+            panel_local_y = y - panel_rect.y
+                - (float)metrics.top_padding_h;
             if (metrics.cell_w <= 0 || metrics.cell_h <= 0)
                 return false;
             if (panel_local_y < 0.0f

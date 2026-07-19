@@ -1650,6 +1650,17 @@ extern bool sdl_tale_screen_advance_page(void);
 extern bool sdl_tale_screen_is_last_page(void);
 extern void sdl_tale_screen_hide(void);
 extern bool sdl_tale_screen_active(void);
+extern bool sdl_halls_screen_begin(cptr subtitle, cptr page_status,
+    bool detailed, int outside_choice);
+extern int sdl_halls_screen_page_capacity(bool detailed);
+extern void sdl_halls_screen_add_entry(int choice, cptr rank, cptr name,
+    cptr score, cptr outcome, cptr details, cptr honors, byte attr,
+    bool selected);
+extern void sdl_halls_screen_set_empty(cptr text);
+extern void sdl_halls_screen_add_action(int choice, cptr label, byte attr,
+    bool enabled);
+extern void sdl_halls_screen_hide(void);
+extern bool sdl_halls_screen_active(void);
 extern bool sdl_character_sheet_screen_active(void);
 extern void sdl_character_sheet_screen_hide(void);
 extern void sdl_character_sheet_screen_begin_live(int focus_choice);
@@ -2303,6 +2314,10 @@ extern void sdl_hint_quest_menu_add_block(cptr text, byte attr, int indent,
     int choice);
 extern void sdl_hint_quest_menu_add_button(int choice, cptr label, byte attr);
 extern void sdl_hint_quest_menu_finish(void);
+extern void sdl_hint_quest_menu_prepare_page_turn(
+    hint_quest_page next_page);
+extern void sdl_hint_quest_menu_prepare_leaf_turn(
+    hint_quest_page next_page, int direction);
 extern void sdl_hint_quest_menu_hide(void);
 extern bool sdl_hint_quest_menu_active(void);
 extern void sdl_suspend_main_view_zoom_for_saved_screen(void);

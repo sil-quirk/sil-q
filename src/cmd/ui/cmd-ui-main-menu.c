@@ -1428,7 +1428,6 @@ static bool do_cmd_main_menu_execute_choice_impl(int actiontype,
         log_info("main menu: opening Halls of Mandos view");
         screen_save();
         screen_push_supporting_panes_hidden();
-        sdl_push_terminal_menu_scale();
         if (death_spectator_active())
         {
             high_score final_score;
@@ -1449,7 +1448,6 @@ static bool do_cmd_main_menu_execute_choice_impl(int actiontype,
         }
         else
             show_scores_interactive(true);
-        sdl_pop_terminal_menu_scale();
         screen_pop_supporting_panes_hidden();
         screen_load();
         return true;
@@ -1631,6 +1629,43 @@ static const char* hint_message_title(int index)
     return "";
 }
 
+static void hint_message_body_text(int index, char* out, size_t out_sz)
+{
+    byte line_count = hint_messages_message_line_count(index);
+    bool skipped_title = false;
+
+    if (!out || out_sz == 0)
+        return;
+    out[0] = '\0';
+
+    for (int li = 0; li < line_count; ++li)
+    {
+        const char* source = hint_messages_message_line(index, li);
+        char line[100];
+        size_t len;
+
+        if (!source)
+            continue;
+        while (*source == ' ' || *source == '\t')
+            source++;
+        strnfmt(line, sizeof(line), "%s", source);
+        len = strlen(line);
+        while (len > 0 && (line[len - 1] == ' ' || line[len - 1] == '\t'))
+            line[--len] = '\0';
+        if (!line[0])
+            continue;
+
+        if (!skipped_title)
+        {
+            skipped_title = true;
+            continue;
+        }
+        if (out[0])
+            SDL_strlcat(out, " ", out_sz);
+        SDL_strlcat(out, line, out_sz);
+    }
+}
+
 static int skeleton_tip_template_count(void)
 {
     int count = 0;
@@ -1724,8 +1759,8 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
-        sdl_hint_quest_menu_begin(HINT_QUEST_PAGE_HINTS, "Tutorial Hint",
-            "Survival Tip", false, true, 0);
+        sdl_hint_quest_menu_begin(HINT_QUEST_PAGE_HINTS, "Hints & Quests",
+            "Survival Tip", true, true, 0);
         sdl_hint_quest_menu_add_block(tip_text, TERM_WHITE, 0, 0);
         sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_CONTINUE,
             "Continue", TERM_L_WHITE);
@@ -1758,7 +1793,10 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
     }
 
     ui_menu_click_clear();
-    sdl_hint_quest_menu_hide();
+    if (manage_screen)
+        sdl_hint_quest_menu_hide();
+    else
+        sdl_hint_quest_menu_prepare_leaf_turn(HINT_QUEST_PAGE_HINTS, -1);
     if (manage_screen)
         screen_load();
 
@@ -1769,6 +1807,7 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
     bool manage_screen)
 {
     char ch;
+    char body_text[768];
     hint_message_meta meta;
     byte stored_line_count;
     hint_message_action action = HINT_MESSAGE_ACTION_NONE;
@@ -1780,6 +1819,7 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
         return HINT_MESSAGE_ACTION_NONE;
 
     hint_messages_message_meta(index, &meta);
+    hint_message_body_text(index, body_text, sizeof(body_text));
     if (manage_screen)
         screen_save();
 
@@ -1788,14 +1828,11 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
-        sdl_hint_quest_menu_begin(HINT_QUEST_PAGE_HINTS, "Hint Message", "",
-            false, true, 0);
-        for (int li = 0; li < stored_line_count; ++li)
-        {
-            sdl_hint_quest_menu_add_block(
-                hint_messages_message_line(index, li),
-                li == 0 ? TERM_L_WHITE : TERM_WHITE, li == 0 ? 0 : 1, 0);
-        }
+        sdl_hint_quest_menu_begin(HINT_QUEST_PAGE_HINTS, "Hints & Quests",
+            "Hint Message", true, true, 0);
+        sdl_hint_quest_menu_add_block(
+            hint_message_title(index), TERM_L_WHITE, 0, 0);
+        sdl_hint_quest_menu_add_block(body_text, TERM_WHITE, 0, 0);
         sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_CONTINUE,
             "Continue", TERM_L_WHITE);
         if (hint_message_has_source(&meta))
@@ -1882,7 +1919,10 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
     }
 
     ui_menu_click_clear();
-    sdl_hint_quest_menu_hide();
+    if (manage_screen || action != HINT_MESSAGE_ACTION_NONE)
+        sdl_hint_quest_menu_hide();
+    else
+        sdl_hint_quest_menu_prepare_leaf_turn(HINT_QUEST_PAGE_HINTS, -1);
     if (manage_screen)
         screen_load();
 
@@ -2217,6 +2257,9 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
             int selected_look_x = -1;
             hint_message_action action = HINT_MESSAGE_ACTION_NONE;
 
+            sdl_hint_quest_menu_prepare_leaf_turn(
+                HINT_QUEST_PAGE_HINTS, 1);
+
             if (show_all_tips)
             {
                 (void)skeleton_tip_show_internal(sel, false);
@@ -2294,7 +2337,10 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
     }
 
     ui_menu_click_clear();
-    sdl_hint_quest_menu_hide();
+    if (next_page != HINT_QUEST_PAGE_EXIT && !pending_look && !pending_map)
+        sdl_hint_quest_menu_prepare_page_turn(next_page);
+    else
+        sdl_hint_quest_menu_hide();
 
     if (manage_screen)
     {
@@ -2410,8 +2456,8 @@ static hint_message_action thrall_quest_show_internal(int m_idx,
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
-        sdl_hint_quest_menu_begin(HINT_QUEST_PAGE_THRALLS, "Thrall Quest",
-            title, false, true, 0);
+        sdl_hint_quest_menu_begin(HINT_QUEST_PAGE_THRALLS, "Hints & Quests",
+            title, true, true, 0);
         sdl_hint_quest_menu_add_block(goal, TERM_WHITE, 0, 0);
         sdl_hint_quest_menu_add_block(
             "Location: on this dungeon level. Use Look or Map to find the thrall.",
@@ -2475,7 +2521,10 @@ static hint_message_action thrall_quest_show_internal(int m_idx,
     }
 
     ui_menu_click_clear();
-    sdl_hint_quest_menu_hide();
+    if (action != HINT_MESSAGE_ACTION_NONE)
+        sdl_hint_quest_menu_hide();
+    else
+        sdl_hint_quest_menu_prepare_leaf_turn(HINT_QUEST_PAGE_THRALLS, -1);
     return action;
 }
 
@@ -2657,8 +2706,11 @@ static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
         {
             int y = -1;
             int x = -1;
-            hint_message_action action = thrall_quest_show_internal(
-                entries[sel], &y, &x);
+            hint_message_action action;
+
+            sdl_hint_quest_menu_prepare_leaf_turn(
+                HINT_QUEST_PAGE_THRALLS, 1);
+            action = thrall_quest_show_internal(entries[sel], &y, &x);
 
             if (action == HINT_MESSAGE_ACTION_LOOK)
             {
@@ -2699,7 +2751,10 @@ static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
     }
 
     ui_menu_click_clear();
-    sdl_hint_quest_menu_hide();
+    if (next_page != HINT_QUEST_PAGE_EXIT && !pending_look && !pending_map)
+        sdl_hint_quest_menu_prepare_page_turn(next_page);
+    else
+        sdl_hint_quest_menu_hide();
     if (out_pending_look)
         *out_pending_look = pending_look;
     if (out_look_y)

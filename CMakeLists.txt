@@ -332,6 +332,7 @@ set(SIL_MORE_SOURCES
     src/sdl/render/sdl-term-callbacks.c
     src/sdl/render/sdl-text.c
       src/sdl/ui/sdl-main-menu.c
+      src/sdl/ui/sdl-halls-screen.c
       src/sdl/ui/sdl-hint-quest-menu.c
       src/sdl/ui/sdl-menus.c
     src/sdl/ui/sdl-pane-menus.c

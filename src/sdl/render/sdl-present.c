@@ -332,6 +332,8 @@ static Uint64 sdl_left_panel_source_hash(const term* source_term,
     hash = sdl_left_panel_hash_mix(hash, (Uint64)metrics->cell_h);
     hash = sdl_left_panel_hash_mix(hash, (Uint64)metrics->content_cols);
     hash = sdl_left_panel_hash_mix(hash, (Uint64)metrics->panel_rows);
+    hash = sdl_left_panel_hash_mix(hash, (Uint64)metrics->top_padding_h);
+    hash = sdl_left_panel_hash_mix(hash, (Uint64)metrics->bottom_padding_h);
     hash = sdl_left_panel_hash_mix(hash, (Uint64)metrics->compact_segment_count);
     hash = sdl_left_panel_hash_mix(hash, (Uint64)use_bigtile);
     hash = sdl_left_panel_hash_mix(hash, (Uint64)g_state.use_tiles);
@@ -709,7 +711,8 @@ void sdl_left_panel_debug_log_frame(const sdl_view* view,
     static int last_total_w;
     static int last_panel_rows;
     static int last_panel_render_h;
-    static int last_bottom_border_h;
+    static int last_top_padding_h;
+    static int last_bottom_padding_h;
     static int last_corner_h;
     static int last_dst_x;
     static int last_dst_y;
@@ -748,7 +751,8 @@ void sdl_left_panel_debug_log_frame(const sdl_view* view,
         || last_total_w != metrics->total_w
         || last_panel_rows != metrics->panel_rows
         || last_panel_render_h != metrics->panel_render_h
-        || last_bottom_border_h != metrics->bottom_border_h
+        || last_top_padding_h != metrics->top_padding_h
+        || last_bottom_padding_h != metrics->bottom_padding_h
         || last_corner_h != metrics->corner_h
         || last_dst_x != dst_x
         || last_dst_y != dst_y
@@ -777,7 +781,8 @@ void sdl_left_panel_debug_log_frame(const sdl_view* view,
     last_total_w = metrics->total_w;
     last_panel_rows = metrics->panel_rows;
     last_panel_render_h = metrics->panel_render_h;
-    last_bottom_border_h = metrics->bottom_border_h;
+    last_top_padding_h = metrics->top_padding_h;
+    last_bottom_padding_h = metrics->bottom_padding_h;
     last_corner_h = metrics->corner_h;
     last_dst_x = dst_x;
     last_dst_y = dst_y;
@@ -787,14 +792,17 @@ void sdl_left_panel_debug_log_frame(const sdl_view* view,
     log_trace("left-panel frame: collapsed=%d compact_row=%d "
         "term=%dx%d visual=%dx%d main_cell=%dx%d pane_cell=%dx%d "
         "source_h=%d visual_w=%d canvas_w=%d content_cols=%d content_w=%d "
-        "separator_w=%d total_w=%d panel_rows=%d panel_h=%d border_h=%d "
+        "separator_w=%d total_w=%d panel_rows=%d panel_h=%d "
+        "padding_h=%d/%d "
         "corner_h=%d dst=(%d,%d %dx%d) use_tiles=%d use_bigtile=%d",
         metrics->collapsed ? 1 : 0, metrics->compact_row ? 1 : 0,
         view->cols, view->rows, visual_cols, visual_rows, view->cell_w,
         view->cell_h, metrics->cell_w, metrics->cell_h, source_h,
         visual_w, canvas_w, metrics->content_cols, metrics->content_w,
         metrics->separator_w, metrics->total_w, metrics->panel_rows,
-        metrics->panel_render_h, metrics->bottom_border_h, metrics->corner_h,
+        metrics->panel_render_h, metrics->top_padding_h,
+        metrics->bottom_padding_h,
+        metrics->corner_h,
         dst_x, dst_y, dst_w, dst_h, g_state.use_tiles ? 1 : 0,
         use_bigtile ? 1 : 0);
 }
@@ -841,6 +849,7 @@ static bool sdl_render_left_panel_pane_from_cells_with_metrics(
     int atlas_cell_w;
     int atlas_cell_h;
     float content_x;
+    float content_y;
     SDL_FRect canvas_src;
     const term* source_term;
     int source_rows;
@@ -861,6 +870,7 @@ static bool sdl_render_left_panel_pane_from_cells_with_metrics(
         return false;
     }
     content_x = (float)sdl_left_panel_content_x_for_metrics(&metrics);
+    content_y = (float)metrics.top_padding_h;
 
     canvas_w = metrics.total_w;
     canvas_h = metrics.corner_h;
@@ -938,13 +948,13 @@ static bool sdl_render_left_panel_pane_from_cells_with_metrics(
                 {
                     sdl_render_left_panel_source_row_cells(view, source_term,
                         scr, source_row, 0, span.icon_cols, output_col,
-                        output_row, content_x, 0.0f, metrics.cell_w,
+                        output_row, content_x, content_y, metrics.cell_w,
                         metrics.cell_h, font_atlas, atlas_cell_w,
                         atlas_cell_h, mono_font);
                     sdl_render_left_panel_source_row_cells(view, source_term,
                         scr, source_row, span.text_start, span.text_width,
                         output_col + span.icon_cols + 1, output_row,
-                        content_x, 0.0f, metrics.cell_w, metrics.cell_h,
+                        content_x, content_y, metrics.cell_w, metrics.cell_h,
                         font_atlas, atlas_cell_w, atlas_cell_h, mono_font);
                     continue;
                 }
@@ -952,20 +962,21 @@ static bool sdl_render_left_panel_pane_from_cells_with_metrics(
 
             sdl_render_left_panel_source_row_cells(view, source_term, scr,
                 source_row, 0, metrics.compact_widths[i], output_col,
-                output_row, content_x, 0.0f, metrics.cell_w, metrics.cell_h,
+                output_row, content_x, content_y, metrics.cell_w,
+                metrics.cell_h,
                 font_atlas, atlas_cell_w, atlas_cell_h, mono_font);
         }
     } else {
         int output_row = 0;
 
         for (int source_row = 0; source_row < metrics.panel_rows; source_row++) {
-            if (sdl_left_panel_source_row_hidden_by_combat_overlay(source_row))
+            if (sdl_left_panel_source_row_hidden(source_row))
                 continue;
             if (output_row * metrics.cell_h >= metrics.panel_render_h)
                 break;
             sdl_render_left_panel_source_row_cells(view, source_term, scr,
                 source_row, 0, metrics.content_cols, 0, output_row, content_x,
-                0.0f, metrics.cell_w,
+                content_y, metrics.cell_w,
                 metrics.cell_h, font_atlas, atlas_cell_w, atlas_cell_h,
                 mono_font);
             output_row++;
@@ -1211,8 +1222,15 @@ static bool sdl_render_main_view_with_left_panel_metrics(const sdl_view* view,
 
         dst_content.x +=
             (float)sdl_left_panel_content_x_for_metrics(&metrics);
+        dst_content.y += (float)metrics.top_padding_h;
         dst_content.w = (float)metrics.content_w;
         dst_content.h = (float)metrics.panel_render_h;
+        if (!metrics.collapsed) {
+            float source_top = (float)(ROW_NAME * view->cell_h);
+
+            src_content.y += source_top;
+            src_content.h -= source_top;
+        }
         if (dst_content.y + dst_content.h > dst_left.y + dst_left.h)
             dst_content.h = (dst_left.y + dst_left.h) - dst_content.y;
         if (src_content.h > dst_content.h)
@@ -1478,6 +1496,11 @@ bool sdl_render_current_window_frame(void)
 
     if (sdl_poetry_screen_active()) {
         sdl_poetry_screen_render();
+        return true;
+    }
+
+    if (sdl_halls_screen_active()) {
+        sdl_halls_screen_render();
         return true;
     }
 

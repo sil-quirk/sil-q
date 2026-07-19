@@ -12,7 +12,8 @@ enum {
     SDL_HINT_QUEST_MAX_BUTTONS = 5,
     SDL_HINT_QUEST_MAX_HITS = 512,
     SDL_HINT_QUEST_TEXT_LEN = 768,
-    SDL_HINT_QUEST_LABEL_LEN = 48
+    SDL_HINT_QUEST_LABEL_LEN = 48,
+    SDL_HINT_QUEST_PAGE_TURN_MS = 850
 };
 
 typedef struct sdl_hint_quest_block {
@@ -58,12 +59,24 @@ typedef struct sdl_hint_quest_press {
     bool active;
     bool touch;
     bool dragged;
+    bool horizontal;
     SDL_FingerID finger_id;
     int choice;
     float start_x;
     float start_y;
     float last_y;
 } sdl_hint_quest_press;
+
+typedef struct sdl_hint_quest_turn {
+    bool pending;
+    bool active;
+    int dir;
+    hint_quest_page to_page;
+    Uint64 start_ns;
+    SDL_Texture* from_texture;
+    SDL_Texture* to_texture;
+    SDL_FRect region;
+} sdl_hint_quest_turn;
 
 typedef struct sdl_hint_quest_layout {
     SDL_FRect panel;
@@ -82,6 +95,7 @@ typedef struct sdl_hint_quest_layout {
 
 static sdl_hint_quest_state g_hint_quest;
 static sdl_hint_quest_press g_hint_quest_press;
+static sdl_hint_quest_turn g_hint_quest_turn;
 
 static void sdl_hint_quest_mark_dirty(void)
 {
@@ -170,13 +184,13 @@ static int sdl_hint_quest_body_px(const SDL_Rect* screen)
     int px;
 
     if (!screen)
-        return 22;
+        return 32;
     short_side = (float)MIN(screen->w, screen->h);
-    px = (int)(short_side * 0.042f + 0.5f);
-    if (px < 18)
-        px = 18;
-    if (px > 36)
-        px = 36;
+    px = (int)(short_side * 0.072f + 0.5f);
+    if (px < 28)
+        px = 28;
+    if (px > 56)
+        px = 56;
     return px;
 }
 
@@ -205,26 +219,25 @@ static bool sdl_hint_quest_layout_compute(sdl_hint_quest_layout* out)
         return false;
     portrait = screen.h > screen.w;
     out->body_px = sdl_hint_quest_body_px(&screen);
-    out->title_px = (int)((float)out->body_px * 1.24f + 0.5f);
-    out->line_h = (float)out->body_px * 1.24f;
-    out->block_gap = sdl_touch_pane_clampf((float)out->body_px * 0.34f,
+    out->title_px = (int)((float)out->body_px * 1.18f + 0.5f);
+    out->line_h = (float)out->body_px * 1.22f;
+    out->block_gap = sdl_touch_pane_clampf((float)out->body_px * 0.46f,
+        8.0f, 22.0f);
+    out->card_pad_x = sdl_touch_pane_clampf((float)out->body_px * 0.42f,
+        10.0f, 24.0f);
+    out->card_pad_y = sdl_touch_pane_clampf((float)out->body_px * 0.24f,
         6.0f, 14.0f);
-    out->card_pad_x = sdl_touch_pane_clampf((float)out->body_px * 0.58f,
-        10.0f, 22.0f);
-    out->card_pad_y = sdl_touch_pane_clampf((float)out->body_px * 0.32f,
-        6.0f, 13.0f);
 
-    margin = sdl_touch_pane_clampf((float)MIN(screen.w, screen.h) * 0.032f,
-        12.0f, 36.0f);
+    margin = sdl_touch_pane_clampf((float)MIN(screen.w, screen.h) * 0.024f,
+        10.0f, 28.0f);
     panel_w = (float)screen.w - margin * 2.0f;
-    if (!portrait)
     {
-        float landscape_max = (float)screen.w * 0.76f;
+        float panel_max = (float)screen.w * (portrait ? 0.90f : 0.72f);
 
-        if (landscape_max < 720.0f)
-            landscape_max = 720.0f;
-        if (panel_w > landscape_max)
-            panel_w = landscape_max;
+        if (!portrait && panel_max < 680.0f)
+            panel_max = 680.0f;
+        if (panel_w > panel_max)
+            panel_w = panel_max;
     }
     if (panel_w < 1.0f)
         panel_w = (float)screen.w;
@@ -239,19 +252,19 @@ static bool sdl_hint_quest_layout_compute(sdl_hint_quest_layout* out)
         .h = panel_h
     };
 
-    pad_x = sdl_touch_pane_clampf((float)out->body_px * 0.85f,
-        16.0f, 34.0f);
-    pad_y = sdl_touch_pane_clampf((float)out->body_px * 0.60f,
-        12.0f, 24.0f);
-    gap = sdl_touch_pane_clampf((float)out->body_px * 0.48f,
+    pad_x = sdl_touch_pane_clampf((float)out->body_px * 1.18f,
+        22.0f, 54.0f);
+    pad_y = sdl_touch_pane_clampf((float)out->body_px * 0.72f,
+        14.0f, 34.0f);
+    gap = sdl_touch_pane_clampf((float)out->body_px * 0.40f,
         8.0f, 18.0f);
-    title_h = (float)out->title_px * 1.28f;
+    title_h = (float)out->title_px * 1.22f;
     if (g_hint_quest.show_tabs)
-        tabs_h = MAX(46.0f, (float)out->body_px * 1.82f);
+        tabs_h = MAX(44.0f, (float)out->body_px * 1.38f);
     section_h = g_hint_quest.section[0]
-        ? (float)out->body_px * 1.42f : 0.0f;
+        ? (float)out->body_px * 1.26f : 0.0f;
     if (g_hint_quest.button_count > 0)
-        footer_h = MAX(48.0f, (float)out->body_px * 1.90f);
+        footer_h = MAX(46.0f, (float)out->body_px * 1.56f);
 
     cursor_y = out->panel.y + pad_y;
     out->title = (SDL_FRect){
@@ -316,6 +329,114 @@ static bool sdl_hint_quest_layout_compute(sdl_hint_quest_layout* out)
     return true;
 }
 
+static void sdl_hint_quest_page_turn_clear(void)
+{
+    if (g_hint_quest_turn.from_texture)
+        SDL_DestroyTexture(g_hint_quest_turn.from_texture);
+    if (g_hint_quest_turn.to_texture)
+        SDL_DestroyTexture(g_hint_quest_turn.to_texture);
+    memset(&g_hint_quest_turn, 0, sizeof(g_hint_quest_turn));
+}
+
+static SDL_Texture* sdl_hint_quest_capture_page(SDL_FRect* out_region)
+{
+    sdl_hint_quest_layout layout;
+    SDL_Rect read_rect;
+    SDL_Surface* surface;
+    SDL_Texture* texture;
+
+    if (!g_state.renderer || !sdl_hint_quest_layout_compute(&layout))
+        return NULL;
+
+    /* Draw the current semantic page into the backbuffer immediately, then
+     * copy only the framed leaf.  The snapshot therefore has the same pixels,
+     * wrapping and focus state as the live page that is about to turn. */
+    sdl_hint_quest_menu_render();
+    read_rect = (SDL_Rect){
+        (int)layout.panel.x,
+        (int)layout.panel.y,
+        MAX(1, (int)(layout.panel.w + 0.5f)),
+        MAX(1, (int)(layout.panel.h + 0.5f))
+    };
+    surface = SDL_RenderReadPixels(g_state.renderer, &read_rect);
+    if (!surface)
+    {
+        log_warn("Hints book page snapshot failed: %s", SDL_GetError());
+        return NULL;
+    }
+    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
+    SDL_DestroySurface(surface);
+    if (!texture)
+    {
+        log_warn("Hints book page texture failed: %s", SDL_GetError());
+        return NULL;
+    }
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    if (out_region)
+    {
+        *out_region = (SDL_FRect){
+            (float)read_rect.x,
+            (float)read_rect.y,
+            (float)read_rect.w,
+            (float)read_rect.h
+        };
+    }
+    return texture;
+}
+
+static bool sdl_hint_quest_render_page_turn(void)
+{
+    Uint64 now;
+    float t;
+    float eased;
+    float curl;
+    SDL_Texture* background;
+    SDL_Texture* leaf;
+
+    if (!g_hint_quest_turn.active || !g_hint_quest_turn.from_texture
+        || !g_hint_quest_turn.to_texture)
+    {
+        return false;
+    }
+
+    now = SDL_GetTicksNS();
+    t = (float)((now - g_hint_quest_turn.start_ns) / 1000000ULL)
+        / (float)SDL_HINT_QUEST_PAGE_TURN_MS;
+    if (t >= 1.0f)
+    {
+        sdl_hint_quest_page_turn_clear();
+        return false;
+    }
+    if (t < 0.0f)
+        t = 0.0f;
+    eased = (t < 0.5f)
+        ? (4.0f * t * t * t)
+        : (1.0f - SDL_powf(-2.0f * t + 2.0f, 3.0f) * 0.5f);
+
+    if (g_hint_quest_turn.dir > 0)
+    {
+        background = g_hint_quest_turn.to_texture;
+        leaf = g_hint_quest_turn.from_texture;
+        curl = eased;
+    }
+    else
+    {
+        background = g_hint_quest_turn.from_texture;
+        leaf = g_hint_quest_turn.to_texture;
+        curl = 1.0f - eased;
+    }
+
+    SDL_SetRenderTarget(g_state.renderer, NULL);
+    SDL_SetRenderClipRect(g_state.renderer, NULL);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+    SDL_RenderClear(g_state.renderer);
+    SDL_RenderTexture(g_state.renderer, background, NULL,
+        &g_hint_quest_turn.region);
+    sdl_char_sheet_draw_curled_leaf(leaf, g_hint_quest_turn.region, curl);
+    g_state.need_present = true;
+    return true;
+}
+
 static float sdl_hint_quest_block_height(TTF_Font* font,
     const sdl_hint_quest_layout* layout, const sdl_hint_quest_block* block,
     float* out_text_w)
@@ -350,48 +471,136 @@ static float sdl_hint_quest_block_height(TTF_Font* font,
         + ((block->choice != 0) ? layout->card_pad_y * 2.0f : 0.0f);
 }
 
+static void sdl_hint_quest_draw_book_leaf(
+    const sdl_hint_quest_layout* layout)
+{
+    SDL_FRect edge;
+    float border;
+    float inset;
+    float hairline;
+
+    if (!layout)
+        return;
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    border = MAX(2.0f, (float)layout->body_px * 0.075f);
+    SDL_SetRenderDrawColor(g_state.renderer, 206, 196, 170, 210);
+    edge = (SDL_FRect){ layout->panel.x, layout->panel.y,
+        layout->panel.w, border };
+    SDL_RenderFillRect(g_state.renderer, &edge);
+    edge.y = layout->panel.y + layout->panel.h - border;
+    SDL_RenderFillRect(g_state.renderer, &edge);
+    edge = (SDL_FRect){ layout->panel.x, layout->panel.y,
+        border, layout->panel.h };
+    SDL_RenderFillRect(g_state.renderer, &edge);
+    edge.x = layout->panel.x + layout->panel.w - border;
+    SDL_RenderFillRect(g_state.renderer, &edge);
+
+    inset = border * 2.5f;
+    hairline = MAX(1.0f, border * 0.5f);
+    SDL_SetRenderDrawColor(g_state.renderer, 150, 140, 120, 150);
+    edge = (SDL_FRect){ layout->panel.x + inset,
+        layout->panel.y + inset,
+        layout->panel.w - inset * 2.0f, hairline };
+    SDL_RenderFillRect(g_state.renderer, &edge);
+    edge.y = layout->panel.y + layout->panel.h - inset - hairline;
+    SDL_RenderFillRect(g_state.renderer, &edge);
+    edge = (SDL_FRect){ layout->panel.x + inset,
+        layout->panel.y + inset, hairline,
+        layout->panel.h - inset * 2.0f };
+    SDL_RenderFillRect(g_state.renderer, &edge);
+    edge.x = layout->panel.x + layout->panel.w - inset - hairline;
+    SDL_RenderFillRect(g_state.renderer, &edge);
+}
+
+static void sdl_hint_quest_draw_center_ornament(float center_x, float y,
+    float width, float thickness)
+{
+    SDL_FRect line;
+    float half = MAX(12.0f, width * 0.5f);
+    float gap = MAX(6.0f, thickness * 4.0f);
+
+    SDL_SetRenderDrawColor(g_state.renderer, 111, 81, 38, 210);
+    line = (SDL_FRect){ center_x - half - gap, y, half, thickness };
+    SDL_RenderFillRect(g_state.renderer, &line);
+    line.x = center_x + gap;
+    SDL_RenderFillRect(g_state.renderer, &line);
+    line = (SDL_FRect){ center_x - thickness * 1.5f,
+        y - thickness, thickness * 3.0f, thickness * 3.0f };
+    SDL_RenderFillRect(g_state.renderer, &line);
+}
+
 static void sdl_hint_quest_draw_chrome(const sdl_hint_quest_layout* layout,
     TTF_Font* title_font, TTF_Font* body_font)
 {
-    static const char* const tab_labels[] = { "Hints", "Quests", "Thralls" };
+    static const char* const tab_labels[] = {
+        "I. Hints", "II. Quests", "III. Thralls"
+    };
     static const int tab_choices[] = {
         HINT_QUEST_CLICK_HINTS_TAB,
         HINT_QUEST_CLICK_QUESTS_TAB,
         HINT_QUEST_CLICK_THRALLS_TAB
     };
-    SDL_Color border = sdl_color_from_attr(TERM_SLATE);
-    SDL_Color title = sdl_color_from_attr(TERM_L_WHITE);
     SDL_Color gold = sdl_color_from_attr(TERM_YELLOW);
+    SDL_Color parchment = sdl_color_from_attr(TERM_L_WHITE);
+    float ornament_y;
+    float ornament_w;
+    float ornament_t;
 
-    border.a = 90;
-    SDL_SetRenderDrawColor(g_state.renderer, 4, 5, 8, 248);
-    SDL_RenderFillRect(g_state.renderer, &layout->panel);
-    SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g, border.b,
-        border.a);
-    SDL_RenderRect(g_state.renderer, &layout->panel);
-    sdl_hint_quest_draw_text(title_font, g_hint_quest.title, title,
-        &layout->title, false, false);
+    sdl_hint_quest_draw_book_leaf(layout);
+    sdl_hint_quest_draw_text(title_font, g_hint_quest.title, gold,
+        &layout->title, true, false);
+    ornament_y = layout->title.y + layout->title.h
+        - MAX(1.0f, (float)layout->body_px * 0.035f);
+    ornament_w = layout->title.w * 0.15f;
+    ornament_t = MAX(1.0f, (float)layout->body_px * 0.035f);
+    sdl_hint_quest_draw_center_ornament(
+        layout->title.x + layout->title.w * 0.5f,
+        ornament_y, ornament_w, ornament_t);
 
     if (g_hint_quest.show_tabs)
     {
+        SDL_FRect rule = {
+            layout->tabs[0].x,
+            layout->tabs[0].y + layout->tabs[0].h - ornament_t,
+            layout->tabs[2].x + layout->tabs[2].w - layout->tabs[0].x,
+            ornament_t
+        };
+
+        SDL_SetRenderDrawColor(g_state.renderer, 150, 140, 120, 70);
+        SDL_RenderFillRect(g_state.renderer, &rule);
         for (int i = 0; i < 3; ++i)
         {
             bool active = g_hint_quest.page == (hint_quest_page)(i + 1);
             bool hover = g_hint_quest.hover_choice == tab_choices[i];
-            SDL_Color fill = active
-                ? sdl_color_from_attr(TERM_YELLOW)
-                : sdl_color_from_attr(TERM_L_DARK);
-            SDL_Color text = active ? sdl_color_from_attr(TERM_DARK) : gold;
+            SDL_Color text = (active || hover) ? gold : parchment;
 
-            fill.a = active ? 205 : (hover ? 105 : 46);
-            SDL_SetRenderDrawColor(g_state.renderer, fill.r, fill.g, fill.b,
-                fill.a);
-            SDL_RenderFillRect(g_state.renderer, &layout->tabs[i]);
-            SDL_SetRenderDrawColor(g_state.renderer, gold.r, gold.g, gold.b,
-                active || hover ? 210 : 95);
-            SDL_RenderRect(g_state.renderer, &layout->tabs[i]);
+            if (hover && !active)
+            {
+                SDL_FRect focus = layout->tabs[i];
+
+                focus.x += layout->card_pad_x * 0.45f;
+                focus.w -= layout->card_pad_x * 0.90f;
+                focus.y += layout->card_pad_y * 0.30f;
+                focus.h -= layout->card_pad_y * 0.60f;
+                sdl_char_sheet_draw_focus_rect(focus, false);
+                text = sdl_color_from_attr(TERM_DARK);
+            }
             sdl_hint_quest_draw_text(body_font, tab_labels[i], text,
                 &layout->tabs[i], true, false);
+            if (active)
+            {
+                SDL_FRect underline = {
+                    layout->tabs[i].x + layout->tabs[i].w * 0.24f,
+                    layout->tabs[i].y + layout->tabs[i].h - ornament_t * 3.0f,
+                    layout->tabs[i].w * 0.52f,
+                    ornament_t * 1.35f
+                };
+
+                SDL_SetRenderDrawColor(g_state.renderer, gold.r, gold.g,
+                    gold.b, 220);
+                SDL_RenderFillRect(g_state.renderer, &underline);
+            }
             sdl_hint_quest_add_hit(layout->tabs[i], tab_choices[i]);
         }
     }
@@ -400,6 +609,17 @@ static void sdl_hint_quest_draw_chrome(const sdl_hint_quest_layout* layout,
     {
         sdl_hint_quest_draw_text(body_font, g_hint_quest.section, gold,
             &layout->section, false, false);
+        SDL_SetRenderDrawColor(g_state.renderer, 150, 140, 120, 85);
+        {
+            SDL_FRect rule = {
+                layout->section.x,
+                layout->section.y + layout->section.h - ornament_t,
+                layout->section.w,
+                ornament_t
+            };
+
+            SDL_RenderFillRect(g_state.renderer, &rule);
+        }
     }
 }
 
@@ -410,9 +630,23 @@ static void sdl_hint_quest_draw_footer(const sdl_hint_quest_layout* layout,
     float total = 0.0f;
     float gap;
     float x;
+    float rule_h;
+    SDL_Color gold = sdl_color_from_attr(TERM_YELLOW);
 
     if (g_hint_quest.button_count <= 0)
         return;
+    rule_h = MAX(1.0f, (float)layout->body_px * 0.035f);
+    {
+        SDL_FRect rule = {
+            layout->footer.x + layout->footer.w * 0.10f,
+            layout->footer.y,
+            layout->footer.w * 0.80f,
+            rule_h
+        };
+
+        SDL_SetRenderDrawColor(g_state.renderer, 150, 140, 120, 90);
+        SDL_RenderFillRect(g_state.renderer, &rule);
+    }
     gap = sdl_touch_pane_clampf((float)layout->body_px * 0.42f,
         7.0f, 16.0f);
     for (int i = 0; i < g_hint_quest.button_count; ++i)
@@ -448,22 +682,34 @@ static void sdl_hint_quest_draw_footer(const sdl_hint_quest_layout* layout,
             .h = layout->footer.h
         };
         bool hover = g_hint_quest.hover_choice == button->choice;
-        SDL_Color fill = sdl_color_from_attr(hover
-            ? TERM_L_BLUE : TERM_L_DARK);
-        SDL_Color border = sdl_color_from_attr(hover
-            ? TERM_L_BLUE : TERM_SLATE);
-        SDL_Color text = sdl_color_from_attr(button->attr);
+        SDL_Color text = hover ? gold : sdl_color_from_attr(button->attr);
 
-        fill.a = hover ? 105 : 58;
-        border.a = hover ? 220 : 120;
-        SDL_SetRenderDrawColor(g_state.renderer, fill.r, fill.g, fill.b,
-            fill.a);
-        SDL_RenderFillRect(g_state.renderer, &rect);
-        SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g, border.b,
-            border.a);
-        SDL_RenderRect(g_state.renderer, &rect);
+        if (hover)
+        {
+            SDL_FRect focus = rect;
+
+            focus.x += layout->card_pad_x * 0.25f;
+            focus.w -= layout->card_pad_x * 0.50f;
+            focus.y += layout->card_pad_y * 0.45f;
+            focus.h -= layout->card_pad_y * 0.60f;
+            sdl_char_sheet_draw_focus_rect(focus, false);
+            text = sdl_color_from_attr(TERM_DARK);
+        }
         sdl_hint_quest_draw_text(font, button->label, text, &rect, true,
             false);
+        if (!hover)
+        {
+            SDL_FRect underline = {
+                rect.x + rect.w * 0.32f,
+                rect.y + rect.h - rule_h * 2.6f,
+                rect.w * 0.36f,
+                rule_h
+            };
+
+            SDL_SetRenderDrawColor(g_state.renderer, gold.r, gold.g, gold.b,
+                105);
+            SDL_RenderFillRect(g_state.renderer, &underline);
+        }
         sdl_hint_quest_add_hit(rect, button->choice);
         x += widths[i] + gap;
     }
@@ -482,6 +728,8 @@ void sdl_hint_quest_menu_render(void)
     float selected_bottom = -1.0f;
     SDL_Rect clip;
 
+    if (sdl_hint_quest_render_page_turn())
+        return;
     if (!sdl_hint_quest_layout_compute(&layout))
         return;
     body_font = sdl_story_font_for_height_slot(layout.body_px,
@@ -526,8 +774,11 @@ void sdl_hint_quest_menu_render(void)
     }
     g_hint_quest.scroll_y = sdl_touch_pane_clampf(g_hint_quest.scroll_y,
         0.0f, g_hint_quest.max_scroll_y);
-    if (g_hint_quest.center_body && total_h < layout.body.h)
+    if (g_hint_quest.center_body && !g_hint_quest.show_tabs
+        && total_h < layout.body.h)
+    {
         content_offset = (layout.body.h - total_h) * 0.5f;
+    }
 
     g_hint_quest.body_rect = layout.body;
     clip = (SDL_Rect){
@@ -560,22 +811,23 @@ void sdl_hint_quest_menu_render(void)
         {
             bool selected = block->choice == g_hint_quest.selected_choice;
             bool hover = block->choice == g_hint_quest.hover_choice;
-            SDL_Color fill = sdl_color_from_attr(selected
-                ? TERM_L_BLUE : TERM_L_DARK);
-            SDL_Color accent = sdl_color_from_attr(selected
-                ? TERM_L_BLUE : TERM_SLATE);
-            SDL_FRect accent_rect = rect;
+            bool focused = selected || hover;
             SDL_FRect visible_hit;
 
-            fill.a = selected ? 92 : (hover ? 70 : 34);
-            accent.a = selected ? 235 : (hover ? 160 : 70);
-            SDL_SetRenderDrawColor(g_state.renderer, fill.r, fill.g, fill.b,
-                fill.a);
-            SDL_RenderFillRect(g_state.renderer, &rect);
-            accent_rect.w = MAX(3.0f, (float)layout.body_px * 0.16f);
-            SDL_SetRenderDrawColor(g_state.renderer, accent.r, accent.g,
-                accent.b, accent.a);
-            SDL_RenderFillRect(g_state.renderer, &accent_rect);
+            if (focused)
+                sdl_char_sheet_draw_focus_rect(rect, selected);
+            else
+            {
+                SDL_FRect rule = {
+                    rect.x + layout.card_pad_x,
+                    rect.y + rect.h - 1.0f,
+                    MAX(1.0f, rect.w - layout.card_pad_x * 2.0f),
+                    1.0f
+                };
+
+                SDL_SetRenderDrawColor(g_state.renderer, 150, 140, 120, 42);
+                SDL_RenderFillRect(g_state.renderer, &rule);
+            }
             if (sdl_hint_quest_intersect_rect(rect, layout.body,
                     &visible_hit))
             {
@@ -590,8 +842,13 @@ void sdl_hint_quest_menu_render(void)
 
         if (block->text[0])
         {
+            bool focused = block->choice != 0
+                && (block->choice == g_hint_quest.selected_choice
+                    || block->choice == g_hint_quest.hover_choice);
+            byte attr = focused ? TERM_DARK : block->attr;
+
             sdl_hint_quest_draw_text(body_font, block->text,
-                sdl_color_from_attr(block->attr), &rect, false, true);
+                sdl_color_from_attr(attr), &rect, false, true);
         }
     }
     SDL_SetRenderClipRect(g_state.renderer, NULL);
@@ -599,20 +856,27 @@ void sdl_hint_quest_menu_render(void)
 
     if (g_hint_quest.scroll_y > 0.5f)
     {
-        SDL_Color c = sdl_color_from_attr(TERM_SLATE);
-        SDL_FRect line = { layout.body.x, layout.body.y,
-            layout.body.w, 2.0f };
+        SDL_FRect line = {
+            layout.body.x + layout.body.w * 0.38f,
+            layout.body.y,
+            layout.body.w * 0.24f,
+            MAX(1.0f, (float)layout.body_px * 0.04f)
+        };
 
-        SDL_SetRenderDrawColor(g_state.renderer, c.r, c.g, c.b, 120);
+        SDL_SetRenderDrawColor(g_state.renderer, 224, 185, 92, 175);
         SDL_RenderFillRect(g_state.renderer, &line);
     }
     if (g_hint_quest.scroll_y + 0.5f < g_hint_quest.max_scroll_y)
     {
-        SDL_Color c = sdl_color_from_attr(TERM_SLATE);
-        SDL_FRect line = { layout.body.x,
-            layout.body.y + layout.body.h - 2.0f, layout.body.w, 2.0f };
+        float h = MAX(1.0f, (float)layout.body_px * 0.04f);
+        SDL_FRect line = {
+            layout.body.x + layout.body.w * 0.38f,
+            layout.body.y + layout.body.h - h,
+            layout.body.w * 0.24f,
+            h
+        };
 
-        SDL_SetRenderDrawColor(g_state.renderer, c.r, c.g, c.b, 120);
+        SDL_SetRenderDrawColor(g_state.renderer, 224, 185, 92, 175);
         SDL_RenderFillRect(g_state.renderer, &line);
     }
 }
@@ -680,15 +944,71 @@ void sdl_hint_quest_menu_add_button(int choice, cptr label, byte attr)
 
 void sdl_hint_quest_menu_finish(void)
 {
-    if (g_hint_quest.active)
-        sdl_hint_quest_mark_dirty();
+    if (!g_hint_quest.active)
+        return;
+
+    if (g_hint_quest_turn.pending
+        && g_hint_quest.page == g_hint_quest_turn.to_page)
+    {
+        SDL_FRect destination_region;
+
+        g_hint_quest_turn.to_texture = sdl_hint_quest_capture_page(
+            &destination_region);
+        if (g_hint_quest_turn.from_texture
+            && g_hint_quest_turn.to_texture)
+        {
+            g_hint_quest_turn.region = destination_region;
+            g_hint_quest_turn.pending = false;
+            g_hint_quest_turn.active = true;
+            g_hint_quest_turn.start_ns = SDL_GetTicksNS();
+        }
+        else
+        {
+            sdl_hint_quest_page_turn_clear();
+        }
+    }
+    sdl_hint_quest_mark_dirty();
+}
+
+void sdl_hint_quest_menu_prepare_page_turn(hint_quest_page next_page)
+{
+    int direction = (next_page > g_hint_quest.page) ? 1 : -1;
+
+    sdl_hint_quest_menu_prepare_leaf_turn(next_page, direction);
+}
+
+void sdl_hint_quest_menu_prepare_leaf_turn(hint_quest_page next_page,
+    int direction)
+{
+    SDL_FRect source_region;
+
+    if (!g_hint_quest.active || next_page == HINT_QUEST_PAGE_EXIT
+        || direction == 0)
+    {
+        return;
+    }
+
+    sdl_hint_quest_page_turn_clear();
+    g_hint_quest_turn.from_texture = sdl_hint_quest_capture_page(
+        &source_region);
+    if (!g_hint_quest_turn.from_texture)
+        return;
+
+    g_hint_quest_turn.pending = true;
+    g_hint_quest_turn.dir = (direction > 0) ? 1 : -1;
+    g_hint_quest_turn.to_page = next_page;
+    g_hint_quest_turn.region = source_region;
 }
 
 void sdl_hint_quest_menu_hide(void)
 {
-    if (!g_hint_quest.active)
+    if (!g_hint_quest.active && !g_hint_quest_turn.pending
+        && !g_hint_quest_turn.active)
+    {
         return;
+    }
 
+    sdl_hint_quest_page_turn_clear();
     memset(&g_hint_quest, 0, sizeof(g_hint_quest));
     memset(&g_hint_quest_press, 0, sizeof(g_hint_quest_press));
     sdl_hint_quest_mark_dirty();
@@ -697,6 +1017,12 @@ void sdl_hint_quest_menu_hide(void)
 bool sdl_hint_quest_menu_active(void)
 {
     return g_hint_quest.active;
+}
+
+int sdl_hint_quest_menu_pending_timeout_ms(Uint64 now_ns)
+{
+    (void)now_ns;
+    return g_hint_quest_turn.active ? 16 : -1;
 }
 
 static void sdl_hint_quest_set_hover(int choice)
@@ -741,6 +1067,45 @@ static void sdl_hint_quest_scroll_by(float delta)
     sdl_hint_quest_mark_dirty();
 }
 
+static void sdl_hint_quest_handle_horizontal_swipe(float delta_x)
+{
+    hint_quest_page next;
+    int choice;
+
+    if (SDL_fabsf(delta_x) <= sdl_touch_swipe_threshold_px())
+        return;
+
+    /* Inner leaves turn back into their chapter with a rightward swipe. */
+    if (g_hint_quest.center_body)
+    {
+        if (delta_x > 0.0f)
+            Term_keypress(ESCAPE);
+        return;
+    }
+    if (!g_hint_quest.show_tabs)
+        return;
+
+    if (delta_x < 0.0f)
+    {
+        next = (g_hint_quest.page == HINT_QUEST_PAGE_THRALLS)
+            ? HINT_QUEST_PAGE_HINTS
+            : (hint_quest_page)(g_hint_quest.page + 1);
+    }
+    else
+    {
+        next = (g_hint_quest.page == HINT_QUEST_PAGE_HINTS)
+            ? HINT_QUEST_PAGE_THRALLS
+            : (hint_quest_page)(g_hint_quest.page - 1);
+    }
+
+    choice = (next == HINT_QUEST_PAGE_HINTS)
+        ? HINT_QUEST_CLICK_HINTS_TAB
+        : ((next == HINT_QUEST_PAGE_QUESTS)
+            ? HINT_QUEST_CLICK_QUESTS_TAB
+            : HINT_QUEST_CLICK_THRALLS_TAB);
+    sdl_hint_quest_activate_choice(choice, UI_MENU_CLICK_PRIMARY);
+}
+
 bool sdl_hint_quest_menu_handle_event(const SDL_Event* ev)
 {
     float x = 0.0f;
@@ -748,6 +1113,30 @@ bool sdl_hint_quest_menu_handle_event(const SDL_Event* ev)
 
     if (!ev || !g_hint_quest.active)
         return false;
+
+    if (g_hint_quest_turn.active)
+    {
+        switch (ev->type)
+        {
+        case SDL_EVENT_KEY_DOWN:
+        case SDL_EVENT_KEY_UP:
+        case SDL_EVENT_TEXT_INPUT:
+        case SDL_EVENT_MOUSE_MOTION:
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+        case SDL_EVENT_MOUSE_WHEEL:
+        case SDL_EVENT_FINGER_DOWN:
+        case SDL_EVENT_FINGER_MOTION:
+        case SDL_EVENT_FINGER_UP:
+        case SDL_EVENT_FINGER_CANCELED:
+        case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+        case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+        case SDL_EVENT_GAMEPAD_BUTTON_UP:
+            return true;
+        default:
+            break;
+        }
+    }
 
     switch (ev->type)
     {
@@ -809,14 +1198,18 @@ bool sdl_hint_quest_menu_handle_event(const SDL_Event* ev)
         }
         if (!sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
             return true;
-        if (SDL_fabsf(y - g_hint_quest_press.start_y)
-                > sdl_touch_swipe_threshold_px()
-            || SDL_fabsf(x - g_hint_quest_press.start_x)
-                > sdl_touch_swipe_threshold_px())
+        if (!g_hint_quest_press.dragged
+            && (SDL_fabsf(y - g_hint_quest_press.start_y)
+                    > sdl_touch_swipe_threshold_px()
+                || SDL_fabsf(x - g_hint_quest_press.start_x)
+                    > sdl_touch_swipe_threshold_px()))
         {
             g_hint_quest_press.dragged = true;
+            g_hint_quest_press.horizontal =
+                SDL_fabsf(x - g_hint_quest_press.start_x)
+                    > SDL_fabsf(y - g_hint_quest_press.start_y);
         }
-        if (g_hint_quest_press.dragged)
+        if (g_hint_quest_press.dragged && !g_hint_quest_press.horizontal)
             sdl_hint_quest_scroll_by(g_hint_quest_press.last_y - y);
         g_hint_quest_press.last_y = y;
         return true;
@@ -827,14 +1220,22 @@ bool sdl_hint_quest_menu_handle_event(const SDL_Event* ev)
         {
             return true;
         }
-        if (sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y)
-            && !g_hint_quest_press.dragged)
+        if (sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
         {
-            int choice = sdl_hint_quest_choice_at(x, y);
+            if (g_hint_quest_press.dragged
+                && g_hint_quest_press.horizontal)
+            {
+                sdl_hint_quest_handle_horizontal_swipe(
+                    x - g_hint_quest_press.start_x);
+            }
+            else if (!g_hint_quest_press.dragged)
+            {
+                int choice = sdl_hint_quest_choice_at(x, y);
 
-            if (choice == g_hint_quest_press.choice)
-                sdl_hint_quest_activate_choice(choice,
-                    UI_MENU_CLICK_PRIMARY);
+                if (choice == g_hint_quest_press.choice)
+                    sdl_hint_quest_activate_choice(choice,
+                        UI_MENU_CLICK_PRIMARY);
+            }
         }
         memset(&g_hint_quest_press, 0, sizeof(g_hint_quest_press));
         return true;
