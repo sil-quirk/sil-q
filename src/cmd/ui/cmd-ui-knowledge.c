@@ -1586,6 +1586,9 @@ static void jewelry_preset_display_line(char* buf, size_t buflen, int preset,
     }
 }
 
+static bool equipment_entry_wrap_next(cptr* cursor, int width, char* line,
+    size_t line_len);
+
 static void supply_put_fitted(int col, int row, int width, byte attr, cptr text)
 {
     char fitted[180];
@@ -1611,6 +1614,31 @@ static void supply_put_fitted(int col, int row, int width, byte attr, cptr text)
 
     settings_ui_fit_text(fitted, sizeof(fitted), text, width);
     Term_putstr(col, row, width, attr, fitted);
+}
+
+static int supply_put_wrapped(int col, int row, int width, int max_rows,
+    byte attr, cptr text)
+{
+    const char* cursor = text;
+    char line[180];
+    int used = 0;
+
+    if (!text || !text[0] || width <= 0 || max_rows <= 0)
+        return 0;
+    if (max_rows == 1)
+    {
+        supply_put_fitted(col, row, width, attr, text);
+        return 1;
+    }
+
+    while (used < max_rows
+        && equipment_entry_wrap_next(&cursor, width, line, sizeof(line)))
+    {
+        supply_put_fitted(col, row + used, width, attr, line);
+        used++;
+    }
+
+    return used;
 }
 
 static int supply_entry_turns(const supply_list_entry* entry,
@@ -3104,6 +3132,39 @@ static byte supply_browser_page_tab_attr(int page, int selected_page,
     return TERM_SLATE;
 }
 
+static bool supply_page_header_uses_wrapped_title(
+    const knowledge_browser_layout* layout)
+{
+    return layout && sdl_mobile_portrait_layout_active()
+        && layout->header_row >= layout->tabs_row + 3;
+}
+
+static int supply_page_summary_row(const knowledge_browser_layout* layout)
+{
+    if (!layout)
+        return 0;
+
+    return supply_page_header_uses_wrapped_title(layout)
+        ? layout->tabs_row + 1
+        : layout->tabs_row;
+}
+
+static void supply_draw_page_summary(const knowledge_browser_layout* layout,
+    byte attr, cptr text)
+{
+    int row;
+    int rows;
+
+    if (!layout)
+        return;
+
+    row = supply_page_summary_row(layout);
+    rows = layout->header_row - row;
+    if (rows < 1)
+        rows = 1;
+    supply_put_wrapped(0, row, layout->term_wid, rows, attr, text);
+}
+
 static void supply_draw_page_header(const knowledge_browser_layout* layout,
     int page, int hover_page, cptr title)
 {
@@ -3139,7 +3200,12 @@ static void supply_draw_page_header(const knowledge_browser_layout* layout,
         }
     }
 
-    if (title && title[0] && col + 3 < layout->term_wid)
+    if (title && title[0] && supply_page_header_uses_wrapped_title(layout))
+    {
+        supply_put_fitted(0, layout->tabs_row, layout->term_wid,
+            TERM_L_WHITE + TERM_SHADE, title);
+    }
+    else if (title && title[0] && col + 3 < layout->term_wid)
     {
         Term_putstr(col, layout->title_row, 3, TERM_L_DARK, " - ");
         col += 3;
@@ -6648,6 +6714,7 @@ static void knowledge_init_layout(knowledge_browser_layout* layout,
 {
     int min_group_w = 8;
     int min_list_w = 16;
+    int bottom_reserved_rows;
 
     Term_get_size(&layout->term_wid, &layout->term_hgt);
 
@@ -6661,7 +6728,10 @@ static void knowledge_init_layout(knowledge_browser_layout* layout,
     layout->header_row = (layout->term_hgt > 2) ? 2 : layout->tabs_row;
     layout->divider_row = (layout->term_hgt > 3) ? 3 : layout->header_row;
     layout->list_row = layout->divider_row + 1;
-    layout->prompt_row = layout->term_hgt - 1;
+    bottom_reserved_rows = sdl_touch_menu_button_reserved_rows();
+    layout->prompt_row = layout->term_hgt - 1 - bottom_reserved_rows;
+    if (layout->prompt_row < layout->list_row)
+        layout->prompt_row = layout->list_row;
     layout->status_row = (layout->prompt_row > layout->list_row)
         ? (layout->prompt_row - 1)
         : layout->prompt_row;
@@ -8898,9 +8968,30 @@ static void knowledge_init_inventory_portrait_layout(
     int body_rows;
     int group_rows;
     int entry_rows;
+    int extra_top_rows;
 
     knowledge_init_layout(layout, max_group_len, has_groups);
-    if (!layout || !has_groups || !sdl_mobile_portrait_layout_active())
+    if (!layout || !sdl_mobile_portrait_layout_active())
+        return;
+
+    /* Put the page title on its own continuation row and leave two rows for
+     * the summary text.  The portrait viewport has height to spare, and this
+     * keeps both strings complete instead of fitting them with an ellipsis. */
+    extra_top_rows = MIN(2,
+        MAX(0, layout->status_row - layout->list_row - 2));
+    layout->header_row += extra_top_rows;
+    layout->divider_row += extra_top_rows;
+    layout->list_row += extra_top_rows;
+    layout->list_rows = layout->status_row - layout->list_row;
+    if (layout->list_rows < 1)
+        layout->list_rows = 1;
+    layout->group_row = layout->list_row;
+    layout->group_rows = layout->list_rows;
+    layout->entry_header_row = layout->header_row;
+    layout->entry_row = layout->list_row;
+    layout->entry_rows = layout->list_rows;
+
+    if (!has_groups)
         return;
 
     body_rows = layout->list_rows;
@@ -9333,7 +9424,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             Term_clear();
             supply_draw_page_header(&layout, page,
                 supply_browser_hover_page(), "Equipped");
-            Term_putstr(0, layout.tabs_row, layout.term_wid, TERM_SLATE,
+            supply_draw_page_summary(&layout, TERM_SLATE,
                 "Equipped items, slots, and matching pack/supply choices");
             Term_erase(0, layout.header_row, 255);
             if (layout.stacked)
@@ -9846,7 +9937,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 compute_inventory_browser_group_totals(inventory_totals);
             /* Slot-pick is a flat, single-column destination list (no groups). */
             if (slot_pick_mode)
-                knowledge_init_layout(&layout, inv_max, false);
+                knowledge_init_inventory_portrait_layout(&layout, inv_max,
+                    false);
             else
                 knowledge_init_inventory_portrait_layout(&layout, inv_max, true);
             entry_page_rows = layout.entry_rows;
@@ -9984,8 +10076,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         TERM_L_WHITE + TERM_SHADE, "What to replace");
                 strnfmt(incoming_line, sizeof(incoming_line),
                     "Picking up: %s - choose one to replace", incoming_name);
-                supply_put_fitted(0, layout.tabs_row, layout.term_wid,
-                    TERM_SLATE, incoming_line);
+                supply_put_wrapped(0, layout.tabs_row, layout.term_wid,
+                    MAX(1, layout.header_row - layout.tabs_row), TERM_SLATE,
+                    incoming_line);
             }
             else if (slot_pick_mode)
             {
@@ -10003,8 +10096,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         TERM_L_WHITE + TERM_SHADE, "Place where");
                 strnfmt(incoming_line, sizeof(incoming_line),
                     "Placing: %s - choose a destination", incoming_name);
-                supply_put_fitted(0, layout.tabs_row, layout.term_wid,
-                    TERM_SLATE, incoming_line);
+                supply_put_wrapped(0, layout.tabs_row, layout.term_wid,
+                    MAX(1, layout.header_row - layout.tabs_row), TERM_SLATE,
+                    incoming_line);
             }
             else if (item_select_mode)
             {
@@ -10016,14 +10110,15 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 else
                     Term_putstr(0, layout.title_row, layout.term_wid,
                         TERM_L_WHITE + TERM_SHADE, "Choose item");
-                Term_putstr(0, layout.tabs_row, layout.term_wid, TERM_SLATE,
+                supply_put_wrapped(0, layout.tabs_row, layout.term_wid,
+                    MAX(1, layout.header_row - layout.tabs_row), TERM_SLATE,
                     "Choose one matching item from inventory, equipment, or floor");
             }
             else
             {
                 supply_draw_page_header(&layout, page,
                     supply_browser_hover_page(), "Inventory");
-                Term_putstr(0, layout.tabs_row, layout.term_wid, TERM_SLATE,
+                supply_draw_page_summary(&layout, TERM_SLATE,
                     "Inventory categories, equipped matches, and pack limits");
             }
             Term_erase(0, layout.header_row, 255);
@@ -11101,8 +11196,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             || (draw_layout.divider_col != prev_divider_col))
         {
             Term_clear();
-            Term_putstr(0, draw_layout.tabs_row, draw_layout.term_wid, TERM_SLATE,
-                weight_buf);
+            supply_draw_page_summary(&draw_layout, TERM_SLATE, weight_buf);
             Term_erase(0, draw_layout.header_row, 255);
 
             if (draw_layout.stacked)

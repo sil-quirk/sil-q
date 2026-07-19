@@ -1685,7 +1685,7 @@ void sdl_left_panel_compact_metrics_for_view(const sdl_view* view,
             metrics->compact_output_cols[i] = next_col;
             next_col += width + 1;
         } else {
-            metrics->compact_output_rows[i] = i + 1;
+            metrics->compact_output_rows[i] = i;
             metrics->compact_output_cols[i] = 0;
             if (width > max_cols)
                 max_cols = width;
@@ -1696,7 +1696,7 @@ void sdl_left_panel_compact_metrics_for_view(const sdl_view* view,
         metrics->panel_rows = 1;
         metrics->content_cols = next_col > 0 ? next_col - 1 : 1;
     } else {
-        metrics->panel_rows = metrics->compact_segment_count + 1;
+        metrics->panel_rows = metrics->compact_segment_count;
         metrics->content_cols = max_cols > 0 ? max_cols : LEFT_PANEL_CONTENT_WID;
     }
 }
@@ -1815,7 +1815,7 @@ bool sdl_left_panel_metrics_for_view(const sdl_view* view,
     if (source_h <= 0)
         return false;
     if (render_rows > 0) {
-        int max_cell_h = source_h / (render_rows + 1);
+        int max_cell_h = source_h / render_rows;
 
         if (max_cell_h < 1)
             max_cell_h = 1;
@@ -1827,28 +1827,17 @@ bool sdl_left_panel_metrics_for_view(const sdl_view* view,
         }
     }
 
-    bottom_border_h = cell_h;
+    bottom_border_h = 0;
     panel_render_h = render_rows * cell_h;
-    if (panel_render_h + bottom_border_h > source_h) {
-        int available_content_h = source_h - bottom_border_h;
-
-        if (available_content_h < cell_h) {
-            bottom_border_h = 0;
-            available_content_h = source_h;
-        }
-        render_rows = available_content_h / cell_h;
+    if (panel_render_h > source_h) {
+        render_rows = source_h / cell_h;
         if (render_rows < 1)
             render_rows = 1;
         panel_render_h = render_rows * cell_h;
         if (panel_render_h > source_h)
             panel_render_h = source_h;
-        bottom_border_h = source_h - panel_render_h;
-        if (bottom_border_h > cell_h)
-            bottom_border_h = cell_h;
-        if (bottom_border_h < 0)
-            bottom_border_h = 0;
     }
-    corner_h = panel_render_h + bottom_border_h;
+    corner_h = panel_render_h;
 
     if (metrics) {
         *metrics = local_metrics;
@@ -1888,6 +1877,7 @@ bool sdl_left_panel_pane_rect_for_metrics(const sdl_view* view,
     const sdl_left_panel_metrics* metrics, SDL_FRect* out_rect)
 {
     enum pane_placement where;
+    SDL_FRect menu_button;
     int visual_cols;
     int visual_rows;
     int visual_w;
@@ -1919,6 +1909,14 @@ bool sdl_left_panel_pane_rect_for_metrics(const sdl_view* view,
     edge_gap_x = sdl_overlay_edge_gap_px(visual_w, metrics->total_w);
     edge_gap_y = sdl_overlay_edge_gap_px(visual_h, metrics->corner_h);
 
+    /* Top-edge left panels are flush with the safe edge.  Actual overlay
+     * collisions, including the optional Menu button, are handled below. */
+    if (where == PLACE_TOP_LEFT || where == PLACE_TOP_CENTER
+        || where == PLACE_TOP_RIGHT)
+    {
+        edge_gap_y = 0;
+    }
+
     if (sdl_left_panel_pane_placement_is_right(where))
         x += (float)(visual_w - metrics->total_w - edge_gap_x);
     else if (sdl_left_panel_pane_placement_is_horizontal_center(where))
@@ -1932,6 +1930,22 @@ bool sdl_left_panel_pane_rect_for_metrics(const sdl_view* view,
         y += (float)((visual_h - metrics->corner_h) / 2);
     else
         y += (float)edge_gap_y;
+
+    /* The compact row is measured after generic pane placement and can span
+     * into the fixed Top Center Menu button.  Keep the button as the first
+     * member of that stack and place the row immediately below it; the live
+     * Top Right avoidance then follows this adjusted rectangle. */
+    if (metrics->collapsed && metrics->compact_row
+        && (where == PLACE_TOP_LEFT || where == PLACE_TOP_CENTER
+            || where == PLACE_TOP_RIGHT)
+        && sdl_main_menu_pane_button_rect(&menu_button)
+        && x < menu_button.x + menu_button.w
+        && x + (float)metrics->total_w > menu_button.x
+        && y < menu_button.y + menu_button.h
+        && y + (float)metrics->corner_h > menu_button.y)
+    {
+        y = menu_button.y + menu_button.h;
+    }
 
     if (out_rect) {
         *out_rect = (SDL_FRect){
@@ -2402,6 +2416,152 @@ bool sdl_left_panel_compact_row_mode(void)
 {
     return sdl_left_panel_compact_mode_normalized(
         config.left_panel_compact_mode) == SDL_LEFT_PANEL_COMPACT_ROW;
+}
+
+static int g_top_right_overlay_offset;
+static bool g_top_right_overlay_shifted_panes[PANE_MAX];
+
+void sdl_reset_top_right_overlay_offset(void)
+{
+    g_top_right_overlay_offset = 0;
+    memset(g_top_right_overlay_shifted_panes, 0,
+        sizeof(g_top_right_overlay_shifted_panes));
+}
+
+static void sdl_remove_top_right_overlay_offset(void)
+{
+    if (g_top_right_overlay_offset <= 0)
+        return;
+
+    for (int pane = 0; pane < PANE_MAX; pane++) {
+        if (!g_top_right_overlay_shifted_panes[pane])
+            continue;
+
+        g_pane_rects[pane].y -= g_top_right_overlay_offset;
+        if (pane < MAX_TERM_DATA)
+            g_views[pane].rect.y -= g_top_right_overlay_offset;
+    }
+
+    sdl_reset_top_right_overlay_offset();
+}
+
+/*
+ * Move the ordered Top Right stack below overlays that actually cross it.
+ * The generic pane layout cannot know the measured compact-left width or the
+ * separately-rendered Menu button rectangle, so resolve both here.
+ */
+void sdl_apply_top_right_overlay_offset(void)
+{
+    SDL_Rect visible_rects[PANE_MAX] = { 0 };
+    bool have_visible_rect[PANE_MAX] = { false };
+    SDL_FRect menu_button;
+    SDL_Rect left;
+    enum pane_placement left_where = sdl_left_panel_pane_placement();
+    int stack_top = INT_MAX;
+    int desired_top;
+    bool compact_left_blocker;
+
+    /* Presentation recomputes measured overlay sizes, so first restore the
+     * base layout rectangles before calculating the current frame's offset. */
+    sdl_remove_top_right_overlay_offset();
+
+    if (!sdl_should_show_supporting_panes())
+        return;
+
+    for (int i = 0; i < pane_config_count; i++) {
+        enum pane_type pane = pane_config[i].pane;
+        SDL_Rect visible;
+
+        if (!pane_config[i].enabled || pane_config[i].where != PLACE_TOP_RIGHT
+            || pane == PANE_LEFT_PANEL || pane <= PANE_MAIN
+            || pane >= PANE_MAX || !sdl_rect_has_area(&g_pane_rects[pane]))
+        {
+            continue;
+        }
+
+        visible = g_pane_rects[pane];
+        if (pane == PANE_ROLLS) {
+            SDL_Rect log_visible;
+
+            if (sdl_overlay_log_pane_current_rect(&log_visible))
+                visible = log_visible;
+        }
+
+        visible_rects[pane] = visible;
+        have_visible_rect[pane] = true;
+        if (visible.y < stack_top)
+            stack_top = visible.y;
+    }
+
+    if (stack_top == INT_MAX)
+        return;
+    desired_top = stack_top;
+
+    if (sdl_main_menu_pane_button_rect(&menu_button)) {
+        int menu_bottom = (int)(menu_button.y + menu_button.h + 0.5f);
+
+        for (int pane = 0; pane < PANE_MAX; pane++) {
+            const SDL_Rect* visible = &visible_rects[pane];
+
+            if (!have_visible_rect[pane])
+                continue;
+            if (menu_button.x < (float)(visible->x + visible->w)
+                && menu_button.x + menu_button.w > (float)visible->x
+                && menu_button.y < (float)(visible->y + visible->h)
+                && menu_button.y + menu_button.h > (float)visible->y)
+            {
+                desired_top = MAX(desired_top, menu_bottom);
+                break;
+            }
+        }
+    }
+
+    left = g_pane_rects[PANE_LEFT_PANEL];
+    compact_left_blocker = sdl_left_panel_pane_presentation_active()
+        && sdl_left_panel_pane_collapsed()
+        && sdl_left_panel_compact_row_mode()
+        && sdl_rect_has_area(&left)
+        && (left_where == PLACE_TOP_LEFT || left_where == PLACE_TOP_CENTER
+            || left_where == PLACE_TOP_RIGHT);
+    if (compact_left_blocker) {
+        int left_bottom = left.y + left.h;
+
+        for (int pane = 0; pane < PANE_MAX; pane++) {
+            const SDL_Rect* visible = &visible_rects[pane];
+
+            if (!have_visible_rect[pane])
+                continue;
+            if (left.x < visible->x + visible->w
+                && left.x + left.w > visible->x
+                && left.y < visible->y + visible->h
+                && left_bottom > visible->y)
+            {
+                desired_top = MAX(desired_top, left_bottom);
+                break;
+            }
+        }
+    }
+
+    if (desired_top <= stack_top)
+        return;
+
+    g_top_right_overlay_offset = desired_top - stack_top;
+    for (int i = 0; i < pane_config_count; i++) {
+        enum pane_type pane = pane_config[i].pane;
+
+        if (!pane_config[i].enabled || pane_config[i].where != PLACE_TOP_RIGHT
+            || pane == PANE_LEFT_PANEL || pane <= PANE_MAIN
+            || pane >= PANE_MAX || !sdl_rect_has_area(&g_pane_rects[pane])
+            || g_top_right_overlay_shifted_panes[pane])
+        {
+            continue;
+        }
+
+        g_pane_rects[pane].y += g_top_right_overlay_offset;
+        if ((int)pane < MAX_TERM_DATA)
+            g_views[pane].rect.y += g_top_right_overlay_offset;
+        g_top_right_overlay_shifted_panes[pane] = true;
+    }
 }
 
 bool sdl_left_panel_pane_has_border_columns(void)

@@ -1449,6 +1449,7 @@ bool sdl_render_current_window_frame(void)
 {
     bool show_supporting_panes;
     bool hide_main_menu_supporting_panes;
+    bool hide_main_menu_overlays;
     bool layout_matches;
     SDL_Rect layout_screen;
     SDL_Rect side_map_rect;
@@ -1480,6 +1481,11 @@ bool sdl_render_current_window_frame(void)
         return true;
     }
 
+    if (sdl_hint_quest_menu_active()) {
+        sdl_hint_quest_menu_render();
+        return true;
+    }
+
     if (sdl_welcome_screen_active()) {
         sdl_welcome_screen_render();
         /* The yes/no confirm is modal and must stay visible above any
@@ -1502,6 +1508,7 @@ bool sdl_render_current_window_frame(void)
     show_supporting_panes = sdl_should_show_supporting_panes();
     hide_main_menu_supporting_panes =
         sdl_main_menu_overlay_hides_supporting_panes();
+    hide_main_menu_overlays = g_main_menu_overlay_active;
     layout_matches = sdl_layout_matches_supporting_pane_visibility();
     if (!layout_matches)
         return false;
@@ -1536,7 +1543,9 @@ bool sdl_render_current_window_frame(void)
     } else {
         g_pane_rects[PANE_LEFT_PANEL] = (SDL_Rect){ 0 };
     }
-    side_map_visible = !hide_main_menu_supporting_panes
+    sdl_apply_top_right_overlay_offset();
+    side_map_visible = !hide_main_menu_overlays
+        && !hide_main_menu_supporting_panes
         && sdl_side_map_pane_current_rect(&side_map_rect);
 
     for (int i = 0; i < MAX_TERM_DATA; i++) {
@@ -1567,6 +1576,11 @@ bool sdl_render_current_window_frame(void)
             continue;
         if (!show_supporting_panes && i != PANE_MAIN)
             continue;
+        if (hide_main_menu_overlays && i == PANE_ROLLS
+            && sdl_view_is_overlay_log_pane(view))
+        {
+            continue;
+        }
         /* Hide the message log(s) while an interactive item description popup is
          * open, so it doesn't show through/around the popup. */
         if (g_description_overlay.active && g_description_overlay.interactive
@@ -1624,17 +1638,11 @@ bool sdl_render_current_window_frame(void)
 
         if (overlay_log)
         {
-            /*
-             * Bottom-anchor the content with a reasonable, panel-backed
-             * margin.  The cell grid is shorter than the band by the centered
-             * slack; left as-is that slack reads as a transparent map gap and
-             * the messages hug the lower border.  Instead we lift the content
-             * by a fraction of a cell, clip any top overflow, and paint the
-             * freed strips with the panel background so the margins match the
-             * panel rather than the map.
-             */
-            int bottom_margin = (int)((float)view->cell_h
-                * SDL_OVERLAY_LOG_VMARGIN_CELLS + 0.5f);
+            /* Bottom-anchor the content above its single panel-backed bottom
+             * margin.  The pane allocation reserves no matching top margin,
+             * so the first configured row begins at the top of the band. */
+            int bottom_margin =
+                pane_log_overlay_vertical_margin_px(view->cell_h);
             float band_top = (float)view->rect.y;
             float band_bottom = (float)(view->rect.y + view->rect.h);
 
@@ -1685,19 +1693,21 @@ bool sdl_render_current_window_frame(void)
             (void)sdl_render_saved_screen_left_panel_backdrop(view);
     }
 
-    sdl_side_map_pane_render();
-    sdl_pointer_aim_render();
-    sdl_pointer_attack_render();
-    sdl_mouse_path_render();
-    sdl_combat_overlay_pane_render();
-    sdl_status_pane_render();
-    sdl_popup_notification_render();
-    sdl_depth_menu_pane_render();
-    sdl_narrative_banner_render();
-    sdl_object_tooltip_render();
-    sdl_player_exchange_render();
-    sdl_player_action_menu_render();
-    sdl_touch_round_render();
+    if (!hide_main_menu_overlays) {
+        sdl_side_map_pane_render();
+        sdl_pointer_aim_render();
+        sdl_pointer_attack_render();
+        sdl_mouse_path_render();
+        sdl_combat_overlay_pane_render();
+        sdl_status_pane_render();
+        sdl_popup_notification_render();
+        sdl_depth_menu_pane_render();
+        sdl_narrative_banner_render();
+        sdl_object_tooltip_render();
+        sdl_player_exchange_render();
+        sdl_player_action_menu_render();
+        sdl_touch_round_render();
+    }
 
     if (visible_views > 1) {
         for (int i = 0; i < MAX_TERM_DATA; i++) {
@@ -1708,6 +1718,11 @@ bool sdl_render_current_window_frame(void)
                 continue;
             if (!show_supporting_panes && i != PANE_MAIN && i != PANE_TOUCH)
                 continue;
+            if (hide_main_menu_overlays && i == PANE_ROLLS
+                && sdl_view_is_overlay_log_pane(view))
+            {
+                continue;
+            }
 
             if (i == PANE_TOUCH)
                 continue;
@@ -1784,7 +1799,8 @@ bool sdl_render_current_window_frame(void)
     }
 
     sdl_touch_pane_render();
-    sdl_touch_zone_render_markers();
+    if (!hide_main_menu_overlays)
+        sdl_touch_zone_render_markers();
     if (!g_touch_tutorial_suppress_runtime_top_panel)
         sdl_touch_top_panel_render();
     sdl_touch_hidden_indicator_render();
@@ -1802,7 +1818,8 @@ bool sdl_render_current_window_frame(void)
     sdl_description_overlay_render();
     /* Drawn after the description popup (and its dimming backdrop) so the thumb
      * buttons stay on top and visible while a description is open. */
-    sdl_touch_thumb_render();
+    if (!hide_main_menu_overlays)
+        sdl_touch_thumb_render();
     sdl_touch_exit_button_render();
 
     return true;

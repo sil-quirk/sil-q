@@ -1181,50 +1181,6 @@ static void log_history_entry_search_text(const log_history_entry* entry,
     }
 }
 
-enum {
-    HINT_QUEST_CLICK_HINTS_TAB = -20101,
-    HINT_QUEST_CLICK_QUESTS_TAB = -20102,
-    HINT_QUEST_CLICK_THRALLS_TAB = -20103
-};
-
-static int hint_quest_draw_tab(int row, int col, cptr label, bool active,
-    bool hovered, int click_choice)
-{
-    char tab[32];
-    byte attr = hovered ? TERM_YELLOW + TERM_SHADE : TERM_YELLOW;
-
-    strnfmt(tab, sizeof(tab), active ? "[%s]" : " %s ", label);
-    Term_putstr(col, row, -1, attr, tab);
-    ui_menu_click_add(click_choice, col, row, (int)strlen(tab));
-    return col + (int)strlen(tab) + 1;
-}
-
-static void hint_quest_draw_tabs(hint_quest_page active_page, int hover_tab,
-    int term_wid)
-{
-    int col = 0;
-
-    if (term_wid < 1)
-        term_wid = 80;
-
-    Term_putstr(0, 0, term_wid, TERM_L_WHITE + TERM_SHADE,
-        "Hints & Quests");
-    Term_erase(0, 1, 255);
-
-    col = hint_quest_draw_tab(1, col, "Hints",
-        active_page == HINT_QUEST_PAGE_HINTS,
-        hover_tab == HINT_QUEST_CLICK_HINTS_TAB,
-        HINT_QUEST_CLICK_HINTS_TAB);
-    col = hint_quest_draw_tab(1, col, "Quests",
-        active_page == HINT_QUEST_PAGE_QUESTS,
-        hover_tab == HINT_QUEST_CLICK_QUESTS_TAB,
-        HINT_QUEST_CLICK_QUESTS_TAB);
-    (void)hint_quest_draw_tab(1, col, "Thralls",
-        active_page == HINT_QUEST_PAGE_THRALLS,
-        hover_tab == HINT_QUEST_CLICK_THRALLS_TAB,
-        HINT_QUEST_CLICK_THRALLS_TAB);
-}
-
 static bool hint_quest_tab_key(char ch)
 {
     return (ch == '\t');
@@ -1298,7 +1254,6 @@ static void do_cmd_hint_quest_menu(bool* out_pending_look, int* out_look_y,
 
     screen_save();
     screen_push_supporting_panes_hidden();
-    sdl_push_terminal_menu_scale();
 
     while (page != HINT_QUEST_PAGE_EXIT)
     {
@@ -1321,7 +1276,7 @@ static void do_cmd_hint_quest_menu(bool* out_pending_look, int* out_look_y,
             break;
     }
 
-    sdl_pop_terminal_menu_scale();
+    sdl_hint_quest_menu_hide();
     screen_pop_supporting_panes_hidden();
     screen_load();
 
@@ -1663,361 +1618,6 @@ static void hint_message_open_map_at(int y, int x)
     do_cmd_view_map();
 }
 
-static bool hint_message_is_word_boundary(char ch)
-{
-    return (ch == '\0') || !isalnum((unsigned char)ch);
-}
-
-static bool hint_message_phrase_matches_ci(const char* line, int offset,
-    const char* phrase)
-{
-    size_t len;
-
-    if (!line || !phrase || !phrase[0])
-        return false;
-
-    len = strlen(phrase);
-    if (SDL_strncasecmp(line + offset, phrase, len) != 0)
-        return false;
-
-    if (offset > 0 && !hint_message_is_word_boundary(line[offset - 1]))
-        return false;
-
-    return hint_message_is_word_boundary(line[offset + len]);
-}
-
-static bool hint_message_phrase_matches(const char* line, int offset, const char* phrase)
-{
-    size_t len;
-
-    if (!line || !phrase || !phrase[0])
-        return false;
-
-    len = strlen(phrase);
-    if (strncmp(line + offset, phrase, len) != 0)
-        return false;
-
-    if (offset > 0 && !hint_message_is_word_boundary(line[offset - 1]))
-        return false;
-
-    return hint_message_is_word_boundary(line[offset + len]);
-}
-
-typedef struct semantic_highlight_rule {
-    const char* phrase;
-    byte attr;
-} semantic_highlight_rule;
-
-/* Semantic accents shared by survival tutorials and discovered-note popups.
- * Keep prose neutral; colour only controls, game terms, rewards, and hazards. */
-static const semantic_highlight_rule semantic_highlight_rules[] = {
-    { "one-and-a-half-handed", TERM_L_BLUE },
-    { "mixed elemental attacks", TERM_ORANGE },
-    { "pure elemental attacks", TERM_L_RED },
-    { "elemental vulnerabilities", TERM_L_RED },
-    { "elemental vulnerability", TERM_L_RED },
-    { "elemental resistances", TERM_L_GREEN },
-    { "elemental resistance", TERM_L_GREEN },
-    { "invisible enemies", TERM_L_RED },
-    { "throwing weapons", TERM_L_BLUE },
-    { "special traits", TERM_VIOLET },
-    { "Gem of Knowledge", TERM_VIOLET },
-    { "Gem of Sanctity", TERM_L_GREEN },
-    { "diagonal movement", TERM_YELLOW },
-    { "stealth mode", TERM_YELLOW },
-    { "Alt+'+'", TERM_YELLOW },
-    { "Alt+'-'", TERM_YELLOW },
-    { "Alt+'i'", TERM_YELLOW },
-    { "Alt+'l'", TERM_YELLOW },
-    { "'S'", TERM_YELLOW },
-    { "critical hit", TERM_L_BLUE },
-    { "critical", TERM_L_BLUE },
-    { "crit", TERM_L_BLUE },
-    { "weapon weight", TERM_L_BLUE },
-    { "one-handed", TERM_L_BLUE },
-    { "two-handed", TERM_L_BLUE },
-    { "song points", TERM_L_BLUE },
-    { "damage dice", TERM_L_BLUE },
-    { "damage die", TERM_L_BLUE },
-    { "damage sides", TERM_L_BLUE },
-    { "damage side", TERM_L_BLUE },
-    { "line of sight", TERM_L_BLUE },
-    { "light radius", TERM_YELLOW },
-    { "light reserves", TERM_YELLOW },
-    { "right panel", TERM_UMBER },
-    { "bottom panel", TERM_UMBER },
-    { "status panel", TERM_UMBER },
-    { "bright star rating", TERM_L_GREEN },
-    { "mixed elemental", TERM_L_BLUE },
-    { "pure elemental", TERM_L_BLUE },
-    { "vulnerabilities", TERM_L_RED },
-    { "vulnerability", TERM_L_RED },
-    { "vulnerable", TERM_L_RED },
-    { "resistances", TERM_L_GREEN },
-    { "resistance", TERM_L_GREEN },
-    { "cursed", TERM_ORANGE },
-    { "curse", TERM_ORANGE },
-    { "jinx", TERM_ORANGE },
-    { "elemental", TERM_L_BLUE },
-    { "identification", TERM_L_BLUE },
-    { "identify", TERM_L_BLUE },
-    { "alignment", TERM_L_BLUE },
-    { "abilities", TERM_L_BLUE },
-    { "ability", TERM_L_BLUE },
-    { "supply", TERM_L_BLUE },
-    { "weight", TERM_L_BLUE },
-    { "controls", TERM_YELLOW },
-    { "main map", TERM_L_BLUE },
-    { "map", TERM_L_BLUE },
-    { "stairs", TERM_L_BLUE },
-    { "staircase", TERM_L_BLUE },
-    { "shaft", TERM_L_BLUE },
-    { "forge", TERM_ORANGE },
-    { "artefact", TERM_VIOLET },
-    { "artifact", TERM_VIOLET },
-    { "great vault", TERM_VIOLET },
-    { "vault", TERM_VIOLET },
-    { "quest", TERM_VIOLET },
-    { "labyrinth", TERM_ORANGE },
-    { "chasm", TERM_L_RED },
-    { "trap", TERM_L_RED },
-    { "locked", TERM_ORANGE },
-    { "warded", TERM_ORANGE },
-    { "unique monster", TERM_L_RED },
-    { "unique", TERM_VIOLET },
-    { "shield", TERM_L_BLUE },
-    { "arrows", TERM_L_BLUE },
-    { "enemies", TERM_L_RED },
-    { "enemy", TERM_L_RED },
-    { "monsters", TERM_ORANGE },
-    { "monster", TERM_ORANGE },
-    { "Protection", TERM_L_BLUE },
-    { "protection", TERM_L_BLUE },
-    { "Evasion", TERM_L_BLUE },
-    { "evasion", TERM_L_BLUE },
-    { "Attack", TERM_L_BLUE },
-    { "attack", TERM_L_BLUE },
-    { "Damage", TERM_L_BLUE },
-    { "damage", TERM_L_BLUE },
-    { "Stealth", TERM_L_BLUE },
-    { "stealth", TERM_L_BLUE },
-    { "Will", TERM_L_BLUE },
-    { "will", TERM_L_BLUE },
-    { "Perception", TERM_L_BLUE },
-    { "perception", TERM_L_BLUE },
-    { "Constitution", TERM_L_BLUE },
-    { "constitution", TERM_L_BLUE },
-    { "Dexterity", TERM_L_BLUE },
-    { "dexterity", TERM_L_BLUE },
-    { "Grace", TERM_L_BLUE },
-    { "grace", TERM_L_BLUE },
-    { "Strength", TERM_L_BLUE },
-    { "strength", TERM_L_BLUE },
-    { "Smithing", TERM_L_BLUE },
-    { "smithing", TERM_L_BLUE },
-    { "Song", TERM_L_BLUE },
-    { "song", TERM_L_BLUE },
-    { "Archery", TERM_L_BLUE },
-    { "archery", TERM_L_BLUE },
-    { "HP", TERM_L_BLUE },
-    { "XP", TERM_L_BLUE },
-    { "quiver", TERM_L_BLUE },
-    { "inventory", TERM_L_BLUE },
-    { "options", TERM_UMBER },
-    { "light", TERM_YELLOW },
-    { "fire", TERM_L_RED },
-    { "ice", TERM_BLUE },
-    { "cold", TERM_BLUE },
-    { "poison", TERM_L_GREEN },
-};
-
-static int semantic_hint_match_length(const char* line, int offset, byte* out_attr)
-{
-    int best_len = 0;
-    byte best_attr = TERM_WHITE;
-
-    for (int i = 0; i < (int)N_ELEMENTS(semantic_highlight_rules); ++i)
-    {
-        const semantic_highlight_rule* rule = &semantic_highlight_rules[i];
-        int len;
-
-        if (!hint_message_phrase_matches_ci(line, offset, rule->phrase))
-            continue;
-
-        len = (int)strlen(rule->phrase);
-        if (len > best_len)
-        {
-            best_len = len;
-            best_attr = rule->attr;
-        }
-    }
-
-    if (out_attr)
-        *out_attr = best_attr;
-
-    return best_len;
-}
-
-static int hint_message_match_length(const char* line, int offset,
-    const hint_message_meta* meta, byte* out_attr)
-{
-    int best_len = 0;
-    byte best_attr = TERM_WHITE;
-
-    if (!meta)
-        return 0;
-
-    for (int cue = 0; cue < meta->cue_count; ++cue)
-    {
-        const char* dist = meta->cue_dists[cue];
-        const char* dir = meta->cue_dirs[cue];
-
-        if (hint_message_phrase_matches(line, offset, dist))
-        {
-            int len = (int)strlen(dist);
-            if (len > best_len)
-            {
-                best_len = len;
-                best_attr = TERM_YELLOW;
-            }
-        }
-
-        if (hint_message_phrase_matches(line, offset, dir))
-        {
-            int len = (int)strlen(dir);
-            if (len > best_len)
-            {
-                best_len = len;
-                best_attr = TERM_L_BLUE;
-            }
-        }
-    }
-
-    if (out_attr)
-        *out_attr = best_attr;
-
-    return best_len;
-}
-
-static void hint_message_put_segment(int row, int col, byte attr, const char* text)
-{
-    if (!text || !text[0])
-        return;
-
-    if (sdl_is_story_font_enabled())
-        story_print_text(row, col, 0, attr, text);
-    else
-        Term_putstr(col, row, -1, attr, text);
-}
-
-static byte hint_message_selected_attr(byte source_attr)
-{
-    (void)source_attr;
-    return (byte)(TERM_UI_SELECTED + TERM_L_BLUE);
-}
-
-static void hint_message_fill_row(int row, int width, byte attr)
-{
-    char fill[180];
-    int term_wid = Term ? Term->wid : 80;
-    int term_hgt = Term ? Term->hgt : 24;
-
-    if (row < 0 || row >= term_hgt || width <= 0)
-        return;
-    if (width > term_wid)
-        width = term_wid;
-    if (width >= (int)sizeof(fill))
-        width = (int)sizeof(fill) - 1;
-
-    SDL_memset(fill, ' ', (size_t)width);
-    fill[width] = '\0';
-    Term_putstr(0, row, width, attr, fill);
-}
-
-static int hint_message_selection_width(int text_col, const char* text, int wid)
-{
-    int text_len = text ? (int)strlen(text) : 0;
-    int width = text_col + text_len;
-
-    if (width < 1)
-        width = 1;
-    if (wid > 0 && width > wid)
-        width = wid;
-
-    return width;
-}
-
-static void hint_message_draw_colored_line(int row, int col, byte base_attr,
-    const char* line, const hint_message_meta* meta, bool highlight_semantics)
-{
-    int start = 0;
-    int cursor = col;
-    int len;
-
-    if (!line)
-        line = "";
-
-    if (base_attr >= TERM_UI_SELECTED)
-    {
-        hint_message_put_segment(row, col, base_attr, line);
-        return;
-    }
-
-    len = (int)strlen(line);
-    for (int i = 0; i < len; )
-    {
-        byte match_attr = base_attr;
-        int match_len = hint_message_match_length(line, i, meta, &match_attr);
-        if (highlight_semantics)
-        {
-            byte semantic_attr = base_attr;
-            int semantic_len = semantic_hint_match_length(line, i,
-                &semantic_attr);
-            if (semantic_len > match_len)
-            {
-                match_len = semantic_len;
-                match_attr = semantic_attr;
-            }
-        }
-        if (match_len > 0)
-        {
-            if (i > start)
-            {
-                char plain[256];
-                int plain_len = i - start;
-                memcpy(plain, line + start, plain_len);
-                plain[plain_len] = '\0';
-                hint_message_put_segment(row, cursor, base_attr, plain);
-                cursor += plain_len;
-            }
-
-            {
-                char special[256];
-                memcpy(special, line + i, match_len);
-                special[match_len] = '\0';
-                hint_message_put_segment(row, cursor, match_attr, special);
-            }
-
-            cursor += match_len;
-            i += match_len;
-            start = i;
-        }
-        else
-        {
-            ++i;
-        }
-    }
-
-    if (start < len)
-    {
-        char tail[256];
-        int tail_len = len - start;
-        memcpy(tail, line + start, tail_len);
-        tail[tail_len] = '\0';
-        hint_message_put_segment(row, cursor, base_attr, tail);
-    }
-}
-
 static const char* hint_message_title(int index)
 {
     byte line_count = hint_messages_message_line_count(index);
@@ -2029,480 +1629,6 @@ static const char* hint_message_title(int index)
     }
 
     return "";
-}
-
-static const char* hint_message_pick_prompt(int wid,
-    const char* const prompts[], int prompt_count)
-{
-    int avail = wid;
-
-    if (avail < 1)
-        avail = 1;
-
-    for (int i = 0; i < prompt_count; ++i)
-    {
-        if (!prompts[i])
-            continue;
-        if ((int)strlen(prompts[i]) <= avail)
-            return prompts[i];
-    }
-
-    return (prompt_count > 0 && prompts[prompt_count - 1])
-        ? prompts[prompt_count - 1]
-        : "";
-}
-
-static const char* hint_message_detail_prompt(bool has_source, int wid)
-{
-    static const char* const simple_prompts[] = {
-        "[Press any key to continue]",
-        "[Any key]"
-    };
-    static const char* const source_prompts[] = {
-        "[Press any key, 'l' to look, 'm' to show location on map]",
-        "[Any key; 'l' look at location; 'm' map]",
-        "[Any key; l look; m map]"
-    };
-
-    if (steamdeck_controls_active())
-    {
-        static char prompt_long[128];
-        static char prompt_mid[96];
-        static char prompt_short[80];
-        char confirm_label[16];
-        char back_label[16];
-        char look_label[16];
-        char map_label[16];
-
-        controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
-            sizeof(confirm_label));
-        controller_prompt_label(steamdeck_back_key(), "B", back_label,
-            sizeof(back_label));
-
-        if (has_source)
-        {
-            const char* prompts[] = {
-                prompt_long,
-                prompt_mid,
-                prompt_short
-            };
-
-            controller_prompt_label(steamdeck_alt_action_key(), "X",
-                look_label, sizeof(look_label));
-            controller_prompt_label('M', "Map", map_label, sizeof(map_label));
-            strnfmt(prompt_long, sizeof(prompt_long),
-                "[%s] continue  [%s] look  [%s] map  [%s] back",
-                confirm_label, look_label, map_label, back_label);
-            strnfmt(prompt_mid, sizeof(prompt_mid),
-                "[%s] continue  [%s] look  [%s] map",
-                confirm_label, look_label, map_label);
-            strnfmt(prompt_short, sizeof(prompt_short), "[%s] ok  [%s] map",
-                confirm_label, map_label);
-
-            return hint_message_pick_prompt(wid, prompts, N_ELEMENTS(prompts));
-        }
-
-        {
-            const char* prompts[] = {
-                prompt_long,
-                prompt_short
-            };
-
-            strnfmt(prompt_long, sizeof(prompt_long),
-                "[%s] continue  [%s] back", confirm_label, back_label);
-            strnfmt(prompt_short, sizeof(prompt_short), "[%s] continue",
-                confirm_label);
-
-            return hint_message_pick_prompt(wid, prompts, N_ELEMENTS(prompts));
-        }
-    }
-
-    if (has_source)
-        return hint_message_pick_prompt(wid, source_prompts,
-            N_ELEMENTS(source_prompts));
-
-    return hint_message_pick_prompt(wid, simple_prompts,
-        N_ELEMENTS(simple_prompts));
-}
-
-static void hint_message_detail_register_prompt(const char* prompt,
-    int row, bool has_source)
-{
-    if (!prompt)
-        return;
-
-    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_CONTINUE, 0, row,
-        prompt, "continue");
-    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_CONTINUE, 0, row,
-        prompt, "Any key");
-    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_CONTINUE, 0, row,
-        prompt, "any key");
-    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_CONTINUE, 0, row,
-        prompt, "ok");
-    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_BACK, 0, row,
-        prompt, "back");
-
-    if (!has_source)
-        return;
-
-    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_LOOK, 0, row,
-        prompt, "look");
-    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_LOOK, 0, row,
-        prompt, "'l'");
-    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_MAP, 0, row,
-        prompt, "map");
-    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_MAP, 0, row,
-        prompt, "'m'");
-}
-
-/*
- * Touch-only command buttons for the hint detail screen.  Replaces the
- * keyboard-key prompt with tap targets: Look / Map (when the hint points at a
- * map location) plus Back.  Any non-Look/Map click in the detail loop closes
- * the screen, so the Back button needs no special handling.
- */
-static void hint_message_detail_touch_buttons(int row, bool has_source)
-{
-    int col = 0;
-
-    if (has_source)
-    {
-        col = ui_menu_click_put_button(HINT_MESSAGE_CLICK_LOOK, row, col,
-            TERM_L_WHITE, "Look");
-        col = ui_menu_click_put_button(HINT_MESSAGE_CLICK_MAP, row, col,
-            TERM_L_WHITE, "Map");
-    }
-    (void)ui_menu_click_put_button(HINT_MESSAGE_CLICK_BACK, row, col,
-        TERM_L_WHITE, "Back");
-}
-
-static const char* hint_message_list_prompt(bool show_all_tips,
-    int level_n, int tip_n, int wid)
-{
-    static const char* const tip_list_prompts[] = {
-        "[Tab tabs, Dir move, Enter read, h level hints, Esc]",
-        "[Tab tabs, Enter read, h hints, Esc]",
-        "[Tab, Enter, h, Esc]"
-    };
-    static const char* const level_list_prompts[] = {
-        "[Tab tabs, Dir move, Enter read, h tips, l look, m map, Esc]",
-        "[Tab tabs, Enter, h tips, l look, m map, Esc]",
-        "[Tab, Enter, h, l, m, Esc]"
-    };
-    static const char* const no_level_with_tips_prompts[] = {
-        "[No level hint messages. Tab tabs, h all tips, Esc]",
-        "[No level hints. Tab tabs, h tips, Esc]",
-        "[No hints. Tab, h, Esc]"
-    };
-    static const char* const no_level_prompts[] = {
-        "[No level hint messages. Tab tabs, Esc]",
-        "[No level hints. Tab, Esc]"
-    };
-
-    if (steamdeck_controls_active())
-    {
-        static char prompt_long[160];
-        static char prompt_mid[128];
-        static char prompt_short[96];
-        char confirm_label[16];
-        char toggle_label[16];
-        char look_label[16];
-        char map_label[16];
-        char back_label[16];
-
-        controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
-            sizeof(confirm_label));
-        controller_prompt_label(steamdeck_secondary_key(), "Y", toggle_label,
-            sizeof(toggle_label));
-        controller_prompt_label(steamdeck_alt_action_key(), "X", look_label,
-            sizeof(look_label));
-        controller_prompt_label('M', "Map", map_label, sizeof(map_label));
-        controller_prompt_label(steamdeck_back_key(), "B", back_label,
-            sizeof(back_label));
-
-        if (show_all_tips)
-        {
-            const char* prompts[] = {
-                prompt_long,
-                prompt_mid,
-                prompt_short
-            };
-
-            strnfmt(prompt_long, sizeof(prompt_long),
-                "D-pad move  [%s] read  [%s] level hints  [%s] back",
-                confirm_label, toggle_label, back_label);
-            strnfmt(prompt_mid, sizeof(prompt_mid),
-                "D-pad  [%s] read  [%s] hints  [%s] back",
-                confirm_label, toggle_label, back_label);
-            strnfmt(prompt_short, sizeof(prompt_short),
-                "[%s] read  [%s] hints  [%s] back",
-                confirm_label, toggle_label, back_label);
-
-            return hint_message_pick_prompt(wid, prompts, N_ELEMENTS(prompts));
-        }
-
-        if (level_n > 0)
-        {
-            const char* prompts[] = {
-                prompt_long,
-                prompt_mid,
-                prompt_short
-            };
-
-            strnfmt(prompt_long, sizeof(prompt_long),
-                "D-pad move  [%s] read  [%s] tips  [%s] look  [%s] map  [%s] back",
-                confirm_label, toggle_label, look_label, map_label, back_label);
-            strnfmt(prompt_mid, sizeof(prompt_mid),
-                "D-pad  [%s] read  [%s] tips  [%s] look  [%s] map",
-                confirm_label, toggle_label, look_label, map_label);
-            strnfmt(prompt_short, sizeof(prompt_short),
-                "[%s] read  [%s] look  [%s] map",
-                confirm_label, look_label, map_label);
-
-            return hint_message_pick_prompt(wid, prompts, N_ELEMENTS(prompts));
-        }
-
-        if (tip_n > 0)
-        {
-            const char* prompts[] = {
-                prompt_long,
-                prompt_short
-            };
-
-            strnfmt(prompt_long, sizeof(prompt_long),
-                "No level hints.  [%s] all tips  [%s] back",
-                toggle_label, back_label);
-            strnfmt(prompt_short, sizeof(prompt_short),
-                "No hints.  [%s] tips  [%s] back", toggle_label, back_label);
-
-            return hint_message_pick_prompt(wid, prompts, N_ELEMENTS(prompts));
-        }
-
-        {
-            const char* prompts[] = {
-                prompt_long,
-                prompt_short
-            };
-
-            strnfmt(prompt_long, sizeof(prompt_long),
-                "No level hint messages.  [%s] back", back_label);
-            strnfmt(prompt_short, sizeof(prompt_short), "No hints.  [%s] back",
-                back_label);
-
-            return hint_message_pick_prompt(wid, prompts, N_ELEMENTS(prompts));
-        }
-    }
-
-    if (show_all_tips)
-        return hint_message_pick_prompt(wid, tip_list_prompts,
-            N_ELEMENTS(tip_list_prompts));
-
-    if (level_n > 0)
-        return hint_message_pick_prompt(wid, level_list_prompts,
-            N_ELEMENTS(level_list_prompts));
-
-    if (tip_n > 0)
-        return hint_message_pick_prompt(wid, no_level_with_tips_prompts,
-            N_ELEMENTS(no_level_with_tips_prompts));
-
-    return hint_message_pick_prompt(wid, no_level_prompts,
-        N_ELEMENTS(no_level_prompts));
-}
-
-static void hint_message_list_register_prompt(const char* prompt, int row,
-    bool show_all_tips, int level_n, int tip_n)
-{
-    if (!prompt)
-        return;
-
-    /* The "Tab" command word switches to the Quests tab, mirroring the tab
-     * buttons at the top of the screen. */
-    ui_menu_click_add_text_token(HINT_QUEST_CLICK_QUESTS_TAB, 0, row,
-        prompt, "Tab");
-
-    if (tip_n > 0)
-    {
-        /* Include the leading "h " so the whole command (not just the word)
-         * lights up on hover. */
-        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_TOGGLE_TIPS, 0,
-            row, prompt, "h level hints");
-        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_TOGGLE_TIPS, 0,
-            row, prompt, "h all tips");
-        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_TOGGLE_TIPS, 0,
-            row, prompt, "h hints");
-        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_TOGGLE_TIPS, 0,
-            row, prompt, "h tips");
-        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_TOGGLE_TIPS, 0,
-            row, prompt, "h,");
-    }
-
-    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_CONTINUE, 0, row,
-        prompt, "Enter");
-    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_CONTINUE, 0, row,
-        prompt, "read");
-    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_BACK, 0, row,
-        prompt, "ESCAPE");
-    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_BACK, 0, row,
-        prompt, "ESC");
-    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_BACK, 0, row,
-        prompt, "Esc");
-    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_BACK, 0, row,
-        prompt, "back");
-
-    if (!show_all_tips && level_n > 0)
-    {
-        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_LOOK, 0, row,
-            prompt, "look");
-        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_LOOK, 0, row,
-            prompt, "'l'");
-        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_LOOK, 0, row,
-            prompt, "l,");
-        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_MAP, 0, row,
-            prompt, "map");
-        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_MAP, 0, row,
-            prompt, "'m'");
-        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_MAP, 0, row,
-            prompt, "m,");
-    }
-}
-
-/*
- * Touch-only command buttons for the hint list screen.  The Quests tab is
- * already a tappable button at the top and reading a hint is done by tapping
- * its row, so the footer only needs the tips toggle (when tutorial tips exist)
- * and Back.  Per-hint Look/Map live on the detail screen.
- */
-static void hint_message_list_touch_buttons(int row, bool show_all_tips,
-    int tip_n)
-{
-    int col = 0;
-
-    if (tip_n > 0)
-        col = ui_menu_click_put_button(HINT_MESSAGE_CLICK_TOGGLE_TIPS, row, col,
-            TERM_L_WHITE, show_all_tips ? "Level Hints" : "All Tips");
-    (void)ui_menu_click_put_button(HINT_MESSAGE_CLICK_BACK, row, col,
-        TERM_L_WHITE, "Back");
-}
-
-typedef struct hint_message_display_line {
-    char text[256];
-    byte source_line;
-} hint_message_display_line;
-
-enum {
-    HINT_MESSAGE_DISPLAY_TEXT_MAX = 256,
-    HINT_MESSAGE_DISPLAY_LINES_MAX = 48,
-    HINT_MESSAGE_LIST_LINES_MAX = 64,
-    HINT_MESSAGE_DETAIL_DEFAULT_TOP_ROW = 2,
-    HINT_MESSAGE_DETAIL_LEFT_COL = 2
-};
-
-static int hint_message_wrap_list_text(const char* text, int wrap_cols,
-    hint_message_display_line* lines, int limit);
-
-static int hint_message_detail_top_row(int hgt, int line_count)
-{
-    int rows_before_footer;
-    int spare_rows;
-    int row;
-
-    if (hgt <= 1)
-        return 0;
-
-    rows_before_footer = hgt - 1;
-    spare_rows = rows_before_footer - MAX(line_count, 0);
-    row = spare_rows / 2;
-
-    if (row > HINT_MESSAGE_DETAIL_DEFAULT_TOP_ROW)
-        row = HINT_MESSAGE_DETAIL_DEFAULT_TOP_ROW;
-    if (row < 0)
-        row = 0;
-    if (row > hgt - 2)
-        row = hgt - 2;
-
-    return row;
-}
-
-static int hint_message_list_emit_token(int base_row, int wid, int text_col,
-    int max_rows, int* used_rows, int* cursor_col, bool draw, byte attr,
-    const char* text)
-{
-    int full_width;
-    int len;
-    int row;
-
-    if (!text || !text[0] || !used_rows || !cursor_col)
-        return true;
-
-    full_width = wid - text_col - 1;
-    if (full_width < 1)
-        full_width = 1;
-
-    len = (int)strlen(text);
-
-    if (*used_rows <= 0)
-    {
-        *used_rows = 1;
-        *cursor_col = text_col;
-    }
-
-    if (*cursor_col + len > wid - 1 && *cursor_col > text_col)
-    {
-        if (*used_rows >= max_rows)
-            return false;
-
-        row = base_row + *used_rows;
-        if (draw)
-        {
-            Term_erase(0, row, 255);
-            if (attr >= TERM_UI_SELECTED)
-                hint_message_fill_row(row, text_col, attr);
-        }
-        (*used_rows)++;
-        *cursor_col = text_col;
-    }
-
-    row = base_row + (*used_rows - 1);
-
-    if (len <= full_width)
-    {
-        if (draw)
-            hint_message_put_segment(row, *cursor_col, attr, text);
-        *cursor_col += len;
-        return true;
-    }
-
-    {
-        hint_message_display_line lines[HINT_MESSAGE_LIST_LINES_MAX];
-        int line_count = hint_message_wrap_list_text(text, full_width, lines,
-            HINT_MESSAGE_LIST_LINES_MAX);
-
-        for (int li = 0; li < line_count; ++li)
-        {
-            if (li > 0 || *cursor_col > text_col)
-            {
-                if (*used_rows >= max_rows)
-                    return false;
-
-                row = base_row + *used_rows;
-                if (draw)
-                {
-                    Term_erase(0, row, 255);
-                    if (attr >= TERM_UI_SELECTED)
-                        hint_message_fill_row(row, text_col, attr);
-                }
-                (*used_rows)++;
-                *cursor_col = text_col;
-            }
-
-            row = base_row + (*used_rows - 1);
-            if (draw)
-                hint_message_put_segment(row, *cursor_col, attr, lines[li].text);
-            *cursor_col += (int)strlen(lines[li].text);
-        }
-    }
-
-    return true;
 }
 
 static int skeleton_tip_template_count(void)
@@ -2582,517 +1708,10 @@ static bool skeleton_tip_text_by_index(int index, char* buf, size_t buf_sz)
     return (buf[0] != '\0');
 }
 
-static int hint_message_effective_wrap_cols(int wrap_cols,
-    size_t line_capacity)
-{
-    int max_cols = (int)line_capacity - 1;
-
-    if (max_cols < 1)
-        max_cols = 1;
-    if (wrap_cols < 1)
-        wrap_cols = 1;
-    if (wrap_cols > max_cols)
-        wrap_cols = max_cols;
-
-    return wrap_cols;
-}
-
-static int hint_message_max_chars_fit_pixels(const char* text, int max_chars,
-    int max_px, int cell_width)
-{
-    if (!text || max_chars <= 0)
-        return 0;
-
-    if (max_px <= 0 || cell_width <= 0)
-        return max_chars;
-
-    int lo = 1;
-    int hi = max_chars;
-    int best = 1;
-
-    while (lo <= hi)
-    {
-        int mid = (lo + hi) / 2;
-        int width = sdl_story_font_text_width(text, mid);
-        if (width <= 0)
-            width = mid * cell_width;
-
-        if (width <= max_px)
-        {
-            best = mid;
-            lo = mid + 1;
-        }
-        else
-        {
-            hi = mid - 1;
-        }
-    }
-
-    return best;
-}
-
-static int hint_message_append_wrapped_segment_mono(const char* seg,
-    hint_message_display_line* lines, int idx, int limit, int wrap_cols,
-    byte source_line)
-{
-    int len;
-    int pos;
-
-    if (!seg || !seg[0] || !lines || limit <= idx)
-        return idx;
-
-    wrap_cols = hint_message_effective_wrap_cols(
-        wrap_cols, sizeof(lines[0].text));
-
-    len = (int)strlen(seg);
-    pos = 0;
-
-    while (pos < len && idx < limit)
-    {
-        int remaining;
-        int take;
-
-        while (pos < len && seg[pos] == ' ')
-            pos++;
-        if (pos >= len)
-            break;
-
-        remaining = len - pos;
-        take = (remaining <= wrap_cols) ? remaining : wrap_cols;
-
-        if (remaining > wrap_cols)
-        {
-            int end = pos + take;
-            int split = -1;
-            for (int j = end - 1; j > pos; --j)
-            {
-                if (seg[j] == ' ')
-                {
-                    split = j;
-                    break;
-                }
-            }
-            if (split > pos)
-                take = split - pos;
-        }
-
-        while (take > 0 && seg[pos + take - 1] == ' ')
-            take--;
-
-        if (take <= 0)
-            break;
-
-        strnfmt(lines[idx].text, sizeof(lines[idx].text), "%.*s", take, seg + pos);
-        lines[idx].source_line = source_line;
-        idx++;
-        pos += take;
-    }
-
-    return idx;
-}
-
-static int hint_message_append_wrapped_segment_story(const char* seg,
-    hint_message_display_line* lines, int idx, int limit, int wrap_cols,
-    byte source_line)
-{
-    int cell_width;
-    int wrap_px;
-    int space_px;
-    int max_line_chars;
-    const char* s;
-
-    if (!seg || !seg[0] || !lines || limit <= idx)
-        return idx;
-
-    wrap_cols = hint_message_effective_wrap_cols(
-        wrap_cols, sizeof(lines[0].text));
-
-    cell_width = sdl_get_cell_width();
-    if (cell_width <= 0)
-        return hint_message_append_wrapped_segment_mono(
-            seg, lines, idx, limit, wrap_cols, source_line);
-
-    wrap_px = wrap_cols * cell_width;
-    space_px = sdl_story_font_text_width(" ", 1);
-    if (space_px <= 0)
-        space_px = cell_width;
-
-    max_line_chars = wrap_cols;
-    if (max_line_chars > HINT_MESSAGE_DISPLAY_TEXT_MAX - 1)
-        max_line_chars = HINT_MESSAGE_DISPLAY_TEXT_MAX - 1;
-
-    s = seg;
-    while (*s && idx < limit)
-    {
-        char out[HINT_MESSAGE_DISPLAY_TEXT_MAX];
-        int out_len = 0;
-        int line_px = 0;
-        bool first_word = true;
-
-        while (*s == ' ')
-            s++;
-        if (!*s)
-            break;
-
-        while (*s)
-        {
-            const char* word;
-            int word_len = 0;
-            int word_px;
-            int add_px;
-            int add_chars;
-
-            while (*s == ' ')
-                s++;
-            if (!*s)
-                break;
-
-            word = s;
-            while (word[word_len] && word[word_len] != ' ')
-                word_len++;
-
-            word_px = sdl_story_font_text_width(word, word_len);
-            if (word_px <= 0)
-                word_px = word_len * cell_width;
-
-            add_px = word_px + (first_word ? 0 : space_px);
-            add_chars = word_len + (first_word ? 0 : 1);
-
-            if (!first_word
-                && ((line_px + add_px) > wrap_px
-                    || (out_len + add_chars) > max_line_chars))
-            {
-                break;
-            }
-
-            if (first_word && (word_px > wrap_px || word_len > max_line_chars))
-            {
-                int max_chars = word_len;
-                int fit;
-
-                if (max_chars > max_line_chars - out_len)
-                    max_chars = max_line_chars - out_len;
-                fit = hint_message_max_chars_fit_pixels(
-                    word, max_chars, wrap_px, cell_width);
-                if (fit <= 0)
-                    fit = 1;
-
-                memcpy(out + out_len, word, fit);
-                out_len += fit;
-                out[out_len] = '\0';
-                s += fit;
-                break;
-            }
-
-            if (!first_word)
-            {
-                out[out_len++] = ' ';
-                line_px += space_px;
-            }
-
-            if (word_len > HINT_MESSAGE_DISPLAY_TEXT_MAX - 1 - out_len)
-                word_len = HINT_MESSAGE_DISPLAY_TEXT_MAX - 1 - out_len;
-            if (word_len > max_line_chars - out_len)
-                word_len = max_line_chars - out_len;
-            memcpy(out + out_len, word, word_len);
-            out_len += word_len;
-            out[out_len] = '\0';
-            line_px += word_px;
-
-            s += word_len;
-            first_word = false;
-        }
-
-        if (out_len > 0)
-        {
-            strnfmt(lines[idx].text, sizeof(lines[idx].text), "%s", out);
-            lines[idx].source_line = source_line;
-            idx++;
-        }
-
-        while (*s == ' ')
-            s++;
-    }
-
-    return idx;
-}
-
-static int hint_message_append_wrapped_text(const char* text,
-    hint_message_display_line* lines, int idx, int limit, int wrap_cols,
-    byte source_line)
-{
-    char expanded[512];
-    char* seg;
-
-    if (!text || !lines || limit <= idx)
-        return idx;
-
-    if (!text[0])
-    {
-        lines[idx].text[0] = '\0';
-        lines[idx].source_line = source_line;
-        return idx + 1;
-    }
-
-    strnfmt(expanded, sizeof(expanded), "%s", text);
-    seg = expanded;
-
-    while (seg && *seg && idx < limit)
-    {
-        char* next = strchr(seg, '|');
-        if (next)
-        {
-            *next = '\0';
-            next++;
-        }
-
-        while (*seg == ' ')
-            seg++;
-
-        if (*seg)
-        {
-            if (sdl_is_story_font_enabled() && sdl_story_font_text_width(" ", 1) > 0
-                && sdl_get_cell_width() > 0)
-            {
-                idx = hint_message_append_wrapped_segment_story(
-                    seg, lines, idx, limit, wrap_cols, source_line);
-            }
-            else
-            {
-                idx = hint_message_append_wrapped_segment_mono(
-                    seg, lines, idx, limit, wrap_cols, source_line);
-            }
-        }
-        else
-        {
-            lines[idx].text[0] = '\0';
-            lines[idx].source_line = source_line;
-            idx++;
-        }
-
-        seg = next;
-    }
-
-    return idx;
-}
-
-static int hint_message_wrap_list_text(const char* text, int wrap_cols,
-    hint_message_display_line* lines, int limit)
-{
-    int line_count = hint_message_append_wrapped_text(
-        text, lines, 0, limit, wrap_cols, 0);
-
-    if (line_count <= 0 && limit > 0)
-    {
-        lines[0].text[0] = '\0';
-        lines[0].source_line = 0;
-        line_count = 1;
-    }
-
-    return line_count;
-}
-
-static int hint_message_draw_wrapped_list_entry(int row, int idx,
-    bool selected, int wid, int max_rows, const char* text,
-    const hint_message_meta* meta, bool highlight_semantics)
-{
-    char prefix[8];
-    hint_message_display_line lines[HINT_MESSAGE_LIST_LINES_MAX];
-    byte selected_attr = hint_message_selected_attr(TERM_WHITE);
-    byte prefix_attr = selected ? selected_attr : TERM_WHITE;
-    byte title_attr = selected ? selected_attr : TERM_WHITE;
-    int text_col;
-    int line_count;
-    int draw_count;
-
-    if (max_rows <= 0)
-        return 0;
-
-    strnfmt(prefix, sizeof(prefix), "%2d) ", idx + 1);
-    text_col = (int)strlen(prefix);
-    line_count = hint_message_wrap_list_text(text ? text : "",
-        wid - text_col - 1, lines, HINT_MESSAGE_LIST_LINES_MAX);
-    draw_count = MIN(line_count, max_rows);
-
-    for (int li = 0; li < draw_count; ++li)
-    {
-        Term_erase(0, row + li, 255);
-        if (selected)
-        {
-            int selection_w = hint_message_selection_width(text_col,
-                lines[li].text, wid);
-            hint_message_fill_row(row + li, selection_w, selected_attr);
-        }
-
-        if (li == 0)
-            Term_putstr(0, row + li, -1, prefix_attr, prefix);
-
-        hint_message_draw_colored_line(row + li, text_col, title_attr,
-            lines[li].text, meta, highlight_semantics);
-    }
-
-    return draw_count;
-}
-
-static int hint_message_layout_list_entry(int row, int idx, bool selected,
-    int wid, int max_rows, bool draw)
-{
-    hint_message_meta meta;
-    char prefix[8];
-    hint_message_display_line title_lines[HINT_MESSAGE_LIST_LINES_MAX];
-    const char* title = hint_message_title(idx);
-    byte selected_attr = hint_message_selected_attr(TERM_WHITE);
-    byte prefix_attr = selected ? selected_attr : TERM_WHITE;
-    byte title_attr = selected ? selected_attr : TERM_WHITE;
-    byte chrome_attr = selected ? selected_attr : TERM_SLATE;
-    byte cue_dist_attr = selected ? selected_attr : TERM_YELLOW;
-    byte cue_dir_attr = selected ? selected_attr : TERM_L_BLUE;
-    int text_col;
-    int title_count;
-    int used_rows = 0;
-    int cursor_col = 0;
-
-    if (max_rows <= 0)
-        return 0;
-
-    hint_messages_message_meta(idx, &meta);
-    strnfmt(prefix, sizeof(prefix), "%2d) ", idx + 1);
-    text_col = (int)strlen(prefix);
-    title_count = hint_message_wrap_list_text(title ? title : "",
-        wid - text_col - 1, title_lines, HINT_MESSAGE_LIST_LINES_MAX);
-
-    for (int li = 0; li < title_count && used_rows < max_rows; ++li)
-    {
-        if (draw)
-        {
-            Term_erase(0, row + used_rows, 255);
-            if (selected)
-            {
-                int selection_w = hint_message_selection_width(text_col,
-                    title_lines[li].text, wid);
-                hint_message_fill_row(row + used_rows, selection_w,
-                    selected_attr);
-            }
-            if (li == 0)
-                Term_putstr(0, row + used_rows, -1, prefix_attr, prefix);
-            hint_message_draw_colored_line(row + used_rows, text_col,
-                title_attr, title_lines[li].text, NULL, true);
-        }
-
-        used_rows++;
-    }
-
-    if (used_rows <= 0 || meta.cue_count <= 0)
-        return used_rows;
-
-    cursor_col = text_col + (int)strlen(title_lines[title_count - 1].text);
-
-    if (!hint_message_list_emit_token(row, wid, text_col, max_rows,
-            &used_rows, &cursor_col, draw, chrome_attr, " ["))
-    {
-        return used_rows;
-    }
-
-    for (int cue = 0; cue < meta.cue_count; ++cue)
-    {
-        if (cue > 0)
-        {
-            if (!hint_message_list_emit_token(row, wid, text_col, max_rows,
-                    &used_rows, &cursor_col, draw, chrome_attr, "; "))
-            {
-                return used_rows;
-            }
-        }
-
-        if (meta.cue_dists[cue][0])
-        {
-            if (!hint_message_list_emit_token(row, wid, text_col, max_rows,
-                    &used_rows, &cursor_col, draw, cue_dist_attr,
-                    meta.cue_dists[cue]))
-            {
-                return used_rows;
-            }
-        }
-
-        if (meta.cue_dists[cue][0] && meta.cue_dirs[cue][0])
-        {
-            if (!hint_message_list_emit_token(row, wid, text_col, max_rows,
-                    &used_rows, &cursor_col, draw, chrome_attr, " "))
-            {
-                return used_rows;
-            }
-        }
-
-        if (meta.cue_dirs[cue][0])
-        {
-            if (!hint_message_list_emit_token(row, wid, text_col, max_rows,
-                    &used_rows, &cursor_col, draw, cue_dir_attr,
-                    meta.cue_dirs[cue]))
-            {
-                return used_rows;
-            }
-        }
-    }
-
-    (void)hint_message_list_emit_token(row, wid, text_col, max_rows,
-        &used_rows, &cursor_col, draw, chrome_attr, "]");
-
-    return used_rows;
-}
-
-static int hint_message_list_entry_height(int idx, int wid)
-{
-    return hint_message_layout_list_entry(0, idx, false, wid,
-        HINT_MESSAGE_LIST_LINES_MAX, false);
-}
-
-static int hint_message_draw_list_row(int row, int idx, bool selected, int wid,
-    int max_rows)
-{
-    return hint_message_layout_list_entry(row, idx, selected, wid,
-        max_rows, true);
-}
-
-static int skeleton_tip_list_entry_height(int idx, int wid)
-{
-    char text[512];
-    hint_message_display_line lines[HINT_MESSAGE_LIST_LINES_MAX];
-    char prefix[8];
-    int text_col;
-
-    if (!skeleton_tip_text_by_index(idx, text, sizeof(text)))
-        text[0] = '\0';
-
-    strnfmt(prefix, sizeof(prefix), "%2d) ", idx + 1);
-    text_col = (int)strlen(prefix);
-
-    return hint_message_wrap_list_text(text, wid - text_col - 1,
-        lines, HINT_MESSAGE_LIST_LINES_MAX);
-}
-
-static int skeleton_tip_draw_list_row(int row, int idx, bool selected, int wid,
-    int max_rows)
-{
-    char tip_text[512];
-
-    if (!skeleton_tip_text_by_index(idx, tip_text, sizeof(tip_text)))
-        tip_text[0] = '\0';
-
-    return hint_message_draw_wrapped_list_entry(row, idx, selected, wid,
-        max_rows, tip_text, NULL, true);
-}
-
 static bool skeleton_tip_show_internal(int index, bool manage_screen)
 {
-    int wid = 80;
-    int hgt = 24;
-    int row = HINT_MESSAGE_DETAIL_DEFAULT_TOP_ROW;
-    int col = HINT_MESSAGE_DETAIL_LEFT_COL;
-    hint_message_display_line lines[HINT_MESSAGE_DISPLAY_LINES_MAX];
     char tip_text[512];
     char ch;
-    int line_count = 0;
-    story_font_term_state story_state;
 
     if (!skeleton_tip_text_by_index(index, tip_text, sizeof(tip_text)))
         return false;
@@ -3100,46 +1719,19 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
     if (manage_screen)
         screen_save();
 
-    story_font_term_push_slot(true, false, STORY_FONT_SLOT_SECONDARY,
-        &story_state);
-
     while (1)
     {
-        Term_clear();
-        Term_get_size(&wid, &hgt);
-        line_count = 0;
-        ui_scroll_area_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
-
-        line_count = hint_message_append_wrapped_text(
-            "Hint: Survival Tip", lines, line_count,
-            HINT_MESSAGE_DISPLAY_LINES_MAX, wid - col - 1, 0);
-        line_count = hint_message_append_wrapped_text(
-            tip_text, lines, line_count, HINT_MESSAGE_DISPLAY_LINES_MAX,
-            wid - col - 1, 1);
-        row = hint_message_detail_top_row(hgt, line_count);
-
-        for (int li = 0; li < line_count && row + li < hgt - 1; ++li)
-        {
-            bool title_line = (lines[li].source_line == 0);
-            byte base_attr = title_line ? TERM_L_WHITE : TERM_WHITE;
-            hint_message_draw_colored_line(row + li, col, base_attr,
-                lines[li].text, NULL, true);
-            ui_menu_click_add_full_row(HINT_MESSAGE_CLICK_CONTINUE, row + li);
-        }
-
-        if (sdl_touch_only_device_active())
-        {
-            hint_message_detail_touch_buttons(hgt - 1, false);
-        }
-        else
-        {
-            const char* prompt = hint_message_detail_prompt(false, wid);
-            prt(prompt, hgt - 1, 0);
-            hint_message_detail_register_prompt(prompt, hgt - 1, false);
-        }
+        sdl_hint_quest_menu_begin(HINT_QUEST_PAGE_HINTS, "Tutorial Hint",
+            "Survival Tip", false, true, 0);
+        sdl_hint_quest_menu_add_block(tip_text, TERM_WHITE, 0, 0);
+        sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_CONTINUE,
+            "Continue", TERM_L_WHITE);
+        sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_BACK, "Back",
+            TERM_L_WHITE);
+        sdl_hint_quest_menu_finish();
         Term_fresh();
 
         hide_cursor = true;
@@ -3166,8 +1758,7 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
     }
 
     ui_menu_click_clear();
-    ui_scroll_area_clear();
-    story_font_term_pop(&story_state);
+    sdl_hint_quest_menu_hide();
     if (manage_screen)
         screen_load();
 
@@ -3177,18 +1768,11 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
 static hint_message_action hint_message_show_internal(int index, int* source_y, int* source_x,
     bool manage_screen)
 {
-    int wid = 80;
-    int hgt = 24;
-    int row = HINT_MESSAGE_DETAIL_DEFAULT_TOP_ROW;
-    int col = HINT_MESSAGE_DETAIL_LEFT_COL;
-    hint_message_display_line display_lines[HINT_MESSAGE_DISPLAY_LINES_MAX];
     char ch;
     hint_message_meta meta;
     byte stored_line_count;
-    int display_line_count = 0;
     hint_message_action action = HINT_MESSAGE_ACTION_NONE;
     bool steamdeck = steamdeck_controls_active();
-    story_font_term_state story_state;
 
     hint_messages_ensure_level_state();
     stored_line_count = hint_messages_message_line_count(index);
@@ -3199,55 +1783,31 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
     if (manage_screen)
         screen_save();
 
-    story_font_term_push_slot(true, false, STORY_FONT_SLOT_SECONDARY,
-        &story_state);
-
     while (1)
     {
-        Term_clear();
-        Term_get_size(&wid, &hgt);
-        display_line_count = 0;
-        ui_scroll_area_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
-
+        sdl_hint_quest_menu_begin(HINT_QUEST_PAGE_HINTS, "Hint Message", "",
+            false, true, 0);
         for (int li = 0; li < stored_line_count; ++li)
         {
-            display_line_count = hint_message_append_wrapped_text(
+            sdl_hint_quest_menu_add_block(
                 hint_messages_message_line(index, li),
-                display_lines, display_line_count,
-                HINT_MESSAGE_DISPLAY_LINES_MAX, wid - col - 1, (byte)li);
+                li == 0 ? TERM_L_WHITE : TERM_WHITE, li == 0 ? 0 : 1, 0);
         }
-        row = hint_message_detail_top_row(hgt, display_line_count);
-
-        for (int li = 0; li < display_line_count && row + li < hgt - 1; ++li)
+        sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_CONTINUE,
+            "Continue", TERM_L_WHITE);
+        if (hint_message_has_source(&meta))
         {
-            bool title_line = (display_lines[li].source_line == 0);
-            byte base_attr = title_line ? TERM_L_WHITE : TERM_WHITE;
-            hint_message_draw_colored_line(row + li, col, base_attr,
-                display_lines[li].text, title_line ? NULL : &meta,
-                true);
-            ui_menu_click_add_full_row(HINT_MESSAGE_CLICK_CONTINUE, row + li);
+            sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_LOOK, "Look",
+                TERM_L_BLUE);
+            sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_MAP, "Map",
+                TERM_L_BLUE);
         }
-
-        {
-            bool has_source = hint_message_has_source(&meta);
-
-            if (sdl_touch_only_device_active())
-            {
-                hint_message_detail_touch_buttons(hgt - 1, has_source);
-            }
-            else
-            {
-                const char* prompt = hint_message_detail_prompt(has_source,
-                    wid);
-                prt(prompt, hgt - 1, 0);
-                hint_message_detail_register_prompt(prompt, hgt - 1,
-                    has_source);
-            }
-        }
-
+        sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_BACK, "Back",
+            TERM_L_WHITE);
+        sdl_hint_quest_menu_finish();
         Term_fresh();
 
         hide_cursor = true;
@@ -3322,8 +1882,7 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
     }
 
     ui_menu_click_clear();
-    ui_scroll_area_clear();
-    story_font_term_pop(&story_state);
+    sdl_hint_quest_menu_hide();
     if (manage_screen)
         screen_load();
 
@@ -3349,14 +1908,39 @@ void show_hint_message_screen(int index)
     }
 }
 
+static void hint_message_pixel_list_text(int index, char* out,
+    size_t out_sz)
+{
+    hint_message_meta meta;
+
+    if (!out || !out_sz)
+        return;
+    strnfmt(out, out_sz, "%d. %s", index + 1, hint_message_title(index));
+    hint_messages_message_meta(index, &meta);
+    if (meta.cue_count <= 0)
+        return;
+
+    SDL_strlcat(out, "  [", out_sz);
+    for (int cue = 0; cue < meta.cue_count; ++cue)
+    {
+        if (cue > 0)
+            SDL_strlcat(out, "; ", out_sz);
+        if (meta.cue_dists[cue][0])
+            SDL_strlcat(out, meta.cue_dists[cue], out_sz);
+        if (meta.cue_dists[cue][0] && meta.cue_dirs[cue][0])
+            SDL_strlcat(out, " ", out_sz);
+        if (meta.cue_dirs[cue][0])
+            SDL_strlcat(out, meta.cue_dirs[cue], out_sz);
+    }
+    SDL_strlcat(out, "]", out_sz);
+}
+
 static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
     int* out_look_y,
     int* out_look_x, bool* out_pending_map, int* out_map_y,
     int* out_map_x, bool manage_screen)
 {
     char ch;
-
-    int wid, hgt;
     bool pending_look = false;
     int look_y = -1;
     int look_x = -1;
@@ -3364,11 +1948,9 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
     int map_y = -1;
     int map_x = -1;
     hint_quest_page next_page = HINT_QUEST_PAGE_EXIT;
-    int hover_tab = 0;
     bool show_all_tips = false;
     bool tabs_focus = false;
     bool steamdeck = steamdeck_controls_active();
-    story_font_term_state story_state;
 
     /* Clear any active banner before opening hint messages */
     if (dismiss_active_narrative_banner()) {
@@ -3380,7 +1962,6 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
     int level_n = (int)hint_messages_count_for_save();
     int tip_n = skeleton_tip_template_count();
     int sel = 0;
-    int top = 0;
     show_all_tips = false;
 
     if (manage_screen)
@@ -3389,31 +1970,11 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
         screen_push_supporting_panes_hidden();
     }
 
-    story_font_term_push_slot(true, false, STORY_FONT_SLOT_SECONDARY,
-        &story_state);
-
     while (1)
     {
         int n = show_all_tips ? tip_n : level_n;
-        int draw_row = 0;
-        int body_top;
-        int body_bottom;
+        char section[64];
 
-        Term_get_size(&wid, &hgt);
-        Term_clear();
-
-        int rows = hgt - 5;
-        if (rows < 1)
-            rows = 1;
-        body_top = 3;
-        body_bottom = body_top + rows - 1;
-        if (body_bottom >= hgt - 1)
-            body_bottom = hgt - 2;
-        if (body_bottom < body_top)
-            body_bottom = body_top;
-        ui_scroll_area_begin(body_top, body_bottom,
-            SDL_TOUCH_MENU_CATEGORY_OTHER);
-        ui_scroll_area_set_keys('8', '2', '6', '4');
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
@@ -3424,94 +1985,66 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
                 sel = 0;
             if (sel >= n)
                 sel = n - 1;
-
-            if (sel < top)
-                top = sel;
-            if (top < 0)
-                top = 0;
-
-            while (top < sel)
-            {
-                int used = 0;
-
-                for (int idx = top; idx <= sel; ++idx)
-                {
-                    int height = show_all_tips
-                        ? skeleton_tip_list_entry_height(idx, wid)
-                        : hint_message_list_entry_height(idx, wid);
-
-                    used += MIN(height, rows);
-                }
-
-                if (used <= rows)
-                    break;
-
-                top++;
-            }
-
-            if (top >= n)
-                top = n - 1;
         }
         else
         {
             sel = 0;
-            top = 0;
         }
-
-        hint_quest_draw_tabs(HINT_QUEST_PAGE_HINTS,
-            tabs_focus ? HINT_QUEST_CLICK_HINTS_TAB : hover_tab, wid);
 
         if (show_all_tips)
-            prt(format("All Tutorial Hints (%d)", tip_n), 2, 0);
+            strnfmt(section, sizeof(section), "All Tutorial Hints (%d)",
+                tip_n);
         else
-            prt(format("Hint Messages (%d)", level_n), 2, 0);
+            strnfmt(section, sizeof(section), "Hint Messages (%d)", level_n);
 
-        if (sdl_touch_only_device_active())
-        {
-            hint_message_list_touch_buttons(hgt - 1, show_all_tips, tip_n);
-        }
-        else
-        {
-            const char* prompt = hint_message_list_prompt(show_all_tips,
-                level_n, tip_n, wid);
-            prt(prompt, hgt - 1, 0);
-            hint_message_list_register_prompt(prompt, hgt - 1,
-                show_all_tips, level_n, tip_n);
-        }
+        sdl_hint_quest_menu_begin(HINT_QUEST_PAGE_HINTS, "Hints & Quests",
+            section, true, false,
+            n > 0 ? HINT_MESSAGE_CLICK_ENTRY_BASE + sel : 0);
 
         if (n <= 0)
         {
-            Term_putstr(0, body_top, -1, TERM_SLATE,
+            sdl_hint_quest_menu_add_block(
                 show_all_tips ? "No tutorial hints are available."
-                             : "You recall no hint messages on this level.");
+                    : "You recall no hint messages on this level.",
+                TERM_SLATE, 0, 0);
         }
-
-        for (int idx = top; idx < n && draw_row < rows; ++idx)
+        for (int idx = 0; idx < n; ++idx)
         {
-            int used;
-            int entry_row = body_top + draw_row;
+            char entry[1024];
 
             if (show_all_tips)
-                used = skeleton_tip_draw_list_row(entry_row, idx,
-                    idx == sel, wid, rows - draw_row);
-            else
-                used = hint_message_draw_list_row(entry_row, idx,
-                    idx == sel, wid, rows - draw_row);
-
-            if (used <= 0)
-                break;
-
-            for (int click_row = 0; click_row < used; ++click_row)
             {
-                int row_y = entry_row + click_row;
-                if (row_y > body_bottom)
-                    break;
-                ui_menu_click_add(HINT_MESSAGE_CLICK_ENTRY_BASE + idx,
-                    0, row_y, wid);
-            }
+                char tip[768];
 
-            draw_row += used;
+                if (!skeleton_tip_text_by_index(idx, tip, sizeof(tip)))
+                    tip[0] = '\0';
+                strnfmt(entry, sizeof(entry), "%d. %s", idx + 1, tip);
+            }
+            else
+                hint_message_pixel_list_text(idx, entry, sizeof(entry));
+            sdl_hint_quest_menu_add_block(entry, TERM_WHITE, 0,
+                HINT_MESSAGE_CLICK_ENTRY_BASE + idx);
         }
+
+        if (tip_n > 0)
+            sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_TOGGLE_TIPS,
+                show_all_tips ? "Level Hints" : "All Tips", TERM_L_WHITE);
+        if (!show_all_tips && n > 0)
+        {
+            hint_message_meta meta;
+
+            hint_messages_message_meta(sel, &meta);
+            if (hint_message_has_source(&meta))
+            {
+                sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_LOOK,
+                    "Look", TERM_L_BLUE);
+                sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_MAP,
+                    "Map", TERM_L_BLUE);
+            }
+        }
+        sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_BACK, "Back",
+            TERM_L_WHITE);
+        sdl_hint_quest_menu_finish();
 
         Term_fresh();
         {
@@ -3533,7 +2066,6 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                     {
-                        hover_tab = clicked_choice;
                         tabs_focus = false;
                         continue;
                     }
@@ -3544,7 +2076,6 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                     {
-                        hover_tab = clicked_choice;
                         tabs_focus = false;
                         continue;
                     }
@@ -3555,7 +2086,6 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                     {
-                        hover_tab = clicked_choice;
                         tabs_focus = false;
                         continue;
                     }
@@ -3569,7 +2099,6 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
                     {
                         if (click_action == UI_MENU_CLICK_HOVER)
                         {
-                            hover_tab = 0;
                             tabs_focus = false;
                         }
                         sel = clicked_idx;
@@ -3588,7 +2117,6 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                     {
-                        hover_tab = 0;
                         tabs_focus = false;
                         continue;
                     }
@@ -3661,7 +2189,6 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
 
             show_all_tips = !show_all_tips;
             sel = 0;
-            top = 0;
             continue;
         }
 
@@ -3767,8 +2294,7 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
     }
 
     ui_menu_click_clear();
-    ui_scroll_area_clear();
-    story_font_term_pop(&story_state);
+    sdl_hint_quest_menu_hide();
 
     if (manage_screen)
     {
@@ -3858,36 +2384,15 @@ static void thrall_quest_format_goal(const monster_type* m_ptr, char* buf,
     }
 }
 
-static int thrall_quest_list_entry_height(const monster_type* m_ptr, int wid)
-{
-    char text[256];
-    char prefix[8];
-    int text_col;
-    hint_message_display_line lines[HINT_MESSAGE_LIST_LINES_MAX];
-
-    thrall_quest_format_goal(m_ptr, text, sizeof(text), false);
-    strnfmt(prefix, sizeof(prefix), "%2d) ", 1);
-    text_col = (int)strlen(prefix);
-    return hint_message_wrap_list_text(text, wid - text_col - 1, lines,
-        HINT_MESSAGE_LIST_LINES_MAX);
-}
-
 static hint_message_action thrall_quest_show_internal(int m_idx,
     int* source_y, int* source_x)
 {
-    int wid = 80;
-    int hgt = 24;
-    int row = HINT_MESSAGE_DETAIL_DEFAULT_TOP_ROW;
-    int col = HINT_MESSAGE_DETAIL_LEFT_COL;
-    int line_count;
     char ch;
     char title[96];
     char goal[320];
-    hint_message_display_line lines[HINT_MESSAGE_DISPLAY_LINES_MAX];
     hint_message_action action = HINT_MESSAGE_ACTION_NONE;
     bool steamdeck = steamdeck_controls_active();
     monster_type* m_ptr;
-    story_font_term_state story_state;
 
     if (m_idx <= 0 || m_idx >= mon_max)
         return HINT_MESSAGE_ACTION_NONE;
@@ -3900,48 +2405,26 @@ static hint_message_action thrall_quest_show_internal(int m_idx,
             ? "Elven Thrall" : "Human Thrall");
     thrall_quest_format_goal(m_ptr, goal, sizeof(goal), true);
 
-    story_font_term_push_slot(true, false, STORY_FONT_SLOT_SECONDARY,
-        &story_state);
-
     while (true)
     {
-        Term_clear();
-        Term_get_size(&wid, &hgt);
-        line_count = 0;
-        ui_scroll_area_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
-
-        line_count = hint_message_append_wrapped_text(title, lines,
-            line_count, HINT_MESSAGE_DISPLAY_LINES_MAX, wid - col - 1, 0);
-        line_count = hint_message_append_wrapped_text(goal, lines,
-            line_count, HINT_MESSAGE_DISPLAY_LINES_MAX, wid - col - 1, 1);
-        line_count = hint_message_append_wrapped_text(
+        sdl_hint_quest_menu_begin(HINT_QUEST_PAGE_THRALLS, "Thrall Quest",
+            title, false, true, 0);
+        sdl_hint_quest_menu_add_block(goal, TERM_WHITE, 0, 0);
+        sdl_hint_quest_menu_add_block(
             "Location: on this dungeon level. Use Look or Map to find the thrall.",
-            lines, line_count, HINT_MESSAGE_DISPLAY_LINES_MAX,
-            wid - col - 1, 2);
-        row = hint_message_detail_top_row(hgt, line_count);
-
-        for (int li = 0; li < line_count && row + li < hgt - 1; ++li)
-        {
-            byte attr = (lines[li].source_line == 0)
-                ? TERM_L_WHITE : TERM_WHITE;
-
-            hint_message_draw_colored_line(row + li, col, attr,
-                lines[li].text, NULL, false);
-            ui_menu_click_add_full_row(HINT_MESSAGE_CLICK_CONTINUE, row + li);
-        }
-
-        if (sdl_touch_only_device_active())
-            hint_message_detail_touch_buttons(hgt - 1, true);
-        else
-        {
-            const char* prompt = hint_message_detail_prompt(true, wid);
-
-            prt(prompt, hgt - 1, 0);
-            hint_message_detail_register_prompt(prompt, hgt - 1, true);
-        }
+            TERM_SLATE, 0, 0);
+        sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_CONTINUE,
+            "Continue", TERM_L_WHITE);
+        sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_LOOK, "Look",
+            TERM_L_BLUE);
+        sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_MAP, "Map",
+            TERM_L_BLUE);
+        sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_BACK, "Back",
+            TERM_L_WHITE);
+        sdl_hint_quest_menu_finish();
         Term_fresh();
 
         hide_cursor = true;
@@ -3992,90 +2475,8 @@ static hint_message_action thrall_quest_show_internal(int m_idx,
     }
 
     ui_menu_click_clear();
-    ui_scroll_area_clear();
-    story_font_term_pop(&story_state);
+    sdl_hint_quest_menu_hide();
     return action;
-}
-
-static const char* thrall_quest_list_prompt(int count, int wid)
-{
-    static const char* const populated[] = {
-        "[Tab tabs, Dir move, Enter read, l look, m map, Esc]",
-        "[Tab tabs, Enter read, l look, m map, Esc]",
-        "[Tab, Enter, l, m, Esc]"
-    };
-    static const char* const empty[] = {
-        "[No active thrall quests. Tab tabs, Esc]",
-        "[No thrall quests. Tab, Esc]"
-    };
-
-    if (steamdeck_controls_active())
-    {
-        static char prompt_long[128];
-        static char prompt_short[80];
-        char confirm_label[16];
-        char look_label[16];
-        char map_label[16];
-        char back_label[16];
-
-        controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
-            sizeof(confirm_label));
-        controller_prompt_label(steamdeck_alt_action_key(), "X", look_label,
-            sizeof(look_label));
-        controller_prompt_label('M', "Map", map_label, sizeof(map_label));
-        controller_prompt_label(steamdeck_back_key(), "B", back_label,
-            sizeof(back_label));
-
-        if (count > 0)
-        {
-            const char* prompts[] = { prompt_long, prompt_short };
-
-            strnfmt(prompt_long, sizeof(prompt_long),
-                "D-pad move  [%s] read  [%s] look  [%s] map  [%s] back",
-                confirm_label, look_label, map_label, back_label);
-            strnfmt(prompt_short, sizeof(prompt_short),
-                "[%s] read  [%s] look  [%s] map",
-                confirm_label, look_label, map_label);
-            return hint_message_pick_prompt(wid, prompts,
-                N_ELEMENTS(prompts));
-        }
-
-        strnfmt(prompt_long, sizeof(prompt_long),
-            "No active thrall quests.  [%s] back", back_label);
-        strnfmt(prompt_short, sizeof(prompt_short), "No quests.  [%s] back",
-            back_label);
-        {
-            const char* prompts[] = { prompt_long, prompt_short };
-
-            return hint_message_pick_prompt(wid, prompts,
-                N_ELEMENTS(prompts));
-        }
-    }
-
-    if (count > 0)
-        return hint_message_pick_prompt(wid, populated,
-            N_ELEMENTS(populated));
-    return hint_message_pick_prompt(wid, empty, N_ELEMENTS(empty));
-}
-
-static void thrall_quest_list_register_prompt(const char* prompt, int row,
-    bool has_entries)
-{
-    ui_menu_click_add_text_token(HINT_QUEST_CLICK_HINTS_TAB, 0, row,
-        prompt, "Tab");
-    if (has_entries)
-    {
-        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_CONTINUE, 0, row,
-            prompt, "Enter");
-        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_CONTINUE, 0, row,
-            prompt, "read");
-        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_LOOK, 0, row,
-            prompt, "look");
-        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_MAP, 0, row,
-            prompt, "map");
-    }
-    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_BACK, 0, row,
-        prompt, "Esc");
 }
 
 static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
@@ -4085,8 +2486,6 @@ static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
     s16b entries[MAX_MONSTERS];
     int count = thrall_quest_collect(entries, N_ELEMENTS(entries));
     int sel = 0;
-    int top = 0;
-    int hover_tab = 0;
     bool tabs_focus = false;
     bool pending_look = false;
     bool pending_map = false;
@@ -4096,31 +2495,12 @@ static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
     int map_x = -1;
     hint_quest_page next_page = HINT_QUEST_PAGE_EXIT;
     bool steamdeck = steamdeck_controls_active();
-    story_font_term_state story_state;
-
-    story_font_term_push_slot(true, false, STORY_FONT_SLOT_SECONDARY,
-        &story_state);
 
     while (true)
     {
-        int wid = 80;
-        int hgt = 24;
-        int body_top = 3;
-        int rows;
-        int body_bottom;
-        int draw_row = 0;
+        char section[64];
         char ch;
 
-        Term_get_size(&wid, &hgt);
-        Term_clear();
-        rows = MAX(1, hgt - 5);
-        body_bottom = MIN(hgt - 2, body_top + rows - 1);
-        if (body_bottom < body_top)
-            body_bottom = body_top;
-
-        ui_scroll_area_begin(body_top, body_bottom,
-            SDL_TOUCH_MENU_CATEGORY_OTHER);
-        ui_scroll_area_set_keys('8', '2', '6', '4');
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
@@ -4128,82 +2508,44 @@ static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
         if (count > 0)
         {
             sel = MAX(0, MIN(sel, count - 1));
-            top = MAX(0, MIN(top, sel));
-            while (top < sel)
-            {
-                int used = 0;
-
-                for (int idx = top; idx <= sel; ++idx)
-                    used += MIN(rows, thrall_quest_list_entry_height(
-                        &mon_list[entries[idx]], wid));
-                if (used <= rows)
-                    break;
-                top++;
-            }
         }
         else
         {
             sel = 0;
-            top = 0;
         }
 
-        hint_quest_draw_tabs(HINT_QUEST_PAGE_THRALLS,
-            tabs_focus ? HINT_QUEST_CLICK_THRALLS_TAB : hover_tab, wid);
-        prt(format("Thrall Quests (%d)", count), 2, 0);
-
-        if (sdl_touch_only_device_active())
-        {
-            int button_col = 0;
-
-            if (count > 0)
-            {
-                button_col = ui_menu_click_put_button(
-                    HINT_MESSAGE_CLICK_LOOK, hgt - 1, button_col,
-                    TERM_L_WHITE, "Look");
-                button_col = ui_menu_click_put_button(
-                    HINT_MESSAGE_CLICK_MAP, hgt - 1, button_col,
-                    TERM_L_WHITE, "Map");
-            }
-            (void)ui_menu_click_put_button(HINT_MESSAGE_CLICK_BACK,
-                hgt - 1, button_col, TERM_L_WHITE, "Back");
-        }
-        else
-        {
-            const char* prompt = thrall_quest_list_prompt(count, wid);
-
-            prt(prompt, hgt - 1, 0);
-            thrall_quest_list_register_prompt(prompt, hgt - 1, count > 0);
-        }
+        strnfmt(section, sizeof(section), "Thrall Quests (%d)", count);
+        sdl_hint_quest_menu_begin(HINT_QUEST_PAGE_THRALLS,
+            "Hints & Quests", section, true, false,
+            count > 0 ? HINT_MESSAGE_CLICK_ENTRY_BASE + sel : 0);
 
         if (count <= 0)
         {
-            Term_putstr(0, body_top, -1, TERM_SLATE,
-                "No active thrall requests on this level.");
+            sdl_hint_quest_menu_add_block(
+                "No active thrall requests on this level.", TERM_SLATE,
+                0, 0);
         }
-
-        for (int idx = top; idx < count && draw_row < rows; ++idx)
+        for (int idx = 0; idx < count; ++idx)
         {
             char goal[256];
-            int used;
-            int entry_row = body_top + draw_row;
+            char entry[320];
 
             thrall_quest_format_goal(&mon_list[entries[idx]], goal,
                 sizeof(goal), false);
-            used = hint_message_draw_wrapped_list_entry(entry_row, idx,
-                idx == sel, wid, rows - draw_row, goal, NULL, false);
-            if (used <= 0)
-                break;
-            for (int click_row = 0; click_row < used; ++click_row)
-            {
-                int y = entry_row + click_row;
-
-                if (y > body_bottom)
-                    break;
-                ui_menu_click_add(HINT_MESSAGE_CLICK_ENTRY_BASE + idx,
-                    0, y, wid);
-            }
-            draw_row += used;
+            strnfmt(entry, sizeof(entry), "%d. %s", idx + 1, goal);
+            sdl_hint_quest_menu_add_block(entry, TERM_WHITE, 0,
+                HINT_MESSAGE_CLICK_ENTRY_BASE + idx);
         }
+        if (count > 0)
+        {
+            sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_LOOK, "Look",
+                TERM_L_BLUE);
+            sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_MAP, "Map",
+                TERM_L_BLUE);
+        }
+        sdl_hint_quest_menu_add_button(HINT_MESSAGE_CLICK_BACK, "Back",
+            TERM_L_WHITE);
+        sdl_hint_quest_menu_finish();
 
         Term_fresh();
         hide_cursor = true;
@@ -4222,7 +2564,6 @@ static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                     {
-                        hover_tab = clicked_choice;
                         tabs_focus = false;
                         continue;
                     }
@@ -4234,7 +2575,6 @@ static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                     {
-                        hover_tab = clicked_choice;
                         tabs_focus = false;
                     }
                     continue;
@@ -4254,7 +2594,6 @@ static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
                 }
                 else if (click_action == UI_MENU_CLICK_HOVER)
                 {
-                    hover_tab = 0;
                     tabs_focus = false;
                     continue;
                 }
@@ -4360,8 +2699,7 @@ static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
     }
 
     ui_menu_click_clear();
-    ui_scroll_area_clear();
-    story_font_term_pop(&story_state);
+    sdl_hint_quest_menu_hide();
     if (out_pending_look)
         *out_pending_look = pending_look;
     if (out_look_y)

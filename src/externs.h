@@ -1856,6 +1856,7 @@ extern void ui_menu_click_set_outside_cancel_enabled(bool enabled);
 extern bool ui_menu_click_outside_cancel_enabled(void);
 extern void ui_menu_click_set_touch_exit_button(bool enabled);
 extern bool ui_menu_click_touch_exit_button_active(void);
+extern int sdl_touch_menu_button_reserved_rows(void);
 extern void ui_menu_click_add_touch_button(int choice, cptr label, byte attr);
 extern int ui_menu_click_touch_button_count(void);
 extern bool ui_menu_click_touch_button_get(int index, int* choice,
@@ -2073,6 +2074,13 @@ typedef enum hint_quest_page
     HINT_QUEST_PAGE_QUESTS,
     HINT_QUEST_PAGE_THRALLS
 } hint_quest_page;
+enum {
+    HINT_QUEST_CLICK_HINTS_TAB = -20101,
+    HINT_QUEST_CLICK_QUESTS_TAB = -20102,
+    HINT_QUEST_CLICK_THRALLS_TAB = -20103,
+    HINT_QUEST_CLICK_RETURN = -20104,
+    HINT_QUEST_CLICK_CONTINUE = -20105
+};
 extern void do_cmd_quest_status(void);
 extern bool do_cmd_quest_status_tabs(void);
 extern hint_quest_page do_cmd_quest_status_tabs_in_place(void);
@@ -2289,6 +2297,14 @@ extern void sdl_question_menu_set_blocking_input(bool blocking);
 extern bool sdl_question_menu_blocks_input(void);
 extern void sdl_question_menu_set_nonblocking(bool nonblocking);
 extern void sdl_question_menu_set_timeout_ms(int ms);
+extern void sdl_hint_quest_menu_begin(hint_quest_page page, cptr title,
+    cptr section, bool show_tabs, bool center_body, int selected_choice);
+extern void sdl_hint_quest_menu_add_block(cptr text, byte attr, int indent,
+    int choice);
+extern void sdl_hint_quest_menu_add_button(int choice, cptr label, byte attr);
+extern void sdl_hint_quest_menu_finish(void);
+extern void sdl_hint_quest_menu_hide(void);
+extern bool sdl_hint_quest_menu_active(void);
 extern void sdl_suspend_main_view_zoom_for_saved_screen(void);
 extern bool sdl_resume_main_view_zoom_for_saved_screen(void);
 extern void sdl_reset_main_view_zoom(void);

@@ -235,6 +235,45 @@ const struct pane_config* sdl_combat_overlay_pane_config(void)
     return NULL;
 }
 
+static bool sdl_combat_overlay_adjacent_to_left_panel(
+    enum pane_placement where, bool* out_combat_after_left)
+{
+    int left_index = -1;
+    int combat_index = -1;
+    int first;
+    int last;
+
+    if (out_combat_after_left)
+        *out_combat_after_left = false;
+
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane == PANE_LEFT_PANEL)
+            left_index = i;
+        else if (pane_config[i].pane == PANE_COMBAT)
+            combat_index = i;
+    }
+    if (left_index < 0 || combat_index < 0)
+        return false;
+    if (!pane_config[left_index].enabled || !pane_config[combat_index].enabled)
+        return false;
+    if (pane_config[left_index].where != where
+        || pane_config[combat_index].where != where)
+    {
+        return false;
+    }
+
+    first = MIN(left_index, combat_index);
+    last = MAX(left_index, combat_index);
+    for (int i = first + 1; i < last; i++) {
+        if (pane_config[i].enabled && pane_config[i].where == where)
+            return false;
+    }
+
+    if (out_combat_after_left)
+        *out_combat_after_left = combat_index > left_index;
+    return true;
+}
+
 bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect)
 {
     const struct pane_config* pc = sdl_combat_overlay_pane_config();
@@ -339,27 +378,59 @@ bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect)
         int screen_bottom = screen.y + screen.h;
         const SDL_Rect* left = &g_pane_rects[PANE_LEFT_PANEL];
         SDL_Rect overlap;
+        bool combat_after_left = false;
+        bool shares_left_slot = sdl_left_panel_pane_runtime_active()
+            && pc->where == sdl_left_panel_pane_placement()
+            && sdl_rect_has_area(left);
+        bool adjacent_to_left = shares_left_slot
+            && sdl_combat_overlay_adjacent_to_left_panel(pc->where,
+                &combat_after_left);
+
+        /* The measured left panel replaces its nominal overlay slot after
+         * generic layout.  Anchor Combat to that measured rectangle when the
+         * two panes share a placement so independently-sized panes do not
+         * appear horizontally shifted within the same stack. */
+        if (shares_left_slot) {
+            if (sdl_left_panel_pane_placement_is_right(pc->where)) {
+                rect.x = left->x + left->w - rect.w;
+            } else if (sdl_left_panel_pane_placement_is_horizontal_center(
+                    pc->where))
+            {
+                rect.x = left->x + (left->w - rect.w) / 2;
+            } else {
+                rect.x = left->x;
+            }
+        }
 
         /* LEFT_PANEL is measured and rendered independently of the nominal
          * overlay slot geometry.  If Combat shares that slot, keep its real
          * panel below (or above for a bottom anchor) the measured left panel
          * instead of drawing over it. */
-        if (sdl_left_panel_pane_runtime_active()
-            && pc->where == sdl_left_panel_pane_placement()
-            && sdl_rect_has_area(left)
-            && SDL_GetRectIntersection(&rect, left, &overlap))
-        {
-            int below = left->y + left->h;
-            int above = left->y - rect.h;
+        if (shares_left_slot) {
+            bool overlaps = SDL_GetRectIntersection(&rect, left, &overlap);
+            if (adjacent_to_left || overlaps) {
+                int below = left->y + left->h;
+                int above = left->y - rect.h;
+                bool place_below = !sdl_left_panel_pane_placement_is_bottom(
+                    pc->where);
 
-            if (sdl_left_panel_pane_placement_is_bottom(pc->where)) {
-                rect.y = above;
-                if (rect.y < screen.y && below + rect.h <= screen_bottom)
-                    rect.y = below;
-            } else {
-                rect.y = below;
-                if (rect.y + rect.h > screen_bottom && above >= screen.y)
+                if (adjacent_to_left) {
+                    place_below = combat_after_left
+                        != sdl_left_panel_pane_placement_is_bottom(pc->where);
+                }
+
+                if (!place_below) {
                     rect.y = above;
+                    if (rect.y < screen.y
+                        && below + rect.h <= screen_bottom)
+                    {
+                        rect.y = below;
+                    }
+                } else {
+                    rect.y = below;
+                    if (rect.y + rect.h > screen_bottom && above >= screen.y)
+                        rect.y = above;
+                }
             }
         }
 
@@ -386,6 +457,8 @@ bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect)
 
 bool sdl_combat_overlay_pane_content_rect(SDL_Rect* out_rect)
 {
+    const struct pane_config* pc = sdl_combat_overlay_pane_config();
+    const SDL_Rect* left = &g_pane_rects[PANE_LEFT_PANEL];
     SDL_Rect panel;
     SDL_Rect rect;
     int cell_h;
@@ -393,6 +466,7 @@ bool sdl_combat_overlay_pane_content_rect(SDL_Rect* out_rect)
     int content_w;
     int content_h;
     int margin_x;
+    bool align_with_compact_left_row;
 
     if (out_rect)
         *out_rect = (SDL_Rect){ 0 };
@@ -411,18 +485,37 @@ bool sdl_combat_overlay_pane_content_rect(SDL_Rect* out_rect)
     if (content_w < 1 || content_h < 1)
         return false;
 
-    margin_x = (panel.w > content_w) ? (panel.w - content_w) / 2 : 0;
-    if (margin_x > cell_w)
-        margin_x = cell_w;
+    align_with_compact_left_row = pc
+        && sdl_left_panel_pane_runtime_active()
+        && sdl_left_panel_pane_collapsed()
+        && sdl_left_panel_compact_row_mode()
+        && pc->where == sdl_left_panel_pane_placement()
+        && sdl_rect_has_area(left);
+    if (align_with_compact_left_row) {
+        rect = panel;
+        if (rect.w > content_w)
+            rect.w = content_w;
+        if (sdl_left_panel_pane_placement_is_right(pc->where)) {
+            rect.x = panel.x + panel.w - rect.w;
+        } else if (sdl_left_panel_pane_placement_is_horizontal_center(
+                pc->where))
+        {
+            rect.x = panel.x + (panel.w - rect.w) / 2;
+        }
+    } else {
+        margin_x = (panel.w > content_w) ? (panel.w - content_w) / 2 : 0;
+        if (margin_x > cell_w)
+            margin_x = cell_w;
 
-    rect = (SDL_Rect){
-        .x = panel.x + margin_x,
-        .y = panel.y,
-        .w = panel.w - margin_x * 2,
-        .h = panel.h,
-    };
-    if (rect.w > content_w)
-        rect.w = content_w;
+        rect = (SDL_Rect){
+            .x = panel.x + margin_x,
+            .y = panel.y,
+            .w = panel.w - margin_x * 2,
+            .h = panel.h,
+        };
+        if (rect.w > content_w)
+            rect.w = content_w;
+    }
     if (rect.h > content_h)
         rect.h = content_h;
     if (rect.w <= 0 || rect.h <= 0)

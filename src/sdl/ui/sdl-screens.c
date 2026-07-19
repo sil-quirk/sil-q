@@ -5931,6 +5931,39 @@ typedef struct sdl_touch_menu_button_layout_entry
     char label[32];
 } sdl_touch_menu_button_layout_entry;
 
+int sdl_touch_menu_button_reserved_rows(void)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    int rows;
+    float content_h;
+    float button_h;
+    float margin;
+    float covered_h;
+    int reserved_rows;
+
+    if (!sdl_touch_only_device_active()
+        || !sdl_mobile_portrait_layout_active())
+    {
+        return 0;
+    }
+    if (!view->term_ready || view->cell_h <= 0 || view->rect.h <= 0)
+        return 0;
+
+    rows = sdl_main_view_visual_rows(view);
+    if (rows <= 0)
+        return 0;
+
+    content_h = (float)(rows * view->cell_h);
+    button_h = sdl_char_sheet_clampf(content_h * 0.060f, 36.0f, 84.0f);
+    margin = sdl_char_sheet_clampf(content_h * 0.018f, 8.0f, 26.0f);
+    covered_h = button_h + margin;
+    reserved_rows = (int)(covered_h / (float)view->cell_h);
+    if ((float)(reserved_rows * view->cell_h) < covered_h)
+        reserved_rows++;
+
+    return MAX(reserved_rows, 1);
+}
+
 static int sdl_touch_menu_button_layout(
     sdl_touch_menu_button_layout_entry buttons[], int max_buttons)
 {

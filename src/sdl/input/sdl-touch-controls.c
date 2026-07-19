@@ -580,8 +580,10 @@ static bool sdl_touch_thumb_description_open(void);
 /* ---- Thumb buttons --------------------------------------------------------
  *
  * Semi-transparent overlay buttons that fill the left-edge gap below the
- * COLLAPSED ("compact") left character panel and above the combat overlay pane,
- * sized to the left-panel column width and stacked vertically. Touch-only.
+ * COLLAPSED ("compact") left character panel and above the combat overlay pane.
+ * Column mode follows the left-panel width; row mode keeps the equivalent
+ * compact-column footprint instead of stretching across the horizontal panel.
+ * Touch-only.
  * Gameplay uses contextual actions:
  *   top: selected-quiver fire in ranged mode, quick throw in melee when ready,
  *        otherwise the current Space action or floor item description/pickup
@@ -807,12 +809,61 @@ bool sdl_touch_thumb_layout_active(void)
     return false;
 }
 
+static float sdl_touch_thumb_region_bottom(float x, float width, float top,
+    const SDL_Rect* screen, float margin)
+{
+    SDL_Rect combat;
+    float bottom;
+
+    if (!screen)
+        return top;
+
+    bottom = (float)(screen->y + screen->h) - margin;
+    if (sdl_combat_overlay_pane_current_rect(&combat)
+        && combat.w > 0 && combat.h > 0)
+    {
+        bool overlaps_column = (float)combat.x < x + width
+            && (float)(combat.x + combat.w) > x;
+        float combat_top = (float)combat.y - margin;
+
+        if (overlaps_column && combat_top > top && combat_top < bottom)
+            bottom = combat_top;
+    }
+
+    return bottom;
+}
+
+static float sdl_touch_thumb_row_mode_width(const sdl_view* view,
+    const sdl_left_panel_metrics* metrics)
+{
+    int content_cols = 0;
+
+    if (!view || !metrics || metrics->cell_w <= 0)
+        return 0.0f;
+
+    for (int i = 0; i < metrics->compact_segment_count; i++) {
+        int width = sdl_left_panel_compact_source_row_width_for_view(view,
+            metrics->compact_source_rows[i], false);
+
+        if (width <= 0)
+            width = LEFT_PANEL_CONTENT_WID;
+        if (width > LEFT_PANEL_CONTENT_WID)
+            width = LEFT_PANEL_CONTENT_WID;
+        if (width > content_cols)
+            content_cols = width;
+    }
+    if (content_cols <= 0)
+        content_cols = LEFT_PANEL_CONTENT_WID;
+
+    /* Include the two border columns used by compact column mode. */
+    return (float)((content_cols + 2) * metrics->cell_w);
+}
+
 bool sdl_touch_thumb_compute_rects(SDL_FRect* out_rects)
 {
     const sdl_view* view = &g_views[PANE_MAIN];
     sdl_left_panel_metrics metrics;
     SDL_FRect panel;
-    SDL_Rect combat;
     SDL_Rect screen;
     float px;
     float pw;
@@ -886,21 +937,25 @@ bool sdl_touch_thumb_compute_rects(SDL_FRect* out_rects)
 
     px = panel.x;
     pw = panel.w;
+    if (metrics.compact_row) {
+        float row_mode_width = sdl_touch_thumb_row_mode_width(view, &metrics);
+
+        if (row_mode_width > 0.0f && row_mode_width < pw) {
+            enum pane_placement where = sdl_left_panel_pane_placement();
+
+            if (sdl_left_panel_pane_placement_is_right(where))
+                px += pw - row_mode_width;
+            else if (sdl_left_panel_pane_placement_is_horizontal_center(where))
+                px += (pw - row_mode_width) * 0.5f;
+            pw = row_mode_width;
+        }
+    }
     top = panel.y + panel.h + margin;
 
     /* The gap ends at the combat pane when it sits in the same column, else at
      * the bottom of the usable screen. */
-    region_bottom = (float)(screen.y + screen.h) - margin;
-    if (sdl_combat_overlay_pane_current_rect(&combat)
-        && combat.w > 0 && combat.h > 0)
-    {
-        bool overlaps_column = (float)combat.x < px + pw
-            && (float)(combat.x + combat.w) > px;
-        float combat_top = (float)combat.y - margin;
-
-        if (overlaps_column && combat_top > top && combat_top < region_bottom)
-            region_bottom = combat_top;
-    }
+    region_bottom = sdl_touch_thumb_region_bottom(px, pw, top, &screen,
+        margin);
 
     avail = region_bottom - top;
     min_button_h = (float)screen.h / 14.0f;
@@ -975,6 +1030,41 @@ static bool sdl_touch_thumb_compute_runtime_rects(
         gap = base[0].w / 12.0f;
     if (gap < 4.0f)
         gap = 4.0f;
+
+    if (sdl_touch_thumb_button_has_binding(
+            SDL_TOUCH_THUMB_SIDECAR_BUTTON))
+    {
+        float button_h;
+        float min_button_h;
+        float max_button_h;
+        float region_bottom;
+
+        screen = sdl_get_layout_screen_rect();
+        region_bottom = sdl_touch_thumb_region_bottom(base[0].x, base[0].w,
+            base[0].y, &screen, gap);
+        min_button_h = (float)screen.h / 14.0f;
+        if (min_button_h < 40.0f)
+            min_button_h = 40.0f;
+        max_button_h = (float)screen.h / 5.0f;
+        button_h = (region_bottom - base[0].y - gap * 2.0f) / 3.0f;
+        if (button_h > max_button_h)
+            button_h = max_button_h;
+
+        if (button_h >= min_button_h) {
+            out_rects[SDL_TOUCH_THUMB_SIDECAR_BUTTON] = (SDL_FRect){
+                base[0].x, base[0].y, base[0].w, button_h
+            };
+            out_rects[SDL_TOUCH_THUMB_TOP_BUTTON] = (SDL_FRect){
+                base[0].x, base[0].y + button_h + gap,
+                base[0].w, button_h
+            };
+            out_rects[SDL_TOUCH_THUMB_BOTTOM_BUTTON] = (SDL_FRect){
+                base[0].x, base[0].y + (button_h + gap) * 2.0f,
+                base[0].w, button_h
+            };
+            return true;
+        }
+    }
 
     out_rects[SDL_TOUCH_THUMB_SIDECAR_BUTTON] = (SDL_FRect){
         base[0].x + base[0].w + gap, base[0].y, base[0].w, base[0].h

@@ -106,6 +106,8 @@ bool pane_placement_is_overlay(enum pane_placement where);
 bool pane_type_allows_placement(enum pane_type type, enum pane_placement where);
 int pane_primary_min_cells(enum pane_type type, enum pane_placement where);
 int pane_log_overlay_left_margin(int term_cols);
+int pane_log_overlay_vertical_margin_px(int cell_height);
+int pane_log_overlay_vertical_padding_px(int cell_height);
 int pane_secondary_min_cells(enum pane_type type, enum pane_placement where);
 enum pane_placement pane_first_allowed_placement(enum pane_type type);
 enum pane_placement pane_next_allowed_placement(enum pane_type type,

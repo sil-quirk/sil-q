@@ -94,12 +94,6 @@ enum {
  * scaled to the pane's cell width so the messages do not hug the border. */
 #define SDL_OVERLAY_LOG_TEXT_LEFT_PAD(d) ((float)(d)->cell_w * 0.6f)
 
-/* Top/bottom margin of the overlay log band, expressed as a fraction of a
- * cell height.  The view reserves this above and below its rows so the
- * content fits a whole number of lines, and the renderer paints those strips
- * with the panel background. */
-#define SDL_OVERLAY_LOG_VMARGIN_CELLS 0.4f
-
 /* Shared by the game-start narrative banner and transient notifications. */
 #define SDL_NARRATIVE_BANNER_FADE_MS 1000
 #define SDL_NARRATIVE_BANNER_FADE_FRAME_MS 16
@@ -1759,6 +1753,8 @@ bool sdl_left_panel_pane_map_coverage(int* start_col, int* cols, int* start_row,
 bool sdl_combat_overlay_pane_map_coverage(int* start_col, int* cols, int* start_row, int* rows);
 bool sdl_overlay_log_pane_map_coverage(int* start_col, int* cols, int* start_row, int* rows);
 bool sdl_overlay_log_pane_current_rect(SDL_Rect* out_rect);
+void sdl_reset_top_right_overlay_offset(void);
+void sdl_apply_top_right_overlay_offset(void);
 bool sdl_left_panel_pane_runtime_active(void);
 bool sdl_left_panel_pane_collapsed(void);
 int sdl_left_panel_compact_mode_normalized(int mode);
@@ -2454,6 +2450,7 @@ void sdl_description_overlay_render_text(SDL_Texture* atlas, int atlas_cell_w, i
 void sdl_description_overlay_render(void);
 void sdl_touch_exit_button_render(void);
 bool sdl_touch_exit_button_handle_pointer(float x, float y);
+int sdl_touch_menu_button_reserved_rows(void);
 bool sdl_description_overlay_handle_close_hover(float x, float y);
 bool sdl_description_overlay_handle_close_pointer(float x, float y);
 int sdl_description_overlay_footer_action_at(float x, float y);
@@ -3646,6 +3643,8 @@ bool sdl_song_menu_handle_hover_pointer(float x, float y);
 void sdl_question_menu_render(void);
 bool sdl_question_menu_handle_pointer(float x, float y, int action);
 bool sdl_question_menu_handle_hover_pointer(float x, float y);
+void sdl_hint_quest_menu_render(void);
+bool sdl_hint_quest_menu_handle_event(const SDL_Event* ev);
 bool sdl_question_menu_handle_touch_down(float x, float y,
     SDL_FingerID finger_id);
 bool sdl_question_menu_handle_touch_motion(float x, float y,

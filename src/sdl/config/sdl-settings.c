@@ -3193,13 +3193,8 @@ int get_sdl_platform_max_main_view_scale(void)
     return sdl_platform_max_main_view_scale_for_mode(config.min_terminal_mode);
 }
 
-int get_sdl_terminal_menu_scale(void)
+static int sdl_terminal_menu_scale_for_mode(int menu_mode)
 {
-#if defined(SDL_PLATFORM_ANDROID) || defined(SDL_PLATFORM_IOS)
-    int menu_mode = config.min_terminal_mode;
-#else
-    int menu_mode = SDL_MIN_TERMINAL_NORMAL;
-#endif
     SDL_Rect screen;
     int max_scale = SDL_MAIN_VIEW_MIN_SCALE;
     bool supporting_panes_hidden = !sdl_should_show_supporting_panes();
@@ -3245,10 +3240,20 @@ int get_sdl_terminal_menu_scale(void)
     return scale;
 }
 
-void sdl_push_terminal_menu_scale(void)
+int get_sdl_terminal_menu_scale(void)
+{
+#if defined(SDL_PLATFORM_ANDROID) || defined(SDL_PLATFORM_IOS)
+    int menu_mode = config.min_terminal_mode;
+#else
+    int menu_mode = SDL_MIN_TERMINAL_NORMAL;
+#endif
+
+    return sdl_terminal_menu_scale_for_mode(menu_mode);
+}
+
+static void sdl_push_terminal_menu_scale_value(int target_scale)
 {
     int old_scale = g_terminal_menu_scale_override;
-    int target_scale = get_sdl_terminal_menu_scale();
 
     if (g_terminal_menu_scale_depth
         >= (int)N_ELEMENTS(g_terminal_menu_scale_stack))
@@ -3262,6 +3267,13 @@ void sdl_push_terminal_menu_scale(void)
     g_terminal_menu_scale_override = target_scale;
     if (old_scale != target_scale)
         sdl_apply_config_no_redraw();
+}
+
+void sdl_push_terminal_menu_scale(void)
+{
+    int target_scale = get_sdl_terminal_menu_scale();
+
+    sdl_push_terminal_menu_scale_value(target_scale);
 }
 
 void sdl_pop_terminal_menu_scale(void)

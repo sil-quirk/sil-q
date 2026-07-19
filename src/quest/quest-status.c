@@ -237,94 +237,10 @@ void display_wrapped_text(int col, int *row, cptr text, byte color, int max_widt
     }
 }
 
-static int quest_wrapped_rows(int col, cptr text, int max_width)
-{
-    int indent = col + 2;
-    int wrap_width = max_width - 2;
-    int rows_used = 1;
-
-    if (!text || !text[0])
-        return 1;
-
-    if (wrap_width <= indent)
-        wrap_width = indent + 1;
-
-    if (sdl_is_story_font_enabled())
-        rows_used = count_wrapped_lines_story(text, wrap_width, indent);
-    else
-        rows_used = count_wrapped_lines(text, wrap_width, indent);
-
-    if (rows_used < 1)
-        rows_used = 1;
-
-    return rows_used;
-}
-
-enum {
-    HINT_QUEST_CLICK_HINTS_TAB = -20101,
-    HINT_QUEST_CLICK_QUESTS_TAB = -20102,
-    HINT_QUEST_CLICK_THRALLS_TAB = -20103,
-    HINT_QUEST_CLICK_RETURN = -20104,
-    HINT_QUEST_CLICK_CONTINUE = -20105
-};
-
 static bool quest_status_tabs_active = false;
-static int quest_status_hover_tab = 0;
 static bool quest_status_tabs_focus = false;
-/* On touch-only devices the screen shows tappable command buttons instead of
- * keyboard-key prompts, which also requires the click machinery to be live
- * even in the non-tabbed entry point. */
 static bool quest_status_touch_active = false;
-
-static int hint_quest_draw_tab(int row, int col, cptr label, bool active,
-    bool hovered, int click_choice)
-{
-    char tab[32];
-    byte attr = hovered ? TERM_YELLOW + TERM_SHADE : TERM_YELLOW;
-
-    strnfmt(tab, sizeof(tab), active ? "[%s]" : " %s ", label);
-    Term_putstr(col, row, -1, attr, tab);
-    ui_menu_click_add(click_choice, col, row, (int)strlen(tab));
-    return col + (int)strlen(tab) + 1;
-}
-
-static int hint_quest_page_click(hint_quest_page page)
-{
-    switch (page)
-    {
-    case HINT_QUEST_PAGE_QUESTS: return HINT_QUEST_CLICK_QUESTS_TAB;
-    case HINT_QUEST_PAGE_THRALLS: return HINT_QUEST_CLICK_THRALLS_TAB;
-    default: return HINT_QUEST_CLICK_HINTS_TAB;
-    }
-}
-
-static void hint_quest_draw_tabs(hint_quest_page active_page, int term_wid)
-{
-    int col = 0;
-    int hover_tab = quest_status_tabs_focus
-        ? hint_quest_page_click(active_page)
-        : quest_status_hover_tab;
-
-    if (term_wid < 1)
-        term_wid = 80;
-
-    Term_putstr(0, 0, term_wid, TERM_L_WHITE + TERM_SHADE,
-        "Hints & Quests");
-    Term_erase(0, 1, 255);
-
-    col = hint_quest_draw_tab(1, col, "Hints",
-        active_page == HINT_QUEST_PAGE_HINTS,
-        hover_tab == HINT_QUEST_CLICK_HINTS_TAB,
-        HINT_QUEST_CLICK_HINTS_TAB);
-    col = hint_quest_draw_tab(1, col, "Quests",
-        active_page == HINT_QUEST_PAGE_QUESTS,
-        hover_tab == HINT_QUEST_CLICK_QUESTS_TAB,
-        HINT_QUEST_CLICK_QUESTS_TAB);
-    (void)hint_quest_draw_tab(1, col, "Thralls",
-        active_page == HINT_QUEST_PAGE_THRALLS,
-        hover_tab == HINT_QUEST_CLICK_THRALLS_TAB,
-        HINT_QUEST_CLICK_THRALLS_TAB);
-}
+static int quest_status_content_col = 0;
 
 static bool hint_quest_tab_key(char ch)
 {
@@ -370,158 +286,40 @@ static bool hint_quest_handle_tab_navigation(char ch, bool* tabs_focus,
     return false;
 }
 
-/*
- * Draw the desktop tabbed footer prompt and register its clickable command
- * tokens.  The "Tab" word switches to the next page and "Esc" returns; both
- * light up (TERM_L_BLUE) while hovered, courtesy of ui_menu_click_add_text_token.
- */
-static void quest_status_draw_tab_footer(int col, int row)
-{
-    cptr tab_prompt = "Tab or Left/Right switch page  Esc/any key return.";
-
-    Term_erase(0, row, 255);
-    Term_putstr(col, row, -1, TERM_L_WHITE, tab_prompt);
-    ui_menu_click_add_text_token(HINT_QUEST_CLICK_THRALLS_TAB, col, row,
-        tab_prompt, "Tab");
-    ui_menu_click_add_text_token(HINT_QUEST_CLICK_RETURN, col, row,
-        tab_prompt, "Esc");
-}
-
-/* Redraw the tabs and footer so the currently-hovered command highlights. */
-static void quest_status_redraw_tab_chrome(int col, int row, int wid)
-{
-    hint_quest_draw_tabs(HINT_QUEST_PAGE_QUESTS, wid);
-    quest_status_draw_tab_footer(col, row);
-}
-
-static void quest_status_draw_header(int col)
-{
-    int wid = 80;
-    int hgt = 24;
-
-    Term_get_size(&wid, &hgt);
-    (void)hgt;
-
-    if (quest_status_tabs_active)
-    {
-        hint_quest_draw_tabs(HINT_QUEST_PAGE_QUESTS, wid);
-        Term_putstr(col, 2, -1, TERM_YELLOW, "=== Quest Status ===");
-        return;
-    }
-
-    Term_putstr(col, 1, -1, TERM_YELLOW, "=== Quest Status ===");
-}
-
 static void quest_status_reset_page(int col, int *row)
 {
-    Term_clear();
-    if (quest_status_tabs_active || quest_status_touch_active)
-    {
-        ui_menu_click_begin();
-        ui_menu_click_set_hover_enabled(true);
-    }
-    quest_status_draw_header(col);
-    *row = quest_status_tabs_active ? 4 : 3;
-}
-
-static void quest_status_wait_for_next_page(int col, int hgt, int *row)
-{
-    int prompt_row = MAX(0, hgt - 1);
-    char prompt_buf[48];
-
-    Term_erase(0, prompt_row, 255);
-    if (quest_status_touch_active)
-    {
-        (void)ui_menu_click_put_button(HINT_QUEST_CLICK_CONTINUE, prompt_row,
-            col, TERM_L_WHITE, "Continue");
-    }
-    else
-    {
-        any_key_prompt_text(prompt_buf, sizeof(prompt_buf), "continue");
-        Term_putstr(col, prompt_row, -1, TERM_L_WHITE, prompt_buf);
-    }
-    Term_fresh();
-    while (true)
-    {
-        bool saved_hide_cursor = hide_cursor;
-        char ch;
-
-        hide_cursor = true;
-        ch = inkey();
-        hide_cursor = saved_hide_cursor;
-
-        if (quest_status_touch_active && !quest_status_tabs_active)
-        {
-            int clicked_choice = 0;
-            int click_action = UI_MENU_CLICK_PRIMARY;
-
-            if (ui_menu_click_take_action(&clicked_choice, &click_action))
-            {
-                if (click_action == UI_MENU_CLICK_HOVER)
-                    continue;
-                break;
-            }
-            if (ch == UI_MENU_CLICK_WAKE_KEY)
-                continue;
-        }
-
-        if (quest_status_tabs_active)
-        {
-            int clicked_choice = 0;
-            int click_action = UI_MENU_CLICK_PRIMARY;
-
-            if (ui_menu_click_take_action(&clicked_choice, &click_action)
-                && click_action == UI_MENU_CLICK_HOVER)
-            {
-                if (clicked_choice == HINT_QUEST_CLICK_HINTS_TAB
-                    || clicked_choice == HINT_QUEST_CLICK_QUESTS_TAB
-                    || clicked_choice == HINT_QUEST_CLICK_THRALLS_TAB)
-                {
-                    int wid = 80;
-                    int hgt2 = 24;
-
-                    quest_status_hover_tab = clicked_choice;
-                    Term_get_size(&wid, &hgt2);
-                    (void)hgt2;
-                    hint_quest_draw_tabs(HINT_QUEST_PAGE_QUESTS, wid);
-                    Term_fresh();
-                }
-                continue;
-            }
-            if (ch == UI_MENU_CLICK_WAKE_KEY)
-                continue;
-        }
-
-        break;
-    }
-
-    quest_status_reset_page(col, row);
-}
-
-static void quest_status_ensure_rows(int col, int hgt, int *row, int needed_rows)
-{
-    if (needed_rows < 1)
-        needed_rows = 1;
-
-    if ((*row + needed_rows) <= (hgt - 1))
-        return;
-
-    quest_status_wait_for_next_page(col, hgt, row);
+    quest_status_content_col = col;
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
+    sdl_hint_quest_menu_begin(HINT_QUEST_PAGE_QUESTS,
+        quest_status_tabs_active ? "Hints & Quests" : "Quest Status",
+        quest_status_tabs_active ? "Quest Status" : "",
+        quest_status_tabs_active, false, 0);
+    if (row)
+        *row = 0;
 }
 
 static void quest_status_put_line(int col, int hgt, int *row, byte color, cptr text)
 {
-    quest_status_ensure_rows(col, hgt, row, 1);
-    Term_putstr(col, (*row)++, -1, color, text ? text : "");
+    int indent = MAX(0, (col - quest_status_content_col) / 2);
+
+    (void)hgt;
+    sdl_hint_quest_menu_add_block(text ? text : "", color, indent, 0);
+    if (row)
+        (*row)++;
 }
 
 static void quest_status_put_wrapped(int col, int wid, int hgt, int *row,
     byte color, cptr text)
 {
-    int rows_needed = quest_wrapped_rows(col, text, wid);
+    int indent = MAX(0, (col - quest_status_content_col) / 2);
 
-    quest_status_ensure_rows(col, hgt, row, rows_needed);
-    display_wrapped_text(col, row, text, color, wid);
+    (void)wid;
+    (void)hgt;
+    sdl_hint_quest_menu_add_block(text ? text : "", color, indent, 0);
+    if (row)
+        (*row)++;
 }
 
 /*
@@ -764,12 +562,12 @@ static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
     bool manage_screen)
 {
     char buf[128];
-    int row = 1;
-    int col = 2;
+    int row = 0;
+    int col = 0;
     bool any_quests = false;
-    int wid, hgt;
+    int wid = 0;
+    int hgt = 0;
     hint_quest_page next_page = HINT_QUEST_PAGE_EXIT;
-    story_font_term_state story_state;
 
     log_trace("QUEST STATUS: do_cmd_quest_status() called");
 
@@ -788,15 +586,9 @@ static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
         screen_save();
         screen_push_supporting_panes_hidden();
     }
-    story_font_term_push_slot(true, false, STORY_FONT_SLOT_SECONDARY,
-        &story_state);
     quest_status_tabs_active = tabbed;
-    quest_status_hover_tab = 0;
     quest_status_tabs_focus = tabbed;
-    quest_status_touch_active = sdl_touch_only_device_active();
-
-    /* Get terminal size for wrapping */
-    Term_get_size(&wid, &hgt);
+    quest_status_touch_active = true;
     quest_status_reset_page(col, &row);
 
     /* Check Tulkas quest */
@@ -1270,25 +1062,10 @@ static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
     }
 
     quest_status_put_line(col, hgt, &row, TERM_WHITE, "");
-    quest_status_ensure_rows(col, hgt, &row, 1);
-    if (quest_status_touch_active)
-    {
-        /* Touch-only: the page tabs are already tappable, so the footer only
-         * needs the Back command. */
-        (void)ui_menu_click_put_button(HINT_QUEST_CLICK_RETURN, row, col,
-            TERM_L_WHITE, "Back");
-    }
-    else if (tabbed)
-    {
-        quest_status_draw_tab_footer(col, row);
-    }
-    else
-    {
-        char return_prompt[48];
-
-        any_key_prompt_text(return_prompt, sizeof(return_prompt), "return");
-        Term_putstr(col, row, -1, TERM_L_WHITE, return_prompt);
-    }
+    sdl_hint_quest_menu_add_button(HINT_QUEST_CLICK_RETURN, "Back",
+        TERM_L_WHITE);
+    sdl_hint_quest_menu_finish();
+    Term_fresh();
     while (true) {
         char ch;
         bool saved_hide_cursor = hide_cursor;
@@ -1302,33 +1079,17 @@ static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
         if ((tabbed || quest_status_touch_active)
             && ui_menu_click_take_action(&clicked_choice, &click_action))
         {
-            bool desktop_tabs = tabbed && !quest_status_touch_active;
-
             if (clicked_choice == HINT_QUEST_CLICK_RETURN)
             {
                 if (click_action == UI_MENU_CLICK_HOVER)
-                {
-                    if (desktop_tabs)
-                    {
-                        quest_status_hover_tab = 0;
-                        quest_status_redraw_tab_chrome(col, row, wid);
-                        Term_fresh();
-                    }
                     continue;
-                }
                 break;
             }
             if (clicked_choice == HINT_QUEST_CLICK_HINTS_TAB)
             {
                 if (click_action == UI_MENU_CLICK_HOVER)
                 {
-                    quest_status_hover_tab = clicked_choice;
                     quest_status_tabs_focus = false;
-                    if (desktop_tabs)
-                        quest_status_redraw_tab_chrome(col, row, wid);
-                    else
-                        hint_quest_draw_tabs(HINT_QUEST_PAGE_QUESTS, wid);
-                    Term_fresh();
                     continue;
                 }
                 next_page = HINT_QUEST_PAGE_HINTS;
@@ -1338,13 +1099,7 @@ static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
             {
                 if (click_action == UI_MENU_CLICK_HOVER)
                 {
-                    quest_status_hover_tab = clicked_choice;
                     quest_status_tabs_focus = false;
-                    if (desktop_tabs)
-                        quest_status_redraw_tab_chrome(col, row, wid);
-                    else
-                        hint_quest_draw_tabs(HINT_QUEST_PAGE_QUESTS, wid);
-                    Term_fresh();
                 }
                 continue;
             }
@@ -1352,13 +1107,7 @@ static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
             {
                 if (click_action == UI_MENU_CLICK_HOVER)
                 {
-                    quest_status_hover_tab = clicked_choice;
                     quest_status_tabs_focus = false;
-                    if (desktop_tabs)
-                        quest_status_redraw_tab_chrome(col, row, wid);
-                    else
-                        hint_quest_draw_tabs(HINT_QUEST_PAGE_QUESTS, wid);
-                    Term_fresh();
                     continue;
                 }
                 next_page = HINT_QUEST_PAGE_THRALLS;
@@ -1366,13 +1115,7 @@ static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
             }
             if (click_action == UI_MENU_CLICK_HOVER)
             {
-                quest_status_hover_tab = 0;
                 quest_status_tabs_focus = false;
-                if (desktop_tabs)
-                {
-                    quest_status_redraw_tab_chrome(col, row, wid);
-                    Term_fresh();
-                }
                 continue;
             }
             break;
@@ -1397,11 +1140,10 @@ static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
 
     if (tabbed || quest_status_touch_active)
         ui_menu_click_clear();
+    sdl_hint_quest_menu_hide();
     quest_status_tabs_active = false;
-    quest_status_hover_tab = 0;
     quest_status_tabs_focus = false;
     quest_status_touch_active = false;
-    story_font_term_pop(&story_state);
     if (manage_screen)
     {
         screen_pop_supporting_panes_hidden();

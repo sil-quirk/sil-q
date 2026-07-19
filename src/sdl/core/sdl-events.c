@@ -175,6 +175,7 @@ void resize(const SDL_Rect* screen)
     }
 
     memcpy(g_pane_rects, panes, sizeof(g_pane_rects));
+    sdl_reset_top_right_overlay_offset();
     g_touch_pane_hidden_layout_active = touch_pane_hidden;
     g_touch_pane_proto_layout_active = sdl_touch_pane_proto_mode_active();
 
@@ -208,6 +209,7 @@ void resize(const SDL_Rect* screen)
     }
     sdl_view_link_term(&g_views[0], 0);
     sdl_update_left_panel_pane_rect();
+    sdl_apply_top_right_overlay_offset();
     sdl_mark_active_supporting_panes_dirty(panes);
 
     Term_activate(&g_views[0].t);
@@ -1231,6 +1233,9 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         return;
     } else if (sdl_poetry_screen_captures_pointer()
         && sdl_poetry_screen_consume_pointer(ev)) {
+        return;
+    } else if (sdl_hint_quest_menu_active()
+        && sdl_hint_quest_menu_handle_event(ev)) {
         return;
     } else if (sdl_question_menu_captures_pointer()
         && sdl_question_overlay_consume_pointer(ev)) {
