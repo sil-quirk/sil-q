@@ -1411,6 +1411,13 @@ void sdl_touch_tutorial_draw_main_screen_zones(
                 ? "<a>Click depth:</a> open the <t>map</t>.\n<a>+/-:</a> change <n>temporary zoom</n>."
                 : "<a>Tap depth:</a> open the <t>map</t>.\n<a>+/-:</a> change <n>temporary zoom</n>.");
     }
+    if (sdl_status_depth_pane_current_rect(&rect)) {
+        sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
+            "Status & depth",
+            "Shows the current <t>partition and depth</t> at the right, "
+            "with <t>temporary conditions</t> filling leftward and wrapping "
+            "onto rows above.");
+    }
 
     panel_rows = term_h - ROW_MAP;
     if (ROW_STATUS > ROW_MAP)

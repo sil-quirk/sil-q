@@ -39,11 +39,13 @@ const struct pane_config default_pane_config[] = {
     {.pane = PANE_COMBAT, .where = PLACE_BOTTOM_LEFT, .enabled = true,
         .rect.rows = PANE_COMBAT_OVERLAY_ROWS,
         .rect.cols = PANE_COMBAT_OVERLAY_COLS},
-    {.pane = PANE_DEPTH, .where = PLACE_TOP_RIGHT, .enabled = true,
+    {.pane = PANE_DEPTH, .where = PLACE_BOTTOM_RIGHT, .enabled = true,
         .rect.rows = 4, .rect.cols = 12},
     {.pane = PANE_ROLLS, .where = PLACE_TOP_RIGHT, .enabled = true,
         .rect.rows = SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS},
     {.pane = PANE_STATUS, .where = PLACE_TOP_CENTER, .enabled = true,
+        .rect.rows = 1, .rect.cols = 24},
+    {.pane = PANE_STATUS_DEPTH, .where = PLACE_BOTTOM_RIGHT, .enabled = false,
         .rect.rows = 1, .rect.cols = 24},
     {.pane = PANE_DESCRIPTION, .where = PLACE_BOTTOM_CENTER, .enabled = true,
         .rect.rows = 80, .rect.cols = 160},
@@ -180,6 +182,8 @@ static int sdl_pane_profile_index_for_mode(int mode)
 #endif
 }
 
+void sdl_log_pane_sync_display_filter_from_config(void);
+
 static void sdl_capture_pane_profile(struct sdl_pane_profile* profile)
 {
     if (!profile)
@@ -189,17 +193,42 @@ static void sdl_capture_pane_profile(struct sdl_pane_profile* profile)
     profile->aux_view_font_size = config.aux_view_font_size;
     profile->enable_right_panes = config.enable_right_panes;
     profile->enable_bottom_panes = config.enable_bottom_panes;
+    profile->left_overlays_touch_screen_edge =
+        config.left_overlays_touch_screen_edge;
+    profile->show_overlay_log_border = config.show_overlay_log_border;
     profile->show_main_menu_button = config.show_main_menu_button;
     profile->left_panel_expanded_on_launch =
         config.left_panel_expanded_on_launch;
     profile->left_panel_compact_mode = config.left_panel_compact_mode;
+    profile->log_pane_display_filter = config.log_pane_display_filter;
+    profile->dice_roll_lock_ms = config.dice_roll_lock_ms;
+    profile->dice_roll_overlay_ms = config.dice_roll_overlay_ms;
+    profile->popup_notification_ms = config.popup_notification_ms;
+    profile->touch_top_panel_arrows_visible =
+        config.touch_top_panel_arrows_visible;
     profile->touch_top_panel_default_open =
         config.touch_top_panel_default_open;
     profile->touch_top_panel_cell_count = config.touch_top_panel_cell_count;
     profile->touch_top_panel_rows = config.touch_top_panel_rows;
     profile->touch_top_panel_size = config.touch_top_panel_size;
+    memcpy(profile->touch_top_panel_bindings,
+        config.touch_top_panel_bindings,
+        sizeof(profile->touch_top_panel_bindings));
+    memcpy(profile->touch_top_panel_long_bindings,
+        config.touch_top_panel_long_bindings,
+        sizeof(profile->touch_top_panel_long_bindings));
     sdl_copy_pane_configs(profile->pane_configs,
         &profile->pane_count, pane_config, pane_config_count);
+}
+
+static bool sdl_pane_type_enabled_in_active_config(enum pane_type pane)
+{
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane == pane && pane_config[i].enabled)
+            return true;
+    }
+
+    return false;
 }
 
 void sdl_store_active_pane_profile(int mode)
@@ -243,19 +272,42 @@ void sdl_apply_stored_pane_profile(int mode)
     config.aux_view_font_size = profile->aux_view_font_size;
     config.enable_right_panes = profile->enable_right_panes;
     config.enable_bottom_panes = profile->enable_bottom_panes;
+    config.left_overlays_touch_screen_edge =
+        profile->left_overlays_touch_screen_edge;
+    config.show_overlay_log_border = profile->show_overlay_log_border;
     config.show_main_menu_button = profile->show_main_menu_button;
     config.left_panel_expanded_on_launch =
         profile->left_panel_expanded_on_launch;
     config.left_panel_compact_mode = profile->left_panel_compact_mode;
+    config.log_pane_display_filter = profile->log_pane_display_filter;
+    config.dice_roll_lock_ms = profile->dice_roll_lock_ms;
+    config.dice_roll_overlay_ms = profile->dice_roll_overlay_ms;
+    config.popup_notification_ms = profile->popup_notification_ms;
+    config.touch_top_panel_arrows_visible =
+        profile->touch_top_panel_arrows_visible;
     config.touch_top_panel_default_open =
         profile->touch_top_panel_default_open;
     config.touch_top_panel_cell_count = profile->touch_top_panel_cell_count;
     config.touch_top_panel_rows = profile->touch_top_panel_rows;
     config.touch_top_panel_size = profile->touch_top_panel_size;
+    memcpy(config.touch_top_panel_bindings,
+        profile->touch_top_panel_bindings,
+        sizeof(config.touch_top_panel_bindings));
+    memcpy(config.touch_top_panel_long_bindings,
+        profile->touch_top_panel_long_bindings,
+        sizeof(config.touch_top_panel_long_bindings));
+    sdl_log_pane_sync_display_filter_from_config();
     g_left_panel_pane_expanded = config.left_panel_expanded_on_launch;
-    g_touch_top_panel_open = config.touch_top_panel_default_open;
+    g_touch_top_panel_open = !config.touch_top_panel_arrows_visible
+        || config.touch_top_panel_default_open;
     sdl_copy_pane_configs(pane_config, &pane_config_count,
         profile->pane_configs, profile->pane_count);
+    if (!sdl_pane_type_enabled_in_active_config(PANE_OVERLAY_MENU)
+        && !config.show_main_menu_button)
+    {
+        config.show_main_menu_button = true;
+        log_info("Enabled fixed Menu button because Quick Access is disabled in the active layout");
+    }
 }
 
 void sdl_seed_all_pane_profiles_from_active(void)
@@ -272,6 +324,8 @@ void sdl_seed_all_pane_profiles_from_active(void)
             SDL_PANE_ORIENTATION_PORTRAIT, mode);
 
         g_pane_profiles[landscape] = base;
+        g_pane_profiles[landscape].touch_top_panel_size =
+            (float)g_pane_profiles[landscape].main_view_scale;
         g_pane_profiles[portrait] = base;
         sdl_pane_profile_apply_portrait_defaults(
             &g_pane_profiles[portrait]);
@@ -441,13 +495,6 @@ void sdl_normalize_unified_log_pane_profiles(bool enable_added_log)
     }
 }
 
-bool sdl_screen_is_wide_for_pane_defaults(int screen_width, int screen_height)
-{
-    /* "Wide" means at least a 16:10 aspect ratio. */
-    return screen_width > 0 && screen_height > 0
-        && (long)screen_width * 10 >= (long)screen_height * 16;
-}
-
 enum pane_placement sdl_default_status_pane_placement(
     const struct pane_config* configs, int config_count)
 {
@@ -472,66 +519,6 @@ enum pane_placement sdl_default_status_pane_placement(
 
     return PLACE_TOP_CENTER;
 }
-
-/* Adapt the default log/depth/status layout to the screen shape. Wide screens
- * show the combat log at top-right, status at top-centre, and depth at
- * bottom-right. Narrower screens dock the log along the bottom, keep depth at
- * top-right, and put status at bottom-right. */
-void sdl_apply_screen_aspect_pane_defaults(struct pane_config* configs,
-    int* config_count, int screen_width, int screen_height)
-{
-    bool wide;
-    int depth_idx;
-    int rolls_idx;
-    int log_idx;
-    int status_idx;
-
-    if (!configs || !config_count)
-        return;
-
-    wide = sdl_screen_is_wide_for_pane_defaults(screen_width, screen_height);
-
-    depth_idx = sdl_pane_config_index_in_array(configs, *config_count,
-        PANE_DEPTH);
-    rolls_idx = sdl_pane_config_index_in_array(configs, *config_count,
-        PANE_ROLLS);
-    log_idx = sdl_pane_config_index_in_array(configs, *config_count, PANE_LOG);
-    status_idx = sdl_pane_config_index_in_array(configs, *config_count,
-        PANE_STATUS);
-
-    if (depth_idx >= 0)
-        configs[depth_idx].where = wide ? PLACE_BOTTOM_RIGHT : PLACE_TOP_RIGHT;
-    if (rolls_idx >= 0)
-        configs[rolls_idx].enabled = wide;
-    if (log_idx >= 0)
-        configs[log_idx].enabled = !wide;
-    if (status_idx >= 0)
-        configs[status_idx].where = wide
-            ? PLACE_TOP_CENTER : PLACE_BOTTOM_RIGHT;
-}
-
-void sdl_apply_screen_aspect_pane_default_profiles(int screen_width,
-    int screen_height)
-{
-    int landscape_w = MAX(screen_width, screen_height);
-    int landscape_h = MIN(screen_width, screen_height);
-
-    for (int mode = 0; mode < SDL_MIN_TERMINAL_MODE_COUNT; mode++) {
-        int landscape = SDL_PANE_PROFILE_INDEX(
-            SDL_PANE_ORIENTATION_LANDSCAPE, mode);
-        int portrait = SDL_PANE_PROFILE_INDEX(
-            SDL_PANE_ORIENTATION_PORTRAIT, mode);
-
-        sdl_apply_screen_aspect_pane_defaults(
-            g_pane_profiles[landscape].pane_configs,
-            &g_pane_profiles[landscape].pane_count,
-            landscape_w, landscape_h);
-        sdl_pane_profile_apply_portrait_defaults(
-            &g_pane_profiles[portrait]);
-    }
-}
-
-void sdl_log_pane_sync_display_filter_from_config(void);
 
 int sdl_default_main_scale_for_screen_size(int screen_width,
     int screen_height, int mode)
@@ -639,7 +626,11 @@ void sdl_reset_config_to_resolution_defaults(int screen_width,
         screen_height, config.min_terminal_mode);
     config.aux_view_font_size = 0;
     config.enable_right_panes = false;
+#if SIL_SDL_MOBILE_BUILD
+    config.enable_bottom_panes = false;
+#else
     config.enable_bottom_panes = true;
+#endif
 
     (void)sdl_normalize_unified_log_pane_config(pane_config,
         &pane_config_count, true);
@@ -783,6 +774,7 @@ bool g_default_touch_round_movement_enabled = false;
 int g_default_touch_zone_center_bindings[SDL_TOUCH_ZONE_CENTER_BINDING_COUNT];
 int g_default_touch_corner_up_down_side = SDL_TOUCH_CORNER_UP_DOWN_RIGHT;
 int g_default_touch_corner_action_bindings[SDL_TOUCH_CORNER_ACTION_BINDING_COUNT];
+bool g_default_touch_top_panel_arrows_visible = true;
 bool g_default_touch_top_panel_default_open = false;
 float g_default_touch_top_panel_size = SDL_TOUCH_TOP_PANEL_SIZE_DEFAULT;
 int g_default_touch_top_panel_cell_count = SDL_TOUCH_TOP_PANEL_CELL_COUNT_DEFAULT;

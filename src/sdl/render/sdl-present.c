@@ -1723,6 +1723,7 @@ bool sdl_render_current_window_frame(void)
         sdl_mouse_path_render();
         sdl_combat_overlay_pane_render();
         sdl_status_pane_render();
+        sdl_status_depth_pane_render();
         sdl_popup_notification_render();
         sdl_depth_menu_pane_render();
         sdl_narrative_banner_render();

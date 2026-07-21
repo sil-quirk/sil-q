@@ -398,10 +398,10 @@ int get_player_choice(birth_menu* choices, int num, int def,
                 return (cur);
             }
         }
-        // Show scores (short): accept both 's' and 'S'
+        // Show the Halls of Mandos: accept both 's' and 'S'
         if (c == 's' || c == 'S')
         {
-            show_scores_interactive(false);
+            show_scores_interactive();
             continue; /* Return to the selection loop after showing scores */
         }
         

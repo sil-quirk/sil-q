@@ -4,6 +4,8 @@
 #include "sdl-sound.h"
 
 extern struct sound_config g_sound_config;
+extern int sdl_log_pane_current_rows(enum pane_type pane);
+extern void sdl_log_pane_set_rows(enum pane_type pane, int rows);
 #include "externs.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
@@ -103,8 +105,10 @@ struct settings_value_choice
 #define SOUND_OPTION_ROW_BASE 2048
 #define SOUND_OPTION_ROW(index) (SOUND_OPTION_ROW_BASE + (index))
 #define IFACE_PANE_ROW_BASE 4096
-#define IFACE_PANE_ROW_MAX 34
+#define IFACE_PANE_ROW_MAX 40
 #define IFACE_DICE_ROLL_MS_STEP 500
+#define IFACE_OVERLAY_LOG_ROWS_MIN 1
+#define IFACE_OVERLAY_LOG_ROWS_MAX 20
 
 static const struct settings_value_choice running_delay_choices[] = {
     { 0, "0 ms" },
@@ -1458,14 +1462,19 @@ enum iface_pane_field {
     IFACE_PANE_FIELD_SIZE,
     IFACE_PANE_FIELD_COLUMNS,
     IFACE_PANE_FIELD_ROWS,
+    IFACE_PANE_FIELD_QA_ARROWS,
+    IFACE_PANE_FIELD_QA_LAUNCH,
     IFACE_PANE_FIELD_BUTTONS,
     IFACE_PANE_FIELD_LP_LAUNCH,
     IFACE_PANE_FIELD_LP_COMPACT,
+    IFACE_PANE_FIELD_LP_TOUCH_EDGE,
+    IFACE_PANE_FIELD_LOG_ROWS,
     IFACE_PANE_FIELD_OVERLAY_LOG_BORDER,
     IFACE_PANE_FIELD_DICE_LOCK,
     IFACE_PANE_FIELD_DICE_OVERLAY,
     IFACE_PANE_FIELD_MAIN_MENU_BUTTON,
-    IFACE_PANE_FIELD_POPUP_NOTIFICATION
+    IFACE_PANE_FIELD_POPUP_NOTIFICATION,
+    IFACE_PANE_FIELD_CAMERA_CENTER_CLEARANCE
 };
 
 struct iface_pane_row {
@@ -1674,7 +1683,21 @@ extern void do_cmd_options_aux(int page, cptr info)
         /* Collect options on this "page" */
         if (option_page[page][i] != OPT_NONE)
         {
-            opt[n++] = option_page[page][i];
+            int candidate = option_page[page][i];
+
+#if defined(__ANDROID__) || defined(SIL_IOS)
+            /* These settings control ordinary supporting panes, which mobile
+             * builds never create.  Overlay presentation remains available
+             * through the Interface page's overlay rows below. */
+            if (candidate == OPT_hide_supporting_panes_fullscreen
+                || candidate == OPT_story_monster_desc_pane
+                || candidate == OPT_story_lists_inven_pane
+                || candidate == OPT_story_lists_equip_pane)
+            {
+                continue;
+            }
+#endif
+            opt[n++] = candidate;
         }
     }
 
@@ -1744,6 +1767,11 @@ extern void do_cmd_options_aux(int page, cptr info)
                     &pane_rows[opt[i] - IFACE_PANE_ROW_BASE];
 
                 iface_pane_row_value(prow, value_str, sizeof(value_str));
+                if (prow->field == IFACE_PANE_FIELD_QA_LAUNCH
+                    && !get_sdl_touch_top_panel_arrows_visible())
+                {
+                    a = TERM_SLATE;
+                }
                 option_menu_format_line(buf, sizeof(buf),
                     iface_pane_row_label(prow), value_str);
             }
@@ -2911,11 +2939,28 @@ void do_cmd_pane_settings(void)
     };
     int k = 0;
     int n = PANE_SETTING_COUNT;
+    bool pane_setting_visible[PANE_SETTING_COUNT];
     bool done = false;
     bool settings_changed = false;
     int dir;
     const char* config_path = get_sdl_config_path();
     const char* config_label = (config_path && config_path[0]) ? config_path : "sil_sdl.json";
+
+    for (int i = 0; i < PANE_SETTING_COUNT; i++)
+        pane_setting_visible[i] = true;
+#if defined(__ANDROID__) || defined(SIL_IOS)
+    /* Mobile uses the full display and supports overlay panes only.  Do not
+     * offer ordinary pane/window controls whose values are fixed by the
+     * platform policy. */
+    pane_setting_visible[PANE_SETTING_ENABLE_SIDE_PANES] = false;
+    pane_setting_visible[PANE_SETTING_ENABLE_BOTTOM_PANES] = false;
+    pane_setting_visible[PANE_SETTING_FULLSCREEN] = false;
+    pane_setting_visible[PANE_SETTING_WHITE_PANE_BORDERS] = false;
+    pane_setting_visible[PANE_SETTING_HIDE_FULLSCREEN_PANES] = false;
+    pane_setting_visible[PANE_SETTING_AUX_VIEW_FONT_SIZE] = false;
+    pane_setting_visible[PANE_SETTING_VIEW_PANE_CONFIGURATION] = false;
+    pane_setting_visible[PANE_SETTING_PANE_FONT_SIZES] = false;
+#endif
 
     /* Save screen */
     screen_save();
@@ -2935,14 +2980,16 @@ void do_cmd_pane_settings(void)
         label_hint = MAX(10, row_width - 12);
 #define ADD_PANE_SETTING_ROW(CHOICE, OFFSET, ATTR, TEXT)                       \
         do {                                                                   \
-            char semantic_line[160];                                           \
             (void)(OFFSET);                                                    \
-            settings_semantic_line_from_menu_line(semantic_line,               \
-                sizeof(semantic_line), (TEXT));                                \
-            settings_semantic_add_row((CHOICE), semantic_line, (ATTR));        \
-            if ((CHOICE) < PANE_SETTING_VIEW_PANE_CONFIGURATION)               \
-                sdl_character_sheet_screen_set_last_select_row_reset(          \
-                    SETTINGS_CLICK_RESET_ROW_BASE + (CHOICE));                 \
+            if (pane_setting_visible[(CHOICE)]) {                              \
+                char semantic_line[160];                                       \
+                settings_semantic_line_from_menu_line(semantic_line,           \
+                    sizeof(semantic_line), (TEXT));                            \
+                settings_semantic_add_row((CHOICE), semantic_line, (ATTR));    \
+                if ((CHOICE) < PANE_SETTING_VIEW_PANE_CONFIGURATION)           \
+                    sdl_character_sheet_screen_set_last_select_row_reset(      \
+                        SETTINGS_CLICK_RESET_ROW_BASE + (CHOICE));             \
+            }                                                                  \
         } while (0)
 
         /* Option 0: Minimum Terminal Size */
@@ -3134,11 +3181,10 @@ void do_cmd_pane_settings(void)
             row_width);
         ADD_PANE_SETTING_ROW(PANE_SETTING_RESET_ALL, 15, a, buf);
 
-        /* Option 16: Save/Return */
+        /* Option 16: Return (changes are saved automatically on exit). */
         a = (k == PANE_SETTING_SAVE_RETURN) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_fit_text(buf, sizeof(buf),
-            settings_changed ? "Save Changes and Return"
-                             : "Return to Options Menu",
+            "Return to Options Menu",
             row_width);
         ADD_PANE_SETTING_ROW(PANE_SETTING_SAVE_RETURN, 16, a, buf);
 
@@ -3208,8 +3254,8 @@ void do_cmd_pane_settings(void)
                     "including pane layout, fonts, controls, display, and "
                     "interface options.",
                 [PANE_SETTING_SAVE_RETURN] =
-                    "Return to the Options menu. Changes here are saved to your "
-                    "SDL config on exit.",
+                    "Return to the Options menu. Changes are saved "
+                    "automatically.",
             };
             cptr d = (k >= 0 && k < PANE_SETTING_COUNT)
                 ? pane_setting_desc[k] : NULL;
@@ -3392,14 +3438,18 @@ void do_cmd_pane_settings(void)
         case '8':
         {
             /* Move up */
-            k = (n + k - 1) % n;
+            do {
+                k = (n + k - 1) % n;
+            } while (!pane_setting_visible[k]);
             break;
         }
 
         case '2':
         {
             /* Move down */
-            k = (k + 1) % n;
+            do {
+                k = (k + 1) % n;
+            } while (!pane_setting_visible[k]);
             break;
         }
 
@@ -3834,6 +3884,7 @@ static const char* pane_type_name(enum pane_type type)
     case PANE_DESCRIPTION: return "DESCRIPTION";
     case PANE_OVERLAY_MENU: return "OVERLAY_MENU";
     case PANE_COMBAT: return "COMBAT";
+    case PANE_STATUS_DEPTH: return "STATUS_DEPTH";
     default: return "UNKNOWN";
     }
 }
@@ -4063,6 +4114,7 @@ static const char* pane_type_short_name(enum pane_type type)
     case PANE_DESCRIPTION: return "DESC";
     case PANE_OVERLAY_MENU: return "MENU";
     case PANE_COMBAT: return "COM";
+    case PANE_STATUS_DEPTH: return "STAT+DEPTH";
     default: return "UNK";
     }
 }
@@ -4214,7 +4266,8 @@ static bool pane_type_is_overlay(enum pane_type type)
 {
     return (type == PANE_LEFT_PANEL) || (type == PANE_STATUS)
         || (type == PANE_DEPTH) || (type == PANE_ROLLS)
-        || (type == PANE_OVERLAY_MENU) || (type == PANE_COMBAT);
+        || (type == PANE_OVERLAY_MENU) || (type == PANE_COMBAT)
+        || (type == PANE_STATUS_DEPTH);
 }
 
 static const char* pane_type_display_name(enum pane_type type)
@@ -4228,6 +4281,7 @@ static const char* pane_type_display_name(enum pane_type type)
     case PANE_ROLLS: return "Overlay Log";
     case PANE_OVERLAY_MENU: return "Quick Access";
     case PANE_COMBAT: return "Combat";
+    case PANE_STATUS_DEPTH: return "Status & Depth";
     case PANE_LOG: return "Log";
     default: return pane_type_name(type);
     }
@@ -4251,6 +4305,17 @@ static int build_interface_pane_rows(struct iface_pane_row* rows, int max_rows,
     {
         rows[row_count].pane_cfg_index = -1;
         rows[row_count].type = PANE_MAX;
+        rows[row_count].field = IFACE_PANE_FIELD_CAMERA_CENTER_CLEARANCE;
+        markers[mark_count].setting_id = IFACE_PANE_ROW_BASE + row_count;
+        markers[mark_count].label = "Camera";
+        mark_count++;
+        row_count++;
+    }
+
+    if (row_count + 1 <= max_rows)
+    {
+        rows[row_count].pane_cfg_index = -1;
+        rows[row_count].type = PANE_MAX;
         rows[row_count].field = IFACE_PANE_FIELD_MAIN_MENU_BUTTON;
         markers[mark_count].setting_id = IFACE_PANE_ROW_BASE + row_count;
         markers[mark_count].label = "Main Menu";
@@ -4261,7 +4326,7 @@ static int build_interface_pane_rows(struct iface_pane_row* rows, int max_rows,
     for (int i = 0; i < total; i++)
     {
         enum pane_type type = (enum pane_type)get_sdl_pane_type(i);
-        enum iface_pane_field fields[6];
+        enum iface_pane_field fields[9];
         int field_count = 0;
 
         if (!pane_type_is_overlay(type))
@@ -4271,6 +4336,7 @@ static int build_interface_pane_rows(struct iface_pane_row* rows, int max_rows,
         {
             fields[field_count++] = IFACE_PANE_FIELD_LP_LAUNCH;
             fields[field_count++] = IFACE_PANE_FIELD_LP_COMPACT;
+            fields[field_count++] = IFACE_PANE_FIELD_LP_TOUCH_EDGE;
             fields[field_count++] = IFACE_PANE_FIELD_FONT;
         }
         else if (type == PANE_OVERLAY_MENU)
@@ -4280,6 +4346,8 @@ static int build_interface_pane_rows(struct iface_pane_row* rows, int max_rows,
             fields[field_count++] = IFACE_PANE_FIELD_SIZE;
             fields[field_count++] = IFACE_PANE_FIELD_COLUMNS;
             fields[field_count++] = IFACE_PANE_FIELD_ROWS;
+            fields[field_count++] = IFACE_PANE_FIELD_QA_ARROWS;
+            fields[field_count++] = IFACE_PANE_FIELD_QA_LAUNCH;
             fields[field_count++] = IFACE_PANE_FIELD_BUTTONS;
         }
         else
@@ -4287,8 +4355,10 @@ static int build_interface_pane_rows(struct iface_pane_row* rows, int max_rows,
             fields[field_count++] = IFACE_PANE_FIELD_ENABLED;
             fields[field_count++] = IFACE_PANE_FIELD_PLACEMENT;
             fields[field_count++] = IFACE_PANE_FIELD_FONT;
-            if (type == PANE_ROLLS)
+            if (type == PANE_ROLLS) {
+                fields[field_count++] = IFACE_PANE_FIELD_LOG_ROWS;
                 fields[field_count++] = IFACE_PANE_FIELD_OVERLAY_LOG_BORDER;
+            }
         }
 
         if (row_count + field_count > max_rows)
@@ -4364,14 +4434,20 @@ static cptr iface_pane_row_label(const struct iface_pane_row* row)
     case IFACE_PANE_FIELD_SIZE: return "Size";
     case IFACE_PANE_FIELD_COLUMNS: return "Columns";
     case IFACE_PANE_FIELD_ROWS: return "Rows";
+    case IFACE_PANE_FIELD_QA_ARROWS: return "Arrows";
+    case IFACE_PANE_FIELD_QA_LAUNCH: return "Launch State";
     case IFACE_PANE_FIELD_BUTTONS: return "Assignments";
     case IFACE_PANE_FIELD_LP_LAUNCH: return "Launch State";
     case IFACE_PANE_FIELD_LP_COMPACT: return "Compact Mode";
+    case IFACE_PANE_FIELD_LP_TOUCH_EDGE: return "Touch Left Edge";
+    case IFACE_PANE_FIELD_LOG_ROWS: return "Lines";
     case IFACE_PANE_FIELD_OVERLAY_LOG_BORDER: return "White Border";
     case IFACE_PANE_FIELD_DICE_LOCK: return "Lock Time";
     case IFACE_PANE_FIELD_DICE_OVERLAY: return "Result Time";
     case IFACE_PANE_FIELD_MAIN_MENU_BUTTON: return "Show Fixed Button";
     case IFACE_PANE_FIELD_POPUP_NOTIFICATION: return "Display Time";
+    case IFACE_PANE_FIELD_CAMERA_CENTER_CLEARANCE:
+        return "Recenter Distance";
     default: return "?";
     }
 }
@@ -4388,6 +4464,13 @@ static cptr iface_pane_row_description(const struct iface_pane_row* row)
             "saved separately for portrait and landscape.";
     }
 
+    if (row->field == IFACE_PANE_FIELD_CAMERA_CENTER_CLEARANCE)
+    {
+        return "Recenter the player within the relevant visible map zone "
+            "when they come within this many cells of a screen edge or any "
+            "visible overlay. The default is 5 on desktop and 3 on mobile.";
+    }
+
     if (row->field == IFACE_PANE_FIELD_PLACEMENT)
     {
         return "The number is this pane's stack order at that position. "
@@ -4395,13 +4478,57 @@ static cptr iface_pane_row_description(const struct iface_pane_row* row)
             "the other panes. Portrait and landscape are saved separately.";
     }
 
+    if (row->field == IFACE_PANE_FIELD_QA_ARROWS)
+    {
+        return "Show the Quick Access border arrow used to open and hide the "
+            "panel. With arrows off, Quick Access remains open. This is saved "
+            "separately for portrait and landscape.";
+    }
+
+    if (row->field == IFACE_PANE_FIELD_QA_LAUNCH)
+    {
+        return "Choose whether Quick Access starts open or hidden when arrows "
+            "are enabled. With arrows off, it is always open. This is saved "
+            "separately for portrait and landscape.";
+    }
+
+    if (row->field == IFACE_PANE_FIELD_BUTTONS)
+    {
+        return "Assign the Quick Access short-press and long-press actions "
+            "for the current orientation. Portrait and landscape are saved "
+            "separately.";
+    }
+
+    if (row->field == IFACE_PANE_FIELD_LP_TOUCH_EDGE)
+    {
+        return "Move the Left Panel and every left-aligned overlay to the "
+            "screen's left layout edge. This is saved separately for "
+            "portrait and landscape.";
+    }
+
+    if (row->field == IFACE_PANE_FIELD_LOG_ROWS)
+    {
+        return "Set the requested number of visible Overlay Log lines for "
+            "the current orientation. Portrait and landscape are saved "
+            "separately.";
+    }
+
     if (row->field == IFACE_PANE_FIELD_ENABLED
         || row->field == IFACE_PANE_FIELD_FONT
         || row->field == IFACE_PANE_FIELD_SIZE
         || row->field == IFACE_PANE_FIELD_COLUMNS
         || row->field == IFACE_PANE_FIELD_ROWS
+        || row->field == IFACE_PANE_FIELD_QA_ARROWS
+        || row->field == IFACE_PANE_FIELD_QA_LAUNCH
         || row->field == IFACE_PANE_FIELD_LP_LAUNCH
-        || row->field == IFACE_PANE_FIELD_LP_COMPACT)
+        || row->field == IFACE_PANE_FIELD_LP_COMPACT
+        || row->field == IFACE_PANE_FIELD_LP_TOUCH_EDGE
+        || row->field == IFACE_PANE_FIELD_LOG_ROWS
+        || row->field == IFACE_PANE_FIELD_OVERLAY_LOG_BORDER
+        || row->field == IFACE_PANE_FIELD_MAIN_MENU_BUTTON
+        || row->field == IFACE_PANE_FIELD_DICE_LOCK
+        || row->field == IFACE_PANE_FIELD_DICE_OVERLAY
+        || row->field == IFACE_PANE_FIELD_POPUP_NOTIFICATION)
     {
         return "This overlay value belongs to the current orientation's "
             "saved layout. Portrait and landscape can be configured "
@@ -4460,6 +4587,18 @@ static void iface_pane_row_value(const struct iface_pane_row* row, char* buf,
     case IFACE_PANE_FIELD_ROWS:
         strnfmt(buf, buflen, "%d", get_sdl_touch_top_panel_rows());
         break;
+    case IFACE_PANE_FIELD_QA_ARROWS:
+        SDL_strlcpy(buf, get_sdl_touch_top_panel_arrows_visible()
+            ? "on" : "off", buflen);
+        break;
+    case IFACE_PANE_FIELD_QA_LAUNCH:
+        SDL_strlcpy(buf,
+            !get_sdl_touch_top_panel_arrows_visible()
+                ? "always open"
+                : (get_sdl_touch_top_panel_default_open()
+                    ? "open" : "hidden"),
+            buflen);
+        break;
     case IFACE_PANE_FIELD_BUTTONS:
         SDL_strlcpy(buf, "open", buflen);
         break;
@@ -4472,6 +4611,13 @@ static void iface_pane_row_value(const struct iface_pane_row* row, char* buf,
             get_sdl_left_panel_compact_mode() == SDL_LEFT_PANEL_COMPACT_ROW
                 ? "row" : "column",
             buflen);
+        break;
+    case IFACE_PANE_FIELD_LP_TOUCH_EDGE:
+        SDL_strlcpy(buf, get_sdl_left_overlays_touch_screen_edge()
+            ? "on" : "off", buflen);
+        break;
+    case IFACE_PANE_FIELD_LOG_ROWS:
+        strnfmt(buf, buflen, "%d", sdl_log_pane_current_rows(PANE_ROLLS));
         break;
     case IFACE_PANE_FIELD_OVERLAY_LOG_BORDER:
         SDL_strlcpy(buf, get_sdl_show_overlay_log_border() ? "on" : "off",
@@ -4489,6 +4635,9 @@ static void iface_pane_row_value(const struct iface_pane_row* row, char* buf,
         break;
     case IFACE_PANE_FIELD_POPUP_NOTIFICATION:
         iface_format_ms_value(buf, buflen, get_sdl_popup_notification_ms());
+        break;
+    case IFACE_PANE_FIELD_CAMERA_CENTER_CLEARANCE:
+        strnfmt(buf, buflen, "%d", get_sdl_camera_center_clearance());
         break;
     default:
         SDL_strlcpy(buf, "", buflen);
@@ -4525,6 +4674,8 @@ static bool iface_pane_pick_from_choices(const struct iface_pane_row* row,
 
     if (row->field == IFACE_PANE_FIELD_MAIN_MENU_BUTTON)
         group = "Main Menu";
+    else if (row->field == IFACE_PANE_FIELD_CAMERA_CENTER_CLEARANCE)
+        group = "Camera";
     else if (row->field == IFACE_PANE_FIELD_POPUP_NOTIFICATION)
         group = "Popup Notifications";
     else if (row->type == PANE_MAX)
@@ -4550,6 +4701,10 @@ static bool iface_pane_row_pick_value(const struct iface_pane_row* row,
     static const struct settings_value_choice off_on_choices[] = {
         { 0, "off" },
         { 1, "on" }
+    };
+    static const struct settings_value_choice hidden_open_choices[] = {
+        { 0, "hidden" },
+        { 1, "open" }
     };
     static const struct settings_value_choice compact_full_choices[] = {
         { 0, "compact" },
@@ -4691,6 +4846,33 @@ static bool iface_pane_row_pick_value(const struct iface_pane_row* row,
         break;
     }
 
+    case IFACE_PANE_FIELD_QA_ARROWS:
+        value = get_sdl_touch_top_panel_arrows_visible() ? 1 : 0;
+        if (iface_pane_pick_from_choices(row, off_on_choices,
+                (int)N_ELEMENTS(off_on_choices), value, &value, handled)
+            && value != (get_sdl_touch_top_panel_arrows_visible() ? 1 : 0))
+        {
+            set_sdl_touch_top_panel_arrows_visible(value != 0);
+            changed = true;
+        }
+        break;
+
+    case IFACE_PANE_FIELD_QA_LAUNCH:
+        if (!get_sdl_touch_top_panel_arrows_visible()) {
+            if (handled)
+                *handled = true;
+            break;
+        }
+        value = get_sdl_touch_top_panel_default_open() ? 1 : 0;
+        if (iface_pane_pick_from_choices(row, hidden_open_choices,
+                (int)N_ELEMENTS(hidden_open_choices), value, &value, handled)
+            && value != (get_sdl_touch_top_panel_default_open() ? 1 : 0))
+        {
+            set_sdl_touch_top_panel_default_open(value != 0);
+            changed = true;
+        }
+        break;
+
     case IFACE_PANE_FIELD_BUTTONS:
         return false;
 
@@ -4716,6 +4898,42 @@ static bool iface_pane_row_pick_value(const struct iface_pane_row* row,
         }
         break;
 
+    case IFACE_PANE_FIELD_LP_TOUCH_EDGE:
+        value = get_sdl_left_overlays_touch_screen_edge() ? 1 : 0;
+        if (iface_pane_pick_from_choices(row, off_on_choices,
+                (int)N_ELEMENTS(off_on_choices), value, &value, handled)
+            && value != (get_sdl_left_overlays_touch_screen_edge() ? 1 : 0))
+        {
+            set_sdl_left_overlays_touch_screen_edge(value != 0);
+            changed = true;
+        }
+        break;
+
+    case IFACE_PANE_FIELD_LOG_ROWS:
+    {
+        struct settings_value_choice choices[IFACE_OVERLAY_LOG_ROWS_MAX];
+        char labels[IFACE_OVERLAY_LOG_ROWS_MAX][8];
+        int count = 0;
+        int current = sdl_log_pane_current_rows(PANE_ROLLS);
+
+        for (int rows = IFACE_OVERLAY_LOG_ROWS_MIN;
+             rows <= IFACE_OVERLAY_LOG_ROWS_MAX; rows++)
+        {
+            strnfmt(labels[count], sizeof(labels[count]), "%d", rows);
+            choices[count].value = rows;
+            choices[count].label = labels[count];
+            count++;
+        }
+        if (iface_pane_pick_from_choices(row, choices, count, current, &value,
+                handled)
+            && value != current)
+        {
+            sdl_log_pane_set_rows(PANE_ROLLS, value);
+            changed = true;
+        }
+        break;
+    }
+
     case IFACE_PANE_FIELD_OVERLAY_LOG_BORDER:
         value = get_sdl_show_overlay_log_border() ? 1 : 0;
         if (iface_pane_pick_from_choices(row, off_on_choices,
@@ -4737,6 +4955,35 @@ static bool iface_pane_row_pick_value(const struct iface_pane_row* row,
             changed = true;
         }
         break;
+
+    case IFACE_PANE_FIELD_CAMERA_CENTER_CLEARANCE:
+    {
+        struct settings_value_choice choices[
+            SDL_CAMERA_CENTER_CLEARANCE_MAX
+            - SDL_CAMERA_CENTER_CLEARANCE_MIN + 1];
+        char labels[
+            SDL_CAMERA_CENTER_CLEARANCE_MAX
+            - SDL_CAMERA_CENTER_CLEARANCE_MIN + 1][8];
+        int count = 0;
+        int current = get_sdl_camera_center_clearance();
+
+        for (int distance = SDL_CAMERA_CENTER_CLEARANCE_MIN;
+             distance <= SDL_CAMERA_CENTER_CLEARANCE_MAX; distance++)
+        {
+            strnfmt(labels[count], sizeof(labels[count]), "%d", distance);
+            choices[count].value = distance;
+            choices[count].label = labels[count];
+            count++;
+        }
+        if (iface_pane_pick_from_choices(row, choices, count, current, &value,
+                handled)
+            && value != current)
+        {
+            set_sdl_camera_center_clearance(value);
+            changed = true;
+        }
+        break;
+    }
 
     case IFACE_PANE_FIELD_DICE_LOCK:
     case IFACE_PANE_FIELD_DICE_OVERLAY:
@@ -4894,6 +5141,33 @@ static bool iface_pane_row_adjust(const struct iface_pane_row* row, int delta)
         }
         break;
     }
+    case IFACE_PANE_FIELD_QA_ARROWS:
+    {
+        bool cur = get_sdl_touch_top_panel_arrows_visible();
+        bool next = (delta == 0) ? !cur : (delta > 0);
+        if (next != cur)
+        {
+            set_sdl_touch_top_panel_arrows_visible(next);
+            changed = true;
+        }
+        break;
+    }
+    case IFACE_PANE_FIELD_QA_LAUNCH:
+    {
+        bool cur;
+        bool next;
+
+        if (!get_sdl_touch_top_panel_arrows_visible())
+            break;
+        cur = get_sdl_touch_top_panel_default_open();
+        next = (delta == 0) ? !cur : (delta > 0);
+        if (next != cur)
+        {
+            set_sdl_touch_top_panel_default_open(next);
+            changed = true;
+        }
+        break;
+    }
     case IFACE_PANE_FIELD_BUTTONS:
         do_cmd_touch_top_widget_button_editor(&changed);
         break;
@@ -4915,6 +5189,32 @@ static bool iface_pane_row_adjust(const struct iface_pane_row* row, int delta)
                 : SDL_LEFT_PANEL_COMPACT_ROW);
         changed = true;
         break;
+    case IFACE_PANE_FIELD_LP_TOUCH_EDGE:
+    {
+        bool cur = get_sdl_left_overlays_touch_screen_edge();
+        bool next = (delta == 0) ? !cur : (delta > 0);
+
+        if (next != cur) {
+            set_sdl_left_overlays_touch_screen_edge(next);
+            changed = true;
+        }
+        break;
+    }
+    case IFACE_PANE_FIELD_LOG_ROWS:
+    {
+        int value = sdl_log_pane_current_rows(PANE_ROLLS);
+        int next = value + ((delta < 0) ? -1 : 1);
+
+        if (next < IFACE_OVERLAY_LOG_ROWS_MIN)
+            next = IFACE_OVERLAY_LOG_ROWS_MIN;
+        if (next > IFACE_OVERLAY_LOG_ROWS_MAX)
+            next = IFACE_OVERLAY_LOG_ROWS_MAX;
+        if (next != value) {
+            sdl_log_pane_set_rows(PANE_ROLLS, next);
+            changed = true;
+        }
+        break;
+    }
     case IFACE_PANE_FIELD_OVERLAY_LOG_BORDER:
     {
         bool cur = get_sdl_show_overlay_log_border();
@@ -4935,6 +5235,15 @@ static bool iface_pane_row_adjust(const struct iface_pane_row* row, int delta)
             set_sdl_show_main_menu_button(next);
             changed = true;
         }
+        break;
+    }
+    case IFACE_PANE_FIELD_CAMERA_CENTER_CLEARANCE:
+    {
+        int value = get_sdl_camera_center_clearance();
+        int next = value + ((delta < 0) ? -1 : 1);
+
+        set_sdl_camera_center_clearance(next);
+        changed = (get_sdl_camera_center_clearance() != value);
         break;
     }
     case IFACE_PANE_FIELD_DICE_LOCK:
@@ -5061,6 +5370,26 @@ static bool iface_pane_row_reset_to_default(const struct iface_pane_row* row)
         }
         break;
     }
+    case IFACE_PANE_FIELD_QA_ARROWS:
+    {
+        bool d = get_sdl_touch_top_panel_arrows_default_visible();
+        if (get_sdl_touch_top_panel_arrows_visible() != d)
+        {
+            set_sdl_touch_top_panel_arrows_visible(d);
+            changed = true;
+        }
+        break;
+    }
+    case IFACE_PANE_FIELD_QA_LAUNCH:
+    {
+        bool d = get_sdl_touch_top_panel_default_open_default();
+        if (get_sdl_touch_top_panel_default_open() != d)
+        {
+            set_sdl_touch_top_panel_default_open(d);
+            changed = true;
+        }
+        break;
+    }
     case IFACE_PANE_FIELD_LP_LAUNCH:
         if (get_sdl_left_panel_expanded_on_launch()
             != def.left_panel_expanded_on_launch)
@@ -5077,10 +5406,32 @@ static bool iface_pane_row_reset_to_default(const struct iface_pane_row* row)
             changed = true;
         }
         break;
-    case IFACE_PANE_FIELD_OVERLAY_LOG_BORDER:
-        if (get_sdl_show_overlay_log_border() != def.show_overlay_log_border)
+    case IFACE_PANE_FIELD_LP_TOUCH_EDGE:
+        if (get_sdl_left_overlays_touch_screen_edge()
+            != def.left_overlays_touch_screen_edge)
         {
-            set_sdl_show_overlay_log_border(def.show_overlay_log_border);
+            set_sdl_left_overlays_touch_screen_edge(
+                def.left_overlays_touch_screen_edge);
+            changed = true;
+        }
+        break;
+    case IFACE_PANE_FIELD_LOG_ROWS:
+    {
+        int d = get_sdl_pane_default_rows(idx);
+
+        if (sdl_log_pane_current_rows(PANE_ROLLS) != d) {
+            sdl_log_pane_set_rows(PANE_ROLLS, d);
+            changed = true;
+        }
+        break;
+    }
+    case IFACE_PANE_FIELD_OVERLAY_LOG_BORDER:
+        if (get_sdl_show_overlay_log_border()
+            != (get_sdl_mobile_portrait_mode()
+                ? false : def.show_overlay_log_border))
+        {
+            set_sdl_show_overlay_log_border(get_sdl_mobile_portrait_mode()
+                ? false : def.show_overlay_log_border);
             changed = true;
         }
         break;
@@ -5109,6 +5460,14 @@ static bool iface_pane_row_reset_to_default(const struct iface_pane_row* row)
         if (get_sdl_popup_notification_ms() != def.popup_notification_ms)
         {
             set_sdl_popup_notification_ms(def.popup_notification_ms);
+            changed = true;
+        }
+        break;
+    case IFACE_PANE_FIELD_CAMERA_CENTER_CLEARANCE:
+        if (get_sdl_camera_center_clearance()
+            != def.camera_center_clearance)
+        {
+            set_sdl_camera_center_clearance(def.camera_center_clearance);
             changed = true;
         }
         break;
@@ -5722,10 +6081,6 @@ enum {
     TOUCH_CONTROL_PANE_KEY_LABELS,
     TOUCH_CONTROL_PANE_INVENTORY_EQUIPMENT_CYCLE,
     TOUCH_CONTROL_PANE_PLACEMENT,
-    TOUCH_CONTROL_TOP_WIDGET_SIZE,
-    TOUCH_CONTROL_TOP_WIDGET_COLUMNS,
-    TOUCH_CONTROL_TOP_WIDGET_ROWS,
-    TOUCH_CONTROL_TOP_WIDGET_DEFAULT_OPEN,
     TOUCH_CONTROL_MENU_INVENTORY_EQUIPMENT,
     TOUCH_CONTROL_MENU_SUPPLY,
     TOUCH_CONTROL_MENU_OTHER,
@@ -6480,14 +6835,6 @@ static const char* touch_control_row_name(int row)
         return "Inv/Equip Pane Cycle";
     case TOUCH_CONTROL_PANE_PLACEMENT:
         return "Touch Pane Side";
-    case TOUCH_CONTROL_TOP_WIDGET_SIZE:
-        return "Quick Access Size";
-    case TOUCH_CONTROL_TOP_WIDGET_COLUMNS:
-        return "Quick Access Columns";
-    case TOUCH_CONTROL_TOP_WIDGET_ROWS:
-        return "Quick Access Rows";
-    case TOUCH_CONTROL_TOP_WIDGET_DEFAULT_OPEN:
-        return "Quick Access Starts";
     case TOUCH_CONTROL_MENU_INVENTORY_EQUIPMENT:
         return "Inventory/Equipped Touch";
     case TOUCH_CONTROL_MENU_SUPPLY:
@@ -6632,12 +6979,6 @@ static void touch_control_reset_to_default(void)
     set_sdl_touch_pane_inventory_equipment_cycle(
         get_sdl_touch_pane_inventory_equipment_default_cycle());
     set_sdl_touch_pane_placement(SDL_TOUCH_PANE_PLACEMENT_RIGHT);
-    set_sdl_touch_top_panel_size(get_sdl_touch_top_panel_default_size());
-    set_sdl_touch_top_panel_cell_count(
-        get_sdl_touch_top_panel_default_cell_count());
-    set_sdl_touch_top_panel_rows(get_sdl_touch_top_panel_default_rows());
-    set_sdl_touch_top_panel_default_open(
-        get_sdl_touch_top_panel_default_open_default());
     for (int i = 0; i < SDL_TOUCH_MENU_CATEGORY_COUNT; i++) {
         set_sdl_touch_menu_commands_enabled(i,
             get_sdl_touch_menu_commands_default_enabled(i));
@@ -6758,6 +7099,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             char left_buf[64];
             char line_buf[128];
             byte a = (i == highlight) ? TERM_L_BLUE : TERM_WHITE;
+
             int button_index = touch_pane_row_button_index(i);
 
             if (button_index < 0)
@@ -8009,19 +8351,6 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                 SDL_strlcpy(action_buf,
                     touch_pane_placement_label(get_sdl_touch_pane_placement()),
                     sizeof(action_buf));
-            } else if (i == TOUCH_CONTROL_TOP_WIDGET_SIZE) {
-                touch_top_widget_format_size(action_buf, sizeof(action_buf),
-                    get_sdl_touch_top_panel_size());
-            } else if (i == TOUCH_CONTROL_TOP_WIDGET_COLUMNS) {
-                strnfmt(action_buf, sizeof(action_buf), "%d",
-                    get_sdl_touch_top_panel_columns());
-            } else if (i == TOUCH_CONTROL_TOP_WIDGET_ROWS) {
-                strnfmt(action_buf, sizeof(action_buf), "%d",
-                    get_sdl_touch_top_panel_rows());
-            } else if (i == TOUCH_CONTROL_TOP_WIDGET_DEFAULT_OPEN) {
-                SDL_strlcpy(action_buf,
-                    get_sdl_touch_top_panel_default_open() ? "Open" : "Hidden",
-                    sizeof(action_buf));
             } else if (touch_control_is_menu_command_row(i)) {
                 SDL_strlcpy(action_buf,
                     get_sdl_touch_menu_commands_enabled(
@@ -8173,23 +8502,6 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             } else if (highlight == TOUCH_CONTROL_PANE_PLACEMENT) {
                 set_sdl_touch_pane_placement(SDL_TOUCH_PANE_PLACEMENT_LEFT);
                 sdl_apply_config();
-            } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_SIZE) {
-                float size = get_sdl_touch_top_panel_size();
-                if (size == SDL_TOUCH_TOP_PANEL_SIZE_STRETCH)
-                    size = SDL_TOUCH_TOP_PANEL_SIZE_MAX;
-                else if (size <= SDL_TOUCH_TOP_PANEL_SIZE_MIN)
-                    size = SDL_TOUCH_TOP_PANEL_SIZE_STRETCH;
-                else
-                    size -= SDL_TOUCH_TOP_PANEL_SIZE_STEP;
-                set_sdl_touch_top_panel_size(size);
-            } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_COLUMNS) {
-                set_sdl_touch_top_panel_columns(
-                    get_sdl_touch_top_panel_columns() - 1);
-            } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_ROWS) {
-                set_sdl_touch_top_panel_rows(
-                    get_sdl_touch_top_panel_rows() - 1);
-            } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_DEFAULT_OPEN) {
-                set_sdl_touch_top_panel_default_open(false);
             } else if (touch_control_is_menu_command_row(highlight)) {
                 set_sdl_touch_menu_commands_enabled(
                     touch_control_menu_category_for_row(highlight), false);
@@ -8245,29 +8557,6 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                         ? SDL_TOUCH_PANE_PLACEMENT_RIGHT
                         : SDL_TOUCH_PANE_PLACEMENT_LEFT);
                 sdl_apply_config();
-            } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_SIZE) {
-                if (ch == ' ' || ch == 't' || ch == '5')
-                    changed |= touch_top_widget_pick_size();
-                else {
-                    float size = get_sdl_touch_top_panel_size();
-
-                    if (size == SDL_TOUCH_TOP_PANEL_SIZE_STRETCH)
-                        size = SDL_TOUCH_TOP_PANEL_SIZE_MIN;
-                    else if (size >= SDL_TOUCH_TOP_PANEL_SIZE_MAX)
-                        size = SDL_TOUCH_TOP_PANEL_SIZE_STRETCH;
-                    else
-                        size += SDL_TOUCH_TOP_PANEL_SIZE_STEP;
-                    set_sdl_touch_top_panel_size(size);
-                }
-            } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_COLUMNS) {
-                set_sdl_touch_top_panel_columns(
-                    get_sdl_touch_top_panel_columns() + 1);
-            } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_ROWS) {
-                set_sdl_touch_top_panel_rows(
-                    get_sdl_touch_top_panel_rows() + 1);
-            } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_DEFAULT_OPEN) {
-                set_sdl_touch_top_panel_default_open(
-                    !get_sdl_touch_top_panel_default_open());
             } else if (touch_control_is_menu_command_row(highlight)) {
                 int category = touch_control_menu_category_for_row(highlight);
 
@@ -8315,18 +8604,6 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             } else if (highlight == TOUCH_CONTROL_PANE_PLACEMENT) {
                 set_sdl_touch_pane_placement(SDL_TOUCH_PANE_PLACEMENT_RIGHT);
                 sdl_apply_config();
-            } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_SIZE) {
-                set_sdl_touch_top_panel_size(
-                    get_sdl_touch_top_panel_default_size());
-            } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_COLUMNS) {
-                set_sdl_touch_top_panel_columns(
-                    get_sdl_touch_top_panel_default_columns());
-            } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_ROWS) {
-                set_sdl_touch_top_panel_rows(
-                    get_sdl_touch_top_panel_default_rows());
-            } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_DEFAULT_OPEN) {
-                set_sdl_touch_top_panel_default_open(
-                    get_sdl_touch_top_panel_default_open_default());
             } else if (touch_control_is_menu_command_row(highlight)) {
                 int category = touch_control_menu_category_for_row(highlight);
 
@@ -9135,15 +9412,76 @@ static void do_cmd_keyboard_input_settings(void)
     settings_semantic_menu_hide();
 }
 
-static int input_options_menu(int* highlight)
+enum input_option_action {
+    INPUT_OPTION_NONE = 0,
+    INPUT_OPTION_KEYBOARD,
+    INPUT_OPTION_CONTROLLER,
+    INPUT_OPTION_TOUCH_TUTORIAL,
+    INPUT_OPTION_MOUSE,
+    INPUT_OPTION_WHEEL_TUTORIAL,
+    INPUT_OPTION_ZONES_TUTORIAL,
+    INPUT_OPTION_RETURN,
+};
+
+struct input_option_row {
+    enum input_option_action action;
+    char key;
+    cptr label;
+    cptr description;
+};
+
+static int input_option_rows_collect(struct input_option_row* rows,
+    int max_rows)
 {
+    int count = 0;
+
+#define ADD_INPUT_OPTION(ACTION, KEY, LABEL, DESCRIPTION)                     \
+    do {                                                                       \
+        if (count < max_rows) {                                                \
+            rows[count].action = (ACTION);                                    \
+            rows[count].key = (KEY);                                          \
+            rows[count].label = (LABEL);                                      \
+            rows[count].description = (DESCRIPTION);                          \
+            count++;                                                          \
+        }                                                                      \
+    } while (0)
+
+    if (SDL_HasKeyboard()) {
+        ADD_INPUT_OPTION(INPUT_OPTION_KEYBOARD, 'a', "Keyboard Input",
+            "Keyboard movement presets, the Angband keyset, and key "
+            "rebinding.");
+    }
+    if (SDL_HasGamepad()) {
+        ADD_INPUT_OPTION(INPUT_OPTION_CONTROLLER, 'b', "Controller Settings",
+            "Set up the connected game controller or Steam Deck: button "
+            "mapping, sticks, and deadzones.");
+    }
+    if (sdl_touch_tutorial_device_available()) {
+        ADD_INPUT_OPTION(INPUT_OPTION_TOUCH_TUTORIAL, 'c', "Touch Tutorial",
+            "Replay the touch-controls tutorial.");
+    }
+    if (SDL_HasMouse()) {
+        ADD_INPUT_OPTION(INPUT_OPTION_MOUSE, 'd', "Mouse Input",
+            "Mouse behavior, including click-to-move and pointer options.");
+    }
+    ADD_INPUT_OPTION(INPUT_OPTION_WHEEL_TUTORIAL, 'e',
+        "Character Wheel Tutorial",
+        "Replay the player action-wheel tutorial.");
+    ADD_INPUT_OPTION(INPUT_OPTION_ZONES_TUTORIAL, 'f', "Zones Tutorial",
+        "Replay the screen-zones tutorial.");
+    ADD_INPUT_OPTION(INPUT_OPTION_RETURN, 'o', "Return to Options",
+        "Return to the Options menu.");
+
+#undef ADD_INPUT_OPTION
+
+    return count;
+}
+
+static enum input_option_action input_options_menu(int* highlight)
+{
+    struct input_option_row rows[7];
+    int options = input_option_rows_collect(rows, (int)N_ELEMENTS(rows));
     int ch;
-    bool touch_available = sdl_touch_tutorial_device_available();
-    int mouse_choice = touch_available ? 4 : 3;
-    int wheel_choice = mouse_choice + 1;
-    int zones_choice = wheel_choice + 1;
-    int return_choice = zones_choice + 1;
-    int options = return_choice;
     int clicked_choice = 0;
     char line_buf[80];
     bool steamdeck = steamdeck_controls_active();
@@ -9156,47 +9494,18 @@ static int input_options_menu(int* highlight)
 
     settings_semantic_menu_begin("Input Options", *highlight);
 
-#define ADD_INPUT_MENU_ROW(CHOICE, KEY, TEXT)                                  \
-    do {                                                                       \
-        keyed_menu_entry_label(line_buf, sizeof(line_buf), (KEY), (TEXT));     \
-        settings_semantic_add_row((CHOICE), line_buf,                          \
-            (*highlight == (CHOICE)) ? TERM_L_BLUE : TERM_WHITE);              \
-    } while (0)
+    for (int i = 0; i < options; i++) {
+        int choice = i + 1;
 
-    ADD_INPUT_MENU_ROW(1, 'a', "Keyboard Input");
-    ADD_INPUT_MENU_ROW(2, 'b', "Controller Settings");
-    if (touch_available)
-        ADD_INPUT_MENU_ROW(3, 'c', "Touch Tutorial");
-    ADD_INPUT_MENU_ROW(mouse_choice, 'd', "Mouse Input");
-    ADD_INPUT_MENU_ROW(wheel_choice, 'e', "Character Wheel Tutorial");
-    ADD_INPUT_MENU_ROW(zones_choice, 'f', "Zones Tutorial");
-    ADD_INPUT_MENU_ROW(return_choice, 'o', "Return to Options");
-
-#undef ADD_INPUT_MENU_ROW
-
-    {
-        int h = *highlight;
-        cptr d = "";
-
-        if (h == 1)
-            d = "Keyboard movement presets, the Angband keyset, and key "
-                "rebinding.";
-        else if (h == 2)
-            d = "Set up a game controller or Steam Deck: button mapping, "
-                "sticks, and deadzones.";
-        else if (touch_available && h == 3)
-            d = "Replay the touch-controls tutorial.";
-        else if (h == mouse_choice)
-            d = "Mouse behavior, including click-to-move and pointer options.";
-        else if (h == wheel_choice)
-            d = "Replay the player action-wheel tutorial.";
-        else if (h == zones_choice)
-            d = "Replay the screen-zones tutorial.";
-        else if (h == return_choice)
-            d = "Return to the Options menu.";
-        sdl_character_sheet_screen_set_select_description(d);
-        sdl_character_sheet_screen_commit_select(*highlight);
+        keyed_menu_entry_label(line_buf, sizeof(line_buf), rows[i].key,
+            rows[i].label);
+        settings_semantic_add_row(choice, line_buf,
+            (*highlight == choice) ? TERM_L_BLUE : TERM_WHITE);
     }
+
+    sdl_character_sheet_screen_set_select_description(
+        rows[*highlight - 1].description);
+    sdl_character_sheet_screen_commit_select(*highlight);
 
     hide_cursor = true;
     ch = inkey();
@@ -9208,117 +9517,83 @@ static int input_options_menu(int* highlight)
         if (ui_menu_click_take_action(&clicked_choice, &click_action))
         {
             if (click_action == UI_MENU_CLICK_HOVER && clicked_choice < 0)
-                return (0);
-            if (clicked_choice == -1)
-                clicked_choice = return_choice;
+                return INPUT_OPTION_NONE;
+            if (clicked_choice == -1
+                || clicked_choice == SETTINGS_CLICK_RETURN)
+            {
+                clicked_choice = options;
+            }
             else if (clicked_choice == -2)
                 clicked_choice = *highlight;
-            if (clicked_choice == SETTINGS_CLICK_RETURN)
-                clicked_choice = return_choice;
             if (clicked_choice < 1 || clicked_choice > options)
-                return (0);
+                return INPUT_OPTION_NONE;
             *highlight = clicked_choice;
             if (click_action == UI_MENU_CLICK_HOVER)
-                return (0);
-            return (*highlight);
+                return INPUT_OPTION_NONE;
+            return rows[*highlight - 1].action;
         }
     }
 
     ch = settings_menu_key(ch, '8', '2', false);
 
-    if (menu_letters && ((ch == 'a') || (ch == 'A')))
-    {
-        *highlight = 1;
-        return (1);
+    if (menu_letters) {
+        for (int i = 0; i < options; i++) {
+            if (tolower((unsigned char)ch)
+                == tolower((unsigned char)rows[i].key))
+            {
+                *highlight = i + 1;
+                return rows[i].action;
+            }
+        }
     }
 
-    if (menu_letters && ((ch == 'b') || (ch == 'B')))
+    if ((menu_letters && (ch == 'q' || ch == 'Q'))
+        || ch == ESCAPE || (steamdeck && ch == steamdeck_back_key()))
     {
-        *highlight = 2;
-        return (2);
+        *highlight = options;
+        return INPUT_OPTION_RETURN;
     }
 
-    if (touch_available && menu_letters && ((ch == 'c') || (ch == 'C')))
-    {
-        *highlight = 3;
-        return (3);
-    }
-
-    if (menu_letters && ((ch == 'd') || (ch == 'D')))
-    {
-        *highlight = mouse_choice;
-        return (mouse_choice);
-    }
-
-    if (menu_letters && ((ch == 'e') || (ch == 'E')))
-    {
-        *highlight = wheel_choice;
-        return (wheel_choice);
-    }
-
-    if (menu_letters && ((ch == 'f') || (ch == 'F')))
-    {
-        *highlight = zones_choice;
-        return (zones_choice);
-    }
-
-    if ((menu_letters && ((ch == 'o') || (ch == 'O') || (ch == 'q')))
-        || (ch == ESCAPE) || (steamdeck && ch == steamdeck_back_key()))
-    {
-        *highlight = return_choice;
-        return (return_choice);
-    }
-
-    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+    if (ch == '\r' || ch == '\n' || ch == ' ' || ch == '6'
         || (steamdeck && ch == steamdeck_confirm_key()))
     {
-        return (*highlight);
+        return rows[*highlight - 1].action;
     }
 
     if (ch == '8')
-    {
         *highlight = (*highlight + (options - 2)) % options + 1;
-    }
 
     if (ch == '2')
-    {
         *highlight = *highlight % options + 1;
-    }
 
-    return (0);
+    return INPUT_OPTION_NONE;
 }
 
 static void do_cmd_input_options_submenu(int* highlight)
 {
-    int choice = 0;
+    enum input_option_action choice = INPUT_OPTION_NONE;
     bool return_to_options = false;
 
     Term_clear();
 
     while (!return_to_options)
     {
-        bool touch_available = sdl_touch_tutorial_device_available();
-        int mouse_choice = touch_available ? 4 : 3;
-        int wheel_choice = mouse_choice + 1;
-        int zones_choice = wheel_choice + 1;
-        int return_choice = zones_choice + 1;
-
         choice = input_options_menu(highlight);
         settings_semantic_menu_hide();
 
-        if (choice == wheel_choice) {
+        if (choice == INPUT_OPTION_WHEEL_TUTORIAL) {
             sdl_character_wheel_request_tutorial_from_settings();
             return_to_options = true;
             Term_clear();
             continue;
         }
-        if (choice == zones_choice) {
+        if (choice == INPUT_OPTION_ZONES_TUTORIAL) {
             sdl_zones_request_tutorial_from_settings();
             return_to_options = true;
             Term_clear();
             continue;
         }
-        if (choice == return_choice) {
+        if (choice == INPUT_OPTION_RETURN) {
             return_to_options = true;
             Term_clear();
             continue;
@@ -9326,38 +9601,30 @@ static void do_cmd_input_options_submenu(int* highlight)
 
         switch (choice)
         {
-        case 1:
+        case INPUT_OPTION_KEYBOARD:
             settings_semantic_menu_hide();
             do_cmd_keyboard_input_settings();
             Term_clear();
             break;
-        case 2:
+        case INPUT_OPTION_CONTROLLER:
             settings_semantic_menu_hide();
             do_cmd_controller_settings();
             Term_clear();
             break;
-        case 3:
+        case INPUT_OPTION_TOUCH_TUTORIAL:
             settings_semantic_menu_hide();
-            if (touch_available) {
-                sdl_touch_request_tutorial_from_settings();
-                return_to_options = true;
-            } else {
-                do_cmd_mouse_settings(NULL);
-                if (sdl_mouse_settings_tutorial_requested())
-                    return_to_options = true;
-            }
+            sdl_touch_request_tutorial_from_settings();
+            return_to_options = true;
             Term_clear();
             break;
-        case 4:
+        case INPUT_OPTION_MOUSE:
             settings_semantic_menu_hide();
-            if (touch_available) {
-                do_cmd_mouse_settings(NULL);
-                if (sdl_mouse_settings_tutorial_requested())
-                    return_to_options = true;
-            } else {
+            do_cmd_mouse_settings(NULL);
+            if (sdl_mouse_settings_tutorial_requested())
                 return_to_options = true;
-            }
             Term_clear();
+            break;
+        default:
             break;
         }
     }

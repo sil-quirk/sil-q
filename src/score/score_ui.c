@@ -129,7 +129,6 @@ static bool run_history_is_current(const run_history_entry* entry)
 
 static high_score forced_highlight_entry;
 static bool forced_highlight_active = false;
-static bool force_interactive_scores = false;
 static bool score_last_layout_short = false;
 
 static void score_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
@@ -631,262 +630,6 @@ static void run_detail_text_view_blank(run_detail_text_view* view)
         return;
     view->logical_row++;
 }
-extern void display_single_score(
-    byte attr, int row, int col, int place, int fake, high_score* the_score)
-{
-    int ph;
-    int aged, depth;
-
-    cptr user, when;
-
-    char out_val[160];
-    char tmp_val[160];
-
-    char aged_commas[15];
-    char depth_commas[15];
-
-    /* Extract the race/character */
-    ph = atoi(the_score->p_h);
-
-    /* Hack -- extract the turns and such */
-    for (user = the_score->uid; isspace((unsigned char)*user);
-         user++) /* loop */
-        ;
-    for (when = the_score->day; isspace((unsigned char)*when);
-         when++) /* loop */
-        ;
-
-    aged = atoi(the_score->turns);
-    depth = atoi(the_score->cur_dun) * 50;
-
-    comma_number(aged_commas, aged);
-    comma_number(depth_commas, depth);
-
-    /* Clean up standard encoded form of "when" */
-    if ((*when == '@') && strlen(when) == 9)
-    {
-        char month[4];
-
-        sprintf(month, "%.2s", when + 5);
-        atomonth(atoi(month), month);
-
-        if (*(when + 7) == '0')
-            sprintf(tmp_val, "%.1s %.3s %.4s", when + 8, month, when + 1);
-        else
-            sprintf(tmp_val, "%.2s %.3s %.4s", when + 7, month, when + 1);
-
-        when = tmp_val;
-    }
-
-    /* if not displayed in a place, then don't write the place number */
-    /* show the score as human-readable commas, e.g. "123 456"            */
-    char score_commas[16];
-    int calculated_score = score_points(the_score);
-    
-    log_debug("display_single_score: '%s' calculated_score=%d", the_score->who, calculated_score);
-    log_debug("  pts field raw: '%.*s'", (int)sizeof(the_score->pts), the_score->pts);
-
-    const score_file_ctx* active_ctx = score_file_active_ctx();
-    byte ver_major = active_ctx ? active_ctx->version_major : 0;
-    byte ver_minor = active_ctx ? active_ctx->version_minor : 0;
-    byte ver_patch = active_ctx ? active_ctx->version_patch : 0;
-    byte ver_extra = active_ctx ? active_ctx->version_extra : 0;
-
-    log_debug("  version: %d.%d.%d.%d (has_curses=%s)",
-              ver_major, ver_minor, ver_patch, ver_extra,
-              scores_version_has_curses(score_file_global_ctx()) ? "yes" : "no");
-    
-    comma_number(score_commas, calculated_score);
-
-    /* Build curse/blessing text if applicable */
-    char curse_text[32] = "";
-    byte curse_color = TERM_WHITE;
-    if (scores_version_has_curses(score_file_global_ctx()))
-    {
-        int curses = parse_score_int(the_score->pts, sizeof(the_score->pts), 0);
-        log_debug("display_single_score: Building curse display for '%s', curses=%d", the_score->who, curses);
-        
-        if (curses > 0)
-        {
-            strnfmt(curse_text, sizeof(curse_text), " (%d curse%s)", curses, (curses == 1) ? "" : "s");
-            curse_color = TERM_L_RED;
-            log_debug("  curse_text='%s', color=%d", curse_text, curse_color);
-        }
-        else if (curses < 0)
-        {
-            strnfmt(curse_text, sizeof(curse_text), " (%d blessing%s)", -curses, (curses == -1) ? "" : "s");
-            curse_color = TERM_L_GREEN;
-            log_debug("  curse_text='%s', color=%d", curse_text, curse_color);
-        }
-        else
-        {
-            log_debug("  curses=0, not displaying");
-        }
-    }
-
-    /* Build a fixed-width prefix so the name column is aligned for all entries */
-    {
-        char prefix[32];
-        if (the_score->escaped[0] == 't')
-        {
-            if (place == 0)
-                strnfmt(prefix, sizeof(prefix), "     escaped  ");
-            else
-                strnfmt(prefix, sizeof(prefix), "%3d. escaped  ", place);
-        }
-        else
-        {
-            if (place == 0)
-                strnfmt(prefix, sizeof(prefix), "     %5s ft  ", depth_commas);
-            else
-                strnfmt(prefix, sizeof(prefix), "%3d. %5s ft  ", place, depth_commas);
-        }
-
-        /* Pad the prefix to a fixed width (15 chars) to guarantee the name column */
-        while ((int)strlen(prefix) < 15)
-        {
-            SDL_strlcat(prefix, " ", sizeof(prefix));
-        }
-        /* Truncate if somehow longer */
-        prefix[15] = '\0';
-
-        /* Now build the line with the fixed prefix */
-        strnfmt(out_val, sizeof(out_val), "%s%s%s  [%s pts]",
-                prefix, the_score->who, c_name + c_info[ph].alt_name, score_commas);
-    }
-
-    /* Add curse text to string (we'll display it in color later by finding it) */
-    size_t pre_curse_len = strlen(out_val);
-    if (curse_text[0] != '\0')
-    {
-        SDL_strlcat(out_val, curse_text, sizeof(out_val));
-    }
-
-    /* Possibly ammend the first line */
-    if (the_score->morgoth_slain[0] == 't')
-    {
-        SDL_strlcat(out_val, ", hailed as the Slayer of Morgoth's shadow",
-            sizeof(out_val));
-    }
-    else
-    {
-        if (the_score->silmarils[0] == '1')
-        {
-            SDL_strlcat(out_val, ", who freed a Silmaril", sizeof(out_val));
-        }
-        if (the_score->silmarils[0] == '2')
-        {
-            SDL_strlcat(out_val, ", who freed two Silmarils", sizeof(out_val));
-        }
-        if (the_score->silmarils[0] == '3')
-        {
-            SDL_strlcat(
-                out_val, ", who freed all three Silmarils", sizeof(out_val));
-        }
-        if (the_score->silmarils[0] > '3')
-        {
-            SDL_strlcat(out_val, ", who freed suspiciously many Silmarils",
-                sizeof(out_val));
-        }
-    }
-
-    /* Dump the first line */
-    c_put_str(attr, out_val, row + 3, col);
-
-    /* Overlay curse/blessing count in color at the position we added it */
-    if (curse_text[0] != '\0')
-    {
-        int curse_col = col + pre_curse_len;
-        log_debug("  Displaying curse_text='%s' at row=%d, col=%d", 
-                  curse_text, row + 3, curse_col);
-        c_put_str(curse_color, curse_text, row + 3, curse_col);
-    }
-    else
-    {
-        log_debug("  curse_text is empty, not displaying");
-    }
-
-    /* Prepare the second line for escapees */
-    if (the_score->escaped[0] == 't')
-    {
-        strnfmt(
-            out_val, sizeof(out_val), "               Escaped the iron hells");
-
-        if ((the_score->morgoth_slain[0] == 't')
-            || (the_score->silmarils[0] > '0'))
-        {
-            SDL_strlcat(out_val, " and brought back the light of Valinor",
-                sizeof(out_val));
-        }
-        else
-        {
-            SDL_strlcat(out_val, " empty-handed", sizeof(out_val));
-        }
-    }
-
-    /* "Alive" entry: either the synthetic/fake score or a real one whose
-       cause-of-death text is literally "(alive and well)"                */
-    else if (fake || streq(the_score->how, "(alive and well)"))
-    {
-        strnfmt(out_val, sizeof(out_val),
-            "               Lives still, deep within Angband's vaults");
-    }
-
-    /* Prepare the second line for those slain */
-    else if (the_score->morgoth_slain[0] == 't')
-    {
-        strnfmt(out_val, sizeof(out_val),
-            "               Victorious over Morgoth's illusion (%s)",
-            the_score->how);
-    }
-    else
-    {
-        strnfmt(out_val, sizeof(out_val), "               Slain by %s",
-            the_score->how);
-
-        /* Mark those with a silmaril */
-        if (the_score->silmarils[0] > '0')
-        {
-            SDL_strlcat(out_val, " during a daring escape", sizeof(out_val));
-        }
-    }
-
-    /* Dump the info */
-    c_put_str(attr, out_val, row + 4, col);
-
-    /* Don't print date for living characters */
-    if (fake)
-    {
-        strnfmt(out_val, sizeof(out_val), "               after %s turns.",
-            aged_commas);
-        c_put_str(attr, out_val, row + 5, col);
-    }
-    else
-    {
-        strnfmt(out_val, sizeof(out_val),
-            "               after %s turns.  (%s)", aged_commas, when);
-        c_put_str(attr, out_val, row + 5, col);
-    }
-
-    /* Print symbols for silmarils / slaying Morgoth */
-    if (the_score->silmarils[0] == '1')
-    {
-        c_put_str(attr, "         *", row + 5, col);
-    }
-    if (the_score->silmarils[0] == '2')
-    {
-        c_put_str(attr, "        * *", row + 5, col);
-    }
-    if (the_score->silmarils[0] > '2')
-    {
-        c_put_str(attr, "       * * *", row + 5, col);
-    }
-    if (the_score->morgoth_slain[0] == 't')
-    {
-        c_put_str(TERM_L_DARK, "         V", row + 4, col);
-    }
-}
-
 static void score_ui_halls_date(const high_score* entry, char* out,
     size_t out_len)
 {
@@ -1029,7 +772,7 @@ static char display_scores_pages(const high_score* entries, int count,
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_outside_cancel_enabled(true);
-        (void)sdl_halls_screen_begin(
+        sdl_halls_screen_begin(
             "Here are remembered the fates of those who entered Angband.",
             "No memorials have yet been inscribed.", false,
             SCORE_CLICK_EXIT);
@@ -1117,7 +860,7 @@ static char display_scores_pages(const high_score* entries, int count,
                 "%s  |  %s memorials  |  page %d of %d",
                 score_view_order_label(order), detailed ? "full" : "brief",
                 page + 1, total_pages);
-            (void)sdl_halls_screen_begin(
+            sdl_halls_screen_begin(
                 "Here are remembered the fates of those who entered Angband.",
                 page_status, detailed, SCORE_CLICK_EXIT);
         }
@@ -1314,24 +1057,11 @@ static char display_scores_pages(const high_score* entries, int count,
 
     return score_ui_finish_halls(0);
 }
-void display_scores(int from, int to)
+void display_scores(void)
 {
-    (void)from;
-    (void)to;
-
     log_info("Displaying high scores with interactive controls");
-    show_scores_interactive(true);
+    show_scores_interactive();
     quit(NULL);
-}
-void display_scores_short(int from, int to)
-{
-    (void)from;
-    (void)to;
-
-    bool previous_layout = score_last_layout_short;
-    score_last_layout_short = true;
-    show_scores_interactive(true);
-    score_last_layout_short = previous_layout;
 }
 static bool ensure_entry_visible(high_score* entries, int* count, int capacity,
                                  const high_score* target, bool sort_by_score, int* highlight_index)
@@ -1403,17 +1133,12 @@ static bool ensure_entry_visible(high_score* entries, int* count, int capacity,
 
     return idx >= 0;
 }
-void show_scores(bool longscore)
+static void show_scores(void)
 {
     bool finalized = score_ui_character_finalized();
-    bool preview_allowed = (!force_interactive_scores
-        && !forced_highlight_active && character_generated && !finalized);
-    log_info("show_scores: longscore=%d force_interactive=%d generated=%d dead=%d preview=%d",
-             longscore ? 1 : 0,
-             force_interactive_scores ? 1 : 0,
+    log_info("show_scores: generated=%d dead=%d",
              character_generated ? 1 : 0,
-             finalized ? 1 : 0,
-             preview_allowed ? 1 : 0);
+             finalized ? 1 : 0);
 
     sdl_suspend_main_view_zoom_for_saved_screen();
 
@@ -1543,15 +1268,11 @@ void show_scores(bool longscore)
     forced_highlight_active = false;
     score_last_layout_short = !detailed;
 }
-void show_scores_interactive(bool longscore)
+void show_scores_interactive(void)
 {
-    bool previous = force_interactive_scores;
-    force_interactive_scores = true;
-    log_debug("show_scores_interactive: forcing interactive display (longscore=%d)", longscore ? 1 : 0);
-    show_scores(longscore);
-    force_interactive_scores = previous;
+    show_scores();
 }
-void show_scores_interactive_highlight(bool longscore, const high_score* entry)
+void show_scores_interactive_highlight(const high_score* entry)
 {
     high_score saved_entry;
     bool had_forced = forced_highlight_active;
@@ -1563,7 +1284,7 @@ void show_scores_interactive_highlight(bool longscore, const high_score* entry)
         forced_highlight_active = false;
     }
 
-    show_scores_interactive(longscore);
+    show_scores_interactive();
 
     if (had_forced) {
         forced_highlight_entry = saved_entry;
@@ -1573,12 +1294,11 @@ void show_scores_interactive_highlight(bool longscore, const high_score* entry)
     }
 }
 
-void show_scores_interactive_highlight_from_file(bool longscore,
-                                                 const char* filepath,
+void show_scores_interactive_highlight_from_file(const char* filepath,
                                                  const high_score* entry)
 {
     if (!filepath || !filepath[0]) {
-        show_scores_interactive_highlight(longscore, entry);
+        show_scores_interactive_highlight(entry);
         return;
     }
 
@@ -1591,14 +1311,14 @@ void show_scores_interactive_highlight_from_file(bool longscore,
     if (!temp_ctx.fd) {
         log_warn("show_scores_interactive_highlight_from_file: unable to open %s",
                  filepath);
-        show_scores_interactive_highlight(longscore, entry);
+        show_scores_interactive_highlight(entry);
         return;
     }
 
     log_debug("show_scores_interactive_highlight_from_file: rendering %s",
               filepath);
     score_file_ctx* previous_ctx = score_file_set_active_ctx(&temp_ctx);
-    show_scores_interactive_highlight(longscore, entry);
+    show_scores_interactive_highlight(entry);
     score_file_set_active_ctx(previous_ctx);
 
     SDL_CloseIO(temp_ctx.fd);

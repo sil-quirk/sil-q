@@ -132,6 +132,11 @@ bool sdl_main_screen_point_over_overlay_pane(float x, float y)
     {
         return true;
     }
+    if (sdl_status_depth_pane_current_rect(&frect)
+        && sdl_point_in_frect(&frect, x, y))
+    {
+        return true;
+    }
     if (sdl_side_map_pane_current_rect(&rect)
         && sdl_point_in_rect(&rect, x, y))
     {

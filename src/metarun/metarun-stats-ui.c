@@ -712,6 +712,8 @@ static void story_book_show_sdl(bool startup_scene)
         int click_action = UI_MENU_CLICK_PRIMARY;
         int page;
         int page_count;
+        int tales_page;
+        bool tales_section;
 
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
@@ -890,7 +892,10 @@ static void story_book_show_sdl(bool startup_scene)
             continue;
         page = sdl_character_sheet_screen_select_page();
         page_count = sdl_character_sheet_screen_select_page_count();
-        if (page == STORY_BOOK_METARUNS
+        tales_page = sdl_character_sheet_screen_book_contents_page(
+            STORY_BOOK_METARUNS);
+        tales_section = tales_page >= 0 && page >= tales_page;
+        if (tales_section
             && ((key == 'n' || key == 'N')
                 || (steamdeck_controls_active()
                     && key == steamdeck_secondary_key()))
@@ -899,7 +904,7 @@ static void story_book_show_sdl(bool startup_scene)
             tale_request = STORY_BOOK_TALE_REQUEST_NEW;
             done = true;
         }
-        else if (page == STORY_BOOK_METARUNS
+        else if (tales_section
             && (key == '\r' || key == '\n')
             && metarun_tale_management_available())
         {
@@ -910,18 +915,28 @@ static void story_book_show_sdl(bool startup_scene)
             } else if (requested_tale == current_run)
                 done = true;
         }
-        else if (page == STORY_BOOK_METARUNS && metarun_max > 0
+        else if (tales_section && metarun_max > 0
             && (key == '8' || key == 'k' || key == 'K' || key == '-'))
         {
             state.selected_run = MAX(0, state.selected_run - 1);
             (void)story_book_sdl_build(startup_scene, &state, page);
         }
-        else if (page == STORY_BOOK_METARUNS && metarun_max > 0
+        else if (tales_section && metarun_max > 0
             && (key == '2' || key == 'j' || key == 'J' || key == '+'))
         {
             state.selected_run = MIN(metarun_max - 1,
                 state.selected_run + 1);
             (void)story_book_sdl_build(startup_scene, &state, page);
+        }
+        else if (!tales_section
+            && (key == '8' || key == 'k' || key == 'K' || key == '-'))
+        {
+            (void)sdl_character_sheet_screen_scroll_book(-1);
+        }
+        else if (!tales_section
+            && (key == '2' || key == 'j' || key == 'J' || key == '+'))
+        {
+            (void)sdl_character_sheet_screen_scroll_book(+1);
         }
         else if (key == ESCAPE || key == 'q' || key == 'Q')
             done = true;
@@ -936,6 +951,7 @@ static void story_book_show_sdl(bool startup_scene)
         }
 
         ui_menu_click_clear();
+        restore_page = sdl_character_sheet_screen_select_page();
         sdl_character_sheet_screen_hide();
         screen_pop_supporting_panes_hidden();
         if (!startup_scene)
@@ -954,7 +970,6 @@ static void story_book_show_sdl(bool startup_scene)
         }
         if (!tale_action_ok) {
             story_book_show_tale_action_error();
-            restore_page = STORY_BOOK_METARUNS;
             continue;
         }
         return;

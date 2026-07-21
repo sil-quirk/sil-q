@@ -523,10 +523,10 @@ void close_game(void)
              * snapshot above is still recorded so the story run resumes, but
              * the score screen is skipped for a seamless switch. */
             if (!blitz_launch_requested())
-                show_scores_interactive_highlight(true, &preview);
+                show_scores_interactive_highlight(&preview);
         }
         else if (!blitz_launch_requested())
-            show_scores_interactive(true);
+            show_scores_interactive();
 
         /* Update the live character entry in the scores file so that
            scores.raw acts as a database of current running characters.

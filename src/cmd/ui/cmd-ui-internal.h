@@ -132,6 +132,7 @@ struct knowledge_browser_layout
     int list_row;
     int list_rows;
     int status_row;
+    int status_rows;
     int prompt_row;
     int group_col;
     int group_w;

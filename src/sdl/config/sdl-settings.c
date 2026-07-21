@@ -87,6 +87,7 @@ void get_sdl_config_info(char* buf, size_t size)
             case PANE_DESCRIPTION: type_str = "DESCRIPTION"; break;
             case PANE_OVERLAY_MENU: type_str = "OVERLAY_MENU"; break;
             case PANE_COMBAT: type_str = "COMBAT"; break;
+            case PANE_STATUS_DEPTH: type_str = "STATUS_DEPTH"; break;
             default: break;
         }
         
@@ -502,6 +503,20 @@ void set_sdl_margin(int value)
         config.margin = value;
 }
 
+int get_sdl_camera_center_clearance(void)
+{
+    return config.camera_center_clearance;
+}
+
+void set_sdl_camera_center_clearance(int value)
+{
+    if (value < SDL_CAMERA_CENTER_CLEARANCE_MIN)
+        value = SDL_CAMERA_CENTER_CLEARANCE_MIN;
+    if (value > SDL_CAMERA_CENTER_CLEARANCE_MAX)
+        value = SDL_CAMERA_CENTER_CLEARANCE_MAX;
+    config.camera_center_clearance = value;
+}
+
 bool get_sdl_fullscreen(void)
 {
     return config.fullscreen;
@@ -509,6 +524,9 @@ bool get_sdl_fullscreen(void)
 
 void set_sdl_fullscreen(bool value)
 {
+#if SIL_SDL_MOBILE_BUILD
+    value = true;
+#endif
     if (config.fullscreen == value)
         return;
 
@@ -681,7 +699,6 @@ void sdl_reset_interface_settings_to_defaults(void)
 
     sdl_reset_config_to_resolution_defaults(screen_w, screen_h);
     sdl_ensure_default_pane_profiles_present(false);
-    sdl_apply_screen_aspect_pane_default_profiles(screen_w, screen_h);
 #if SIL_SDL_MOBILE_BUILD
     /* Reset both orientation profiles, then remain in the orientation from
      * which Reset was requested instead of jumping to landscape defaults. */
@@ -1125,8 +1142,10 @@ void set_sdl_pane_enabled(int index, bool enabled)
         sdl_touch_swipe_cancel();
     }
     if (is_overlay_menu) {
-        if (!enabled)
+        if (!enabled) {
             sdl_touch_top_panel_set_open(false);
+            config.show_main_menu_button = true;
+        }
         sdl_touch_top_panel_cancel_press();
     }
 }
@@ -1168,6 +1187,7 @@ void sdl_enable_default_panes_for_empty_group(bool side)
             || pane_config[i].pane == PANE_STATUS
             || pane_config[i].pane == PANE_DEPTH
             || pane_config[i].pane == PANE_COMBAT
+            || pane_config[i].pane == PANE_STATUS_DEPTH
             || (pane_config[i].pane == PANE_ROLLS
                 && pane_placement_is_overlay(pane_config[i].where))
             || pane_config[i].pane == PANE_DESCRIPTION
@@ -1187,6 +1207,7 @@ void sdl_enable_default_panes_for_empty_group(bool side)
             || pane_config[i].pane == PANE_STATUS
             || pane_config[i].pane == PANE_DEPTH
             || pane_config[i].pane == PANE_COMBAT
+            || pane_config[i].pane == PANE_STATUS_DEPTH
             || (pane_config[i].pane == PANE_ROLLS
                 && pane_placement_is_overlay(pane_config[i].where))
             || pane_config[i].pane == PANE_DESCRIPTION
@@ -1208,6 +1229,9 @@ bool get_sdl_enable_right_panes(void)
 
 void set_sdl_enable_right_panes(bool value)
 {
+#if SIL_SDL_MOBILE_BUILD
+    value = false;
+#endif
     config.enable_right_panes = value;
 
     if (value)
@@ -1221,6 +1245,9 @@ bool get_sdl_enable_bottom_panes(void)
 
 void set_sdl_enable_bottom_panes(bool value)
 {
+#if SIL_SDL_MOBILE_BUILD
+    value = false;
+#endif
     config.enable_bottom_panes = value;
 
     if (value)
@@ -1235,6 +1262,17 @@ bool get_sdl_show_pane_borders(void)
 void set_sdl_show_pane_borders(bool value)
 {
     config.show_pane_borders = value;
+}
+
+bool get_sdl_left_overlays_touch_screen_edge(void)
+{
+    return config.left_overlays_touch_screen_edge;
+}
+
+void set_sdl_left_overlays_touch_screen_edge(bool value)
+{
+    config.left_overlays_touch_screen_edge = value;
+    g_state.need_present = true;
 }
 
 bool get_sdl_show_overlay_log_border(void)
@@ -1390,6 +1428,8 @@ void sdl_touch_pane_load_default_bindings(void)
     memcpy(g_default_touch_corner_action_bindings,
         defaults.touch_corner_action_bindings,
         sizeof(g_default_touch_corner_action_bindings));
+    g_default_touch_top_panel_arrows_visible =
+        defaults.touch_top_panel_arrows_visible;
     g_default_touch_top_panel_default_open =
         defaults.touch_top_panel_default_open;
     g_default_touch_top_panel_size = defaults.touch_top_panel_size;
@@ -2160,7 +2200,8 @@ void sdl_touch_apply_profile(int profile)
     set_sdl_touch_pane_enabled(pane_enabled);
     set_sdl_touch_pane_placement(pane_placement);
     g_touch_pane_mobile_open = pane_default_open;
-    g_touch_top_panel_open = top_panel_default_open;
+    g_touch_top_panel_open = !config.touch_top_panel_arrows_visible
+        || top_panel_default_open;
     sdl_touch_cancel_all_inputs();
 
     if (g_state.window)
@@ -2314,10 +2355,29 @@ bool get_sdl_touch_top_panel_default_open(void)
     return config.touch_top_panel_default_open;
 }
 
+bool get_sdl_touch_top_panel_arrows_visible(void)
+{
+    return config.touch_top_panel_arrows_visible;
+}
+
+void set_sdl_touch_top_panel_arrows_visible(bool value)
+{
+    config.touch_top_panel_arrows_visible = value;
+    if (!value)
+        sdl_touch_top_panel_set_open(true);
+}
+
+bool get_sdl_touch_top_panel_arrows_default_visible(void)
+{
+    sdl_touch_pane_load_default_bindings();
+    return g_default_touch_top_panel_arrows_visible;
+}
+
 void set_sdl_touch_top_panel_default_open(bool value)
 {
     config.touch_top_panel_default_open = value;
-    sdl_touch_top_panel_set_open(value);
+    sdl_touch_top_panel_set_open(!config.touch_top_panel_arrows_visible
+        || value);
 }
 
 bool get_sdl_touch_top_panel_default_open_default(void)
@@ -2565,7 +2625,8 @@ void sdl_touch_pane_reset_bindings_to_default(void)
     sdl_config_set_default_touch_pane_bindings(&config);
     sdl_config_clear_touch_pane_labels(&config);
     g_touch_pane_mobile_open = config.touch_pane_default_open;
-    g_touch_top_panel_open = config.touch_top_panel_default_open;
+    g_touch_top_panel_open = !config.touch_top_panel_arrows_visible
+        || config.touch_top_panel_default_open;
     sdl_touch_pane_ensure_main_panel_confirm();
 }
 

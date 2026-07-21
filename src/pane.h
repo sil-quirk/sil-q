@@ -32,7 +32,8 @@ enum pane_type {
     PANE_DESCRIPTION = 15, // modal item/monster description overlay
     PANE_OVERLAY_MENU = 16, // touch/mouse overlay command menu
     PANE_COMBAT = 17, // detached melee/archery/quiver overlay
-    PANE_MAX = 18,
+    PANE_STATUS_DEPTH = 18, // combined status and depth SDL overlay
+    PANE_MAX = 19,
 };
 
 // Where the pane is placed.

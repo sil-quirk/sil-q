@@ -134,6 +134,13 @@
 #define SDL_DICE_ROLL_TIMING_MAX_MS 10000
 #define SDL_POPUP_NOTIFICATION_DEFAULT_MS 2000
 #define SDL_POPUP_NOTIFICATION_MAX_MS 10000
+#define SDL_CAMERA_CENTER_CLEARANCE_MIN 1
+#define SDL_CAMERA_CENTER_CLEARANCE_MAX 20
+#if defined(__ANDROID__) || defined(SIL_IOS)
+#define SDL_CAMERA_CENTER_CLEARANCE_DEFAULT 3
+#else
+#define SDL_CAMERA_CENTER_CLEARANCE_DEFAULT 5
+#endif
 
 enum sdl_min_terminal_mode {
     SDL_MIN_TERMINAL_NORMAL = 0,
@@ -167,13 +174,22 @@ struct sdl_pane_profile {
     int aux_view_font_size;
     bool enable_right_panes;
     bool enable_bottom_panes;
+    bool left_overlays_touch_screen_edge;
+    bool show_overlay_log_border;
     bool show_main_menu_button;
     bool left_panel_expanded_on_launch;
     int left_panel_compact_mode;
+    int log_pane_display_filter;
+    int dice_roll_lock_ms;
+    int dice_roll_overlay_ms;
+    int popup_notification_ms;
+    bool touch_top_panel_arrows_visible;
     bool touch_top_panel_default_open;
     int touch_top_panel_cell_count;
     int touch_top_panel_rows;
     float touch_top_panel_size;
+    int touch_top_panel_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
+    int touch_top_panel_long_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
     int pane_count;
     struct pane_config pane_configs[MAX_PANE_CONFIGS];
 };
@@ -198,6 +214,7 @@ struct sdl_config {
     bool enable_right_panes;
     bool enable_bottom_panes;
     bool show_pane_borders;
+    bool left_overlays_touch_screen_edge;
     bool show_overlay_log_border;
     bool left_panel_expanded_on_launch;
     int left_panel_compact_mode;
@@ -207,6 +224,7 @@ struct sdl_config {
     int dice_roll_overlay_ms;
     int popup_notification_ms;
     bool show_main_menu_button;
+    int camera_center_clearance;
     
     // Window position and size for windowed mode
     int window_x;
@@ -292,6 +310,7 @@ struct sdl_config {
     int touch_zone_center_bindings[SDL_TOUCH_ZONE_CENTER_BINDING_COUNT];
     int touch_corner_up_down_side;
     int touch_corner_action_bindings[SDL_TOUCH_CORNER_ACTION_BINDING_COUNT];
+    bool touch_top_panel_arrows_visible;
     bool touch_top_panel_default_open;
     float touch_top_panel_size;
     int touch_top_panel_cell_count;

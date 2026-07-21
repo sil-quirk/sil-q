@@ -1344,17 +1344,29 @@ static int sdl_description_overlay_cell_w_for_font_px(int font_px)
 static void sdl_description_overlay_reserve_touch_thumb(SDL_Rect* anchor,
     int margin)
 {
-    float right = 0.0f;
+    SDL_FRect buttons;
 
     if (!anchor)
         return;
 
-    if (sdl_touch_thumb_current_right_edge(&right) && right > 0.0f)
-    {
-        int reserve = (int)right + margin - anchor->x;
+    if (!sdl_touch_thumb_current_bounds(&buttons))
+        return;
 
-        if (reserve > 0 && reserve < anchor->w)
-        {
+    if (sdl_mobile_portrait_layout_active()
+        && g_description_overlay.active
+        && g_description_overlay.interactive)
+    {
+        int reserve = anchor->y + anchor->h - (int)buttons.y + margin;
+
+        if (reserve > 0 && reserve < anchor->h)
+            anchor->h -= reserve;
+        return;
+    }
+
+    {
+        int reserve = (int)(buttons.x + buttons.w) + margin - anchor->x;
+
+        if (reserve > 0 && reserve < anchor->w) {
             anchor->x += reserve;
             anchor->w -= reserve;
         }
@@ -1396,11 +1408,25 @@ int sdl_description_overlay_max_cols(void)
     /*
      * Match the historical item description body width, which left a small
      * allowance inside the description pane instead of filling every column.
+     * Portrait descriptions use the whole measured width because their touch
+     * controls now sit below the popup rather than beside it.
      */
-    if (max_cols > 24)
+    if (!sdl_mobile_portrait_layout_active() && max_cols > 24)
         max_cols -= 4;
 
     return max_cols;
+}
+
+int sdl_description_overlay_capture_cols(int terminal_cols, bool interactive)
+{
+    int max_cols = sdl_description_overlay_max_cols();
+
+    if (interactive && sdl_mobile_portrait_layout_active() && max_cols > 0)
+        return max_cols;
+    if (max_cols > 0 && terminal_cols > max_cols)
+        return max_cols;
+
+    return terminal_cols;
 }
 
 int sdl_description_overlay_visible_cols(void)
@@ -1861,8 +1887,8 @@ bool sdl_description_overlay_layout(description_overlay_layout* out)
     if (pad_y < 2)
         pad_y = 2;
 
-    /* Reserve the left strip the contextual thumb buttons occupy so the popup
-     * is sized and centred in the space to their right and never crosses them. */
+    /* Keep the popup above the portrait description button row.  Other layouts
+     * retain the contextual thumb strip beside the popup. */
     sdl_description_overlay_reserve_touch_thumb(&anchor, margin);
 
     max_panel_w = anchor.w - margin * 2;

@@ -1000,6 +1000,56 @@ static bool sdl_touch_thumb_compute_runtime_rects(
     out_rects[SDL_TOUCH_THUMB_BOTTOM_BUTTON] = base[1];
 
     if (sdl_mobile_portrait_layout_active()) {
+        if (sdl_touch_thumb_description_open()) {
+            SDL_Rect wheel_region;
+            SDL_Rect button_region;
+            bool sidecar = sdl_touch_thumb_button_has_binding(
+                SDL_TOUCH_THUMB_SIDECAR_BUTTON);
+            int button_count = sidecar ? 3 : 2;
+            int order[3] = {
+                SDL_TOUCH_THUMB_SIDECAR_BUTTON,
+                SDL_TOUCH_THUMB_TOP_BUTTON,
+                SDL_TOUCH_THUMB_BOTTOM_BUTTON,
+            };
+            float row_x;
+            float row_y;
+            float row_w;
+            float row_h;
+            float button_w;
+
+            if (!sdl_mobile_portrait_control_regions(&wheel_region,
+                    &button_region))
+            {
+                return false;
+            }
+
+            gap = base[1].y - (base[0].y + base[0].h);
+            row_x = (float)wheel_region.x;
+            row_w = (float)(button_region.x + button_region.w)
+                - row_x;
+            row_h = ((float)button_region.h
+                - gap * (float)(button_count - 1))
+                / (float)button_count;
+            row_y = (float)(button_region.y + button_region.h) - row_h;
+            button_w = (row_w - gap * (float)(button_count - 1))
+                / (float)button_count;
+
+            if (row_h <= 0.0f || button_w <= 0.0f)
+                return false;
+
+            for (int slot = 0; slot < button_count; slot++) {
+                int index = order[slot + (sidecar ? 0 : 1)];
+
+                out_rects[index] = (SDL_FRect){
+                    row_x + (button_w + gap) * (float)slot,
+                    row_y,
+                    button_w,
+                    row_h,
+                };
+            }
+            return true;
+        }
+
         if (sdl_touch_thumb_button_has_binding(
                 SDL_TOUCH_THUMB_SIDECAR_BUTTON))
         {
@@ -1085,13 +1135,14 @@ static bool sdl_touch_thumb_compute_runtime_rects(
     return true;
 }
 
-bool sdl_touch_thumb_current_right_edge(float* out_right)
+bool sdl_touch_thumb_current_bounds(SDL_FRect* out_bounds)
 {
     SDL_FRect rects[SDL_TOUCH_THUMB_RUNTIME_BUTTON_COUNT];
-    float right = 0.0f;
+    SDL_FRect bounds = { 0 };
+    bool have_bounds = false;
 
-    if (out_right)
-        *out_right = 0.0f;
+    if (out_bounds)
+        *out_bounds = (SDL_FRect){ 0 };
     if (!sdl_touch_thumb_compute_runtime_rects(
             rects, SDL_TOUCH_THUMB_RUNTIME_BUTTON_COUNT))
     {
@@ -1099,21 +1150,31 @@ bool sdl_touch_thumb_current_right_edge(float* out_right)
     }
 
     for (int i = 0; i < SDL_TOUCH_THUMB_RUNTIME_BUTTON_COUNT; i++) {
-        float edge;
-
         if (!sdl_touch_thumb_button_has_binding(i))
             continue;
         if (rects[i].w <= 0.0f || rects[i].h <= 0.0f)
             continue;
-        edge = rects[i].x + rects[i].w;
-        if (edge > right)
-            right = edge;
+
+        if (!have_bounds) {
+            bounds = rects[i];
+            have_bounds = true;
+        } else {
+            float right = MAX(bounds.x + bounds.w,
+                rects[i].x + rects[i].w);
+            float bottom = MAX(bounds.y + bounds.h,
+                rects[i].y + rects[i].h);
+
+            bounds.x = MIN(bounds.x, rects[i].x);
+            bounds.y = MIN(bounds.y, rects[i].y);
+            bounds.w = right - bounds.x;
+            bounds.h = bottom - bounds.y;
+        }
     }
 
-    if (right <= 0.0f)
+    if (!have_bounds)
         return false;
-    if (out_right)
-        *out_right = right;
+    if (out_bounds)
+        *out_bounds = bounds;
     return true;
 }
 
@@ -1543,6 +1604,11 @@ bool sdl_touch_movement_point_blocked_by_overlay(float x, float y)
     {
         return true;
     }
+    if (sdl_status_depth_pane_current_rect(&panel)
+        && sdl_point_in_frect(&panel, x, y))
+    {
+        return true;
+    }
     if (sdl_touch_pane_current_rect(&touch_rect)
         && sdl_point_in_rect(&touch_rect, x, y))
     {
@@ -1578,7 +1644,7 @@ static void sdl_touch_round_clip_band_to_panes(const SDL_Rect* bounds,
     /* Keep the wheel from sitting flush against an adjacent pane (e.g. the
      * log layer above): leave a small visual margin between them. */
     const float pane_gap = 12.0f;
-    SDL_Rect rects[4];
+    SDL_Rect rects[5];
     int count = 0;
     SDL_Rect rect;
     SDL_FRect frect;
@@ -1595,6 +1661,10 @@ static void sdl_touch_round_clip_band_to_panes(const SDL_Rect* bounds,
     mid_y = (float)bounds->y + (float)bounds->h * 0.5f;
 
     if (sdl_depth_menu_pane_current_rect(&frect)) {
+        rects[count++] = (SDL_Rect){ (int)frect.x, (int)frect.y,
+            (int)frect.w, (int)frect.h };
+    }
+    if (sdl_status_depth_pane_current_rect(&frect)) {
         rects[count++] = (SDL_Rect){ (int)frect.x, (int)frect.y,
             (int)frect.w, (int)frect.h };
     }
@@ -3470,6 +3540,8 @@ static bool sdl_touch_top_panel_indicator_geometry(bool open,
         points[1] = (SDL_FPoint){ 0.0f, 0.0f };
         points[2] = (SDL_FPoint){ 0.0f, 0.0f };
     }
+    if (!config.touch_top_panel_arrows_visible)
+        return false;
 
     if (!sdl_touch_top_panel_current_anchor(&screen, &anchor, &where))
         return false;
@@ -3491,13 +3563,15 @@ static bool sdl_touch_top_panel_indicator_geometry(bool open,
     case TOUCH_TOP_PANEL_INDICATOR_TOP:
         cx = panel_ready ? panel.x + panel.w * 0.5f
                          : (float)anchor.x + (float)anchor.w * 0.5f;
-        edge_pos = panel_ready ? panel.y : (float)anchor.y;
+        edge_pos = panel_ready ? panel.y : (float)screen.y;
         cy = panel_ready ? edge_pos - depth * 0.5f : edge_pos + depth * 0.5f;
         if (points) {
-            points[0] = (SDL_FPoint){ cx - half, edge_pos };
-            points[1] = (SDL_FPoint){ cx + half, edge_pos };
+            points[0] = (SDL_FPoint){ cx - half,
+                panel_ready ? edge_pos : edge_pos + depth };
+            points[1] = (SDL_FPoint){ cx + half,
+                panel_ready ? edge_pos : edge_pos + depth };
             points[2] = (SDL_FPoint){ cx,
-                panel_ready ? edge_pos - depth : edge_pos + depth };
+                panel_ready ? edge_pos - depth : edge_pos };
         }
         sdl_touch_top_panel_indicator_hit_rect(cx, cy, hit, out_hit);
         break;
@@ -3506,14 +3580,16 @@ static bool sdl_touch_top_panel_indicator_geometry(bool open,
         cy = panel_ready ? panel.y + panel.h * 0.5f
                          : (float)anchor.y + (float)anchor.h * 0.5f;
         edge_pos = panel_ready ? panel.x + panel.w
-                               : (float)(anchor.x + anchor.w - 1);
+                               : (float)(screen.x + screen.w - 1);
         cx = panel_ready ? edge_pos + depth * 0.5f
                          : edge_pos - depth * 0.5f;
         if (points) {
-            points[0] = (SDL_FPoint){ edge_pos, cy - half };
-            points[1] = (SDL_FPoint){ edge_pos, cy + half };
+            points[0] = (SDL_FPoint){
+                panel_ready ? edge_pos : edge_pos - depth, cy - half };
+            points[1] = (SDL_FPoint){
+                panel_ready ? edge_pos : edge_pos - depth, cy + half };
             points[2] = (SDL_FPoint){
-                panel_ready ? edge_pos + depth : edge_pos - depth, cy };
+                panel_ready ? edge_pos + depth : edge_pos, cy };
         }
         sdl_touch_top_panel_indicator_hit_rect(cx, cy, hit, out_hit);
         break;
@@ -3521,14 +3597,16 @@ static bool sdl_touch_top_panel_indicator_geometry(bool open,
     case TOUCH_TOP_PANEL_INDICATOR_LEFT:
         cy = panel_ready ? panel.y + panel.h * 0.5f
                          : (float)anchor.y + (float)anchor.h * 0.5f;
-        edge_pos = panel_ready ? panel.x : (float)anchor.x;
+        edge_pos = panel_ready ? panel.x : (float)screen.x;
         cx = panel_ready ? edge_pos - depth * 0.5f
                          : edge_pos + depth * 0.5f;
         if (points) {
-            points[0] = (SDL_FPoint){ edge_pos, cy - half };
-            points[1] = (SDL_FPoint){ edge_pos, cy + half };
+            points[0] = (SDL_FPoint){
+                panel_ready ? edge_pos : edge_pos + depth, cy - half };
+            points[1] = (SDL_FPoint){
+                panel_ready ? edge_pos : edge_pos + depth, cy + half };
             points[2] = (SDL_FPoint){
-                panel_ready ? edge_pos - depth : edge_pos + depth, cy };
+                panel_ready ? edge_pos - depth : edge_pos, cy };
         }
         sdl_touch_top_panel_indicator_hit_rect(cx, cy, hit, out_hit);
         break;
@@ -3538,14 +3616,16 @@ static bool sdl_touch_top_panel_indicator_geometry(bool open,
         cx = panel_ready ? panel.x + panel.w * 0.5f
                          : (float)anchor.x + (float)anchor.w * 0.5f;
         edge_pos = panel_ready ? panel.y + panel.h
-                               : (float)(anchor.y + anchor.h - 1);
+                               : (float)(screen.y + screen.h - 1);
         cy = panel_ready ? edge_pos + depth * 0.5f
                          : edge_pos - depth * 0.5f;
         if (points) {
-            points[0] = (SDL_FPoint){ cx - half, edge_pos };
-            points[1] = (SDL_FPoint){ cx + half, edge_pos };
+            points[0] = (SDL_FPoint){ cx - half,
+                panel_ready ? edge_pos : edge_pos - depth };
+            points[1] = (SDL_FPoint){ cx + half,
+                panel_ready ? edge_pos : edge_pos - depth };
             points[2] = (SDL_FPoint){ cx,
-                panel_ready ? edge_pos + depth : edge_pos - depth };
+                panel_ready ? edge_pos + depth : edge_pos };
         }
         sdl_touch_top_panel_indicator_hit_rect(cx, cy, hit, out_hit);
         break;
@@ -4058,6 +4138,20 @@ bool sdl_touch_top_panel_current_anchor(SDL_Rect* out_screen,
     return true;
 }
 
+static bool sdl_touch_top_panel_pane_shares_stack(enum pane_type pane,
+    enum pane_placement where)
+{
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane == pane && pane_config[i].enabled
+            && pane_config[i].where == where)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 /* Return the full horizontal span which does not cross side overlay panes in
  * the Quick Access panel's vertical band.  Stretch uses the whole span. */
 static float sdl_touch_top_panel_available_width(const SDL_Rect* screen,
@@ -4091,7 +4185,9 @@ static float sdl_touch_top_panel_available_width(const SDL_Rect* screen,
     band_top -= gap;
     band_bottom += gap;
 
-    if (sdl_status_pane_layout(&status_layout)) {
+    if (!sdl_touch_top_panel_pane_shares_stack(PANE_STATUS, where)
+        && sdl_status_pane_layout(&status_layout))
+    {
         r = (SDL_Rect){
             (int)status_layout.panel.x, (int)status_layout.panel.y,
             (int)status_layout.panel.w, (int)status_layout.panel.h
@@ -4099,14 +4195,26 @@ static float sdl_touch_top_panel_available_width(const SDL_Rect* screen,
         if (r.w > 0 && r.h > 0)
             panes[pane_count++] = r;
     }
-    if (sdl_combat_overlay_pane_current_rect(&r) && r.w > 0 && r.h > 0)
+    if (!sdl_touch_top_panel_pane_shares_stack(PANE_COMBAT, where)
+        && sdl_combat_overlay_pane_current_rect(&r) && r.w > 0 && r.h > 0)
+    {
         panes[pane_count++] = r;
-    if (sdl_overlay_log_pane_current_rect(&r) && r.w > 0 && r.h > 0)
+    }
+    if (!sdl_touch_top_panel_pane_shares_stack(PANE_ROLLS, where)
+        && sdl_overlay_log_pane_current_rect(&r) && r.w > 0 && r.h > 0)
+    {
         panes[pane_count++] = r;
-    if (sdl_depth_menu_pane_current_rect(&fr) && fr.w > 0.0f && fr.h > 0.0f) {
+    }
+    if (!sdl_touch_top_panel_pane_shares_stack(PANE_DEPTH, where)
+        && sdl_depth_menu_pane_current_rect(&fr)
+        && fr.w > 0.0f && fr.h > 0.0f)
+    {
         panes[pane_count++] = (SDL_Rect){ (int)fr.x, (int)fr.y,
             (int)fr.w, (int)fr.h };
     }
+    /* Status & Depth adapts its own width around Quick Access.  Feeding it
+     * back as a horizontal obstacle here would make the controls shrink or
+     * slide sideways and introduces a circular layout dependency. */
 
     /* Classify obstructions by screen side.  The anchor is often the narrow
      * left overlay menu, so its centre cannot separate left-side status panes
@@ -4168,6 +4276,70 @@ static void sdl_touch_top_panel_button_metrics_for_size(float size,
         *out_gap = gap;
 }
 
+static bool sdl_touch_top_panel_vertical_placement(
+    enum pane_placement where)
+{
+    return where == PLACE_LEFT_CENTER || where == PLACE_RIGHT_CENTER;
+}
+
+static bool sdl_touch_top_panel_top_placement(
+    enum pane_placement where)
+{
+    return where == PLACE_TOP_LEFT || where == PLACE_TOP_CENTER
+        || where == PLACE_TOP_RIGHT;
+}
+
+static void sdl_touch_top_panel_avoid_status_depth(
+    enum pane_placement where, const SDL_Rect* screen, SDL_FRect* panel)
+{
+    enum pane_placement status_where = PLACE_BOTTOM_CENTER;
+    SDL_FRect status_depth;
+    float gap;
+    float margin;
+    bool horizontal_overlap;
+
+    if (!screen || !panel)
+        return;
+
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].enabled
+            && pane_config[i].pane == PANE_STATUS_DEPTH)
+        {
+            status_where = pane_config[i].where;
+            break;
+        }
+    }
+    if (!sdl_status_depth_pane_current_rect(&status_depth))
+        return;
+
+    horizontal_overlap = panel->x < status_depth.x + status_depth.w
+        && panel->x + panel->w > status_depth.x;
+    if (!horizontal_overlap)
+        return;
+
+    gap = (float)sdl_overlay_inner_gap_px();
+    if (sdl_left_panel_pane_placement_is_bottom(where)
+        && sdl_left_panel_pane_placement_is_bottom(status_where))
+    {
+        float limit = status_depth.y - gap;
+
+        if (panel->y + panel->h > limit)
+            panel->y = limit - panel->h;
+    } else if (sdl_touch_top_panel_top_placement(where)
+        && sdl_touch_top_panel_top_placement(status_where))
+    {
+        float limit = status_depth.y + status_depth.h + gap;
+
+        if (panel->y < limit)
+            panel->y = limit;
+    }
+
+    margin = (float)sdl_overlay_margin_px();
+    panel->y = sdl_touch_pane_clampf(panel->y,
+        (float)screen->y + margin,
+        (float)(screen->y + screen->h) - panel->h - margin);
+}
+
 bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
     const SDL_Rect* anchor, enum pane_placement where,
     SDL_FRect* button_rects, SDL_FRect* out_panel)
@@ -4175,6 +4347,7 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
     float screen_w;
     float side_margin;
     float max_panel_w;
+    float max_panel_h;
     float gap;
     float panel_w;
     float panel_h;
@@ -4185,6 +4358,7 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
     int active_count;
     int columns;
     int rows;
+    bool vertical;
 
     if (!screen || !anchor || !sdl_rect_has_area(screen)
         || !sdl_rect_has_area(anchor))
@@ -4192,8 +4366,10 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
         return false;
     }
 
-    screen_w = sdl_mobile_portrait_layout_active()
-        ? (float)anchor->w : (float)screen->w;
+    /* The configured pane rectangle is an alignment anchor, not a size cap.
+     * Corner anchors can be only a few cells wide, which previously collapsed
+     * Bottom Right Quick Access buttons almost to zero in portrait mode. */
+    screen_w = (float)screen->w;
     active_count = sdl_touch_top_panel_visible_slots(visible_slots,
         SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
     if (active_count <= 0)
@@ -4201,9 +4377,14 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
 
     side_margin = sdl_touch_pane_clampf(screen_w * 0.02f, 6.0f, 18.0f);
     max_panel_w = screen_w - side_margin * 2.0f;
+    max_panel_h = (float)screen->h - side_margin * 2.0f;
+    vertical = sdl_touch_top_panel_vertical_placement(where);
     if (sdl_touch_thumb_description_open()) {
-        rows = 1;
-        columns = active_count;
+        rows = vertical ? active_count : 1;
+        columns = vertical ? 1 : active_count;
+    } else if (vertical) {
+        rows = active_count;
+        columns = 1;
     } else {
         rows = MIN(get_sdl_touch_top_panel_rows(), active_count);
         columns = (active_count + rows - 1) / rows;
@@ -4215,11 +4396,29 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
     sdl_touch_top_panel_button_metrics_for_size(configured_size,
         &button_size, &gap);
 
+    if (vertical) {
+        float fit_size;
+
+        if (max_panel_h <= gap * (float)(rows - 1))
+            return false;
+        fit_size = (max_panel_h - gap * (float)(rows - 1))
+            / (float)rows;
+        if (fit_size > max_panel_w)
+            fit_size = max_panel_w;
+        if (configured_size == SDL_TOUCH_TOP_PANEL_SIZE_STRETCH
+            || button_size > fit_size)
+        {
+            button_size = fit_size;
+        }
+        if (button_size <= 0.0f)
+            return false;
+    }
+
     /* The available span depends on the panel's vertical band.  A few passes
      * converge the stretch size while accounting for side panes intersecting
      * that band.  Fixed sizes remain fixed unless the window cannot contain
      * the requested columns. */
-    for (int pass = 0; pass < 3; pass++) {
+    for (int pass = 0; !vertical && pass < 3; pass++) {
         float available_w;
         float fit_size;
 
@@ -4244,7 +4443,9 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
     if (button_size <= 0.0f)
         return false;
 
-    if (configured_size == SDL_TOUCH_TOP_PANEL_SIZE_STRETCH) {
+    if (!vertical
+        && configured_size == SDL_TOUCH_TOP_PANEL_SIZE_STRETCH)
+    {
         float available_w;
 
         panel_h = button_size * (float)rows
@@ -4265,7 +4466,7 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
     panel_h = button_size * (float)rows + gap * (float)(rows - 1);
     panel = sdl_overlay_panel_rect(anchor, where, (int)(panel_w + 0.5f),
         (int)(panel_h + 0.5f), screen);
-    {
+    if (!vertical) {
         float clear_left;
         float clear_right;
 
@@ -4279,6 +4480,7 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
                 clear_right - panel.w);
         }
     }
+    sdl_touch_top_panel_avoid_status_depth(where, screen, &panel);
     panel_w = panel.w;
     panel_h = panel.h;
 

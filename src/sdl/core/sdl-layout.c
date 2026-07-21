@@ -615,18 +615,13 @@ int sdl_main_menu_button_height_for_screen(const SDL_Rect* screen)
     return MAX((int)(height + 0.5f), 1);
 }
 
+static bool sdl_overlay_stack_visible_rect(enum pane_type pane,
+    SDL_Rect* out);
+
 bool sdl_mobile_portrait_control_regions(SDL_Rect* out_left,
     SDL_Rect* out_right)
 {
-    static const enum pane_type hud_panes[] = {
-        PANE_LEFT_PANEL,
-        PANE_COMBAT,
-        PANE_ROLLS,
-        PANE_DEPTH,
-        PANE_STATUS,
-    };
     SDL_Rect screen;
-    SDL_FRect quick_panel;
     SDL_FRect menu_button;
     int margin;
     int gap;
@@ -657,25 +652,49 @@ bool sdl_mobile_portrait_control_regions(SDL_Rect* out_left,
         return false;
 
     bottom = screen.y + screen.h - margin;
-    if (sdl_touch_top_panel_compute_layout(NULL, &quick_panel)
-        && quick_panel.y > (float)screen.y)
-    {
-        bottom = (int)quick_panel.y - gap;
-    }
-
     overlay_bottom = screen.y + margin;
     if (sdl_main_menu_pane_button_rect(&menu_button)) {
         overlay_bottom = MAX(overlay_bottom,
             (int)(menu_button.y + menu_button.h) + gap);
     }
-    for (int i = 0; i < (int)N_ELEMENTS(hud_panes); i++) {
-        const SDL_Rect* pane = &g_pane_rects[hud_panes[i]];
+    /* Derive the vertical control lane from every live overlay, rather than
+     * making the wheel depend on a particular pane such as Quick Access.
+     * A bottom stack lowers the lane's bottom edge to its actual painted top,
+     * which translates the wheel and thumb buttons upward as that stack grows. */
+    for (int i = 0; i < pane_config_count; i++) {
+        enum pane_type pane_type = pane_config[i].pane;
+        enum pane_placement where = pane_config[i].where;
+        SDL_Rect pane;
+        bool lower_edge;
 
-        if (!sdl_rect_has_area(pane))
+        if (!pane_config[i].enabled || !pane_placement_is_overlay(where))
             continue;
-        if (pane->y >= bottom || pane->y + pane->h <= screen.y)
+        if (pane_type <= PANE_MAIN || pane_type >= PANE_MAX)
             continue;
-        overlay_bottom = MAX(overlay_bottom, pane->y + pane->h + gap);
+        /* The interactive description popup sizes itself around the portrait
+         * thumb controls, so it cannot also define those controls' lane. */
+        if (pane_type == PANE_DESCRIPTION)
+            continue;
+        if (!sdl_overlay_stack_visible_rect(pane_type, &pane))
+            continue;
+        if (pane.y >= screen.y + screen.h
+            || pane.y + pane.h <= screen.y)
+        {
+            continue;
+        }
+
+        lower_edge = sdl_left_panel_pane_placement_is_bottom(where);
+        if (where == PLACE_LEFT_CENTER || where == PLACE_RIGHT_CENTER) {
+            lower_edge = pane.y + pane.h / 2
+                > screen.y + screen.h / 2;
+        }
+
+        if (lower_edge) {
+            if (pane.y < bottom)
+                bottom = pane.y - gap;
+        } else if (pane.y < bottom) {
+            overlay_bottom = MAX(overlay_bottom, pane.y + pane.h + gap);
+        }
     }
 
     maximum_h = bottom - overlay_bottom;
@@ -686,7 +705,12 @@ bool sdl_mobile_portrait_control_regions(SDL_Rect* out_left,
     left_w = available_w - gap - right_w;
     if (left_w < 56 || right_w < 56)
         return false;
-    dock_h = MIN(left_w, maximum_h);
+    /* Preserve the normal square control dock while there is room.  Bottom
+     * overlays therefore move it upward without resizing it; only a collision
+     * with the upper overlay boundary is allowed to compress the dock. */
+    dock_h = left_w;
+    if (dock_h > maximum_h)
+        dock_h = maximum_h;
     if (dock_h < 112)
         return false;
     dock_y = bottom - dock_h;
@@ -793,6 +817,16 @@ int sdl_overlay_margin_px(void)
     int margin_px = (int)(g_state.system_scale * config.margin);
 
     return (margin_px > 0) ? margin_px * 5 : 0;
+}
+
+int sdl_overlay_inner_gap_px(void)
+{
+    int gap_px = (int)(g_state.system_scale * config.margin);
+
+    /* The outer safe margin is intentionally generous.  Neighbouring panes
+     * need only a compact separator; using the five-times outer margin here
+     * leaves an especially conspicuous hole in portrait layouts. */
+    return MAX(gap_px, 4);
 }
 
 int sdl_overlay_edge_gap_px(int area_px, int content_px)
@@ -1902,6 +1936,7 @@ bool sdl_left_panel_pane_rect_for_metrics(const sdl_view* view,
     const sdl_left_panel_metrics* metrics, SDL_FRect* out_rect)
 {
     enum pane_placement where;
+    SDL_Rect screen;
     SDL_FRect menu_button;
     int visual_cols;
     int visual_rows;
@@ -1942,7 +1977,18 @@ bool sdl_left_panel_pane_rect_for_metrics(const sdl_view* view,
         edge_gap_y = 0;
     }
 
-    if (sdl_left_panel_pane_placement_is_right(where))
+    /* Left Panel is rendered from this measured rectangle rather than the
+     * reflowed g_pane_rects entry.  Apply the shared left-edge option here as
+     * well so rendering, hit testing, and the other left-aligned overlays all
+     * use the same outer edge.  metrics->separator_w remains intact as the
+     * pane's small internal black padding. */
+    if (get_sdl_left_overlays_touch_screen_edge()
+        && (where == PLACE_TOP_LEFT || where == PLACE_LEFT_CENTER
+            || where == PLACE_BOTTOM_LEFT))
+    {
+        screen = sdl_get_layout_screen_rect();
+        x = (float)(sdl_rect_has_area(&screen) ? screen.x : view->rect.x);
+    } else if (sdl_left_panel_pane_placement_is_right(where))
         x += (float)(visual_w - metrics->total_w - edge_gap_x);
     else if (sdl_left_panel_pane_placement_is_horizontal_center(where))
         x += (float)((visual_w - metrics->total_w) / 2);
@@ -2450,12 +2496,41 @@ bool sdl_left_panel_compact_row_mode(void)
 
 static int g_top_right_overlay_offset;
 static bool g_top_right_overlay_shifted_panes[PANE_MAX];
+static int g_overlay_stack_shift_x[PANE_MAX];
+static int g_overlay_stack_shift_y[PANE_MAX];
 
 void sdl_reset_top_right_overlay_offset(void)
 {
     g_top_right_overlay_offset = 0;
     memset(g_top_right_overlay_shifted_panes, 0,
         sizeof(g_top_right_overlay_shifted_panes));
+    memset(g_overlay_stack_shift_x, 0,
+        sizeof(g_overlay_stack_shift_x));
+    memset(g_overlay_stack_shift_y, 0,
+        sizeof(g_overlay_stack_shift_y));
+}
+
+static void sdl_remove_overlay_stack_offsets(void)
+{
+    for (int pane = 0; pane < PANE_MAX; pane++) {
+        int dx = g_overlay_stack_shift_x[pane];
+        int dy = g_overlay_stack_shift_y[pane];
+
+        if (!dx && !dy)
+            continue;
+
+        g_pane_rects[pane].x -= dx;
+        g_pane_rects[pane].y -= dy;
+        if (pane < MAX_TERM_DATA) {
+            g_views[pane].rect.x -= dx;
+            g_views[pane].rect.y -= dy;
+        }
+    }
+
+    memset(g_overlay_stack_shift_x, 0,
+        sizeof(g_overlay_stack_shift_x));
+    memset(g_overlay_stack_shift_y, 0,
+        sizeof(g_overlay_stack_shift_y));
 }
 
 static void sdl_remove_top_right_overlay_offset(void)
@@ -2475,12 +2550,378 @@ static void sdl_remove_top_right_overlay_offset(void)
     sdl_reset_top_right_overlay_offset();
 }
 
+static void sdl_overlay_stack_shift_pane(enum pane_type pane,
+    int dx, int dy)
+{
+    if (pane <= PANE_MAIN || pane >= PANE_MAX || (!dx && !dy))
+        return;
+
+    g_pane_rects[pane].x += dx;
+    g_pane_rects[pane].y += dy;
+    if ((int)pane < MAX_TERM_DATA) {
+        g_views[pane].rect.x += dx;
+        g_views[pane].rect.y += dy;
+    }
+    g_overlay_stack_shift_x[pane] += dx;
+    g_overlay_stack_shift_y[pane] += dy;
+}
+
+static void sdl_frect_to_covering_rect(const SDL_FRect* source,
+    SDL_Rect* out)
+{
+    int right;
+    int bottom;
+
+    if (!out)
+        return;
+    *out = (SDL_Rect){ 0 };
+    if (!source || source->w <= 0.0f || source->h <= 0.0f)
+        return;
+
+    out->x = (int)SDL_floorf(source->x);
+    out->y = (int)SDL_floorf(source->y);
+    right = (int)SDL_ceilf(source->x + source->w);
+    bottom = (int)SDL_ceilf(source->y + source->h);
+    out->w = right - out->x;
+    out->h = bottom - out->y;
+}
+
+/* Return the rectangle that is actually painted for a configurable overlay.
+ * Several SDL overlays deliberately shrink their configured anchor to live
+ * content, so the nominal pane rectangle is not enough to pack a stack. */
+static bool sdl_overlay_stack_visible_rect(enum pane_type pane,
+    SDL_Rect* out)
+{
+    SDL_FRect frect;
+
+    if (out)
+        *out = (SDL_Rect){ 0 };
+    if (!out || pane <= PANE_MAIN || pane >= PANE_MAX)
+        return false;
+
+    switch (pane) {
+    case PANE_LEFT_PANEL:
+        if (!sdl_left_panel_pane_presentation_active()
+            || !sdl_rect_has_area(&g_pane_rects[pane]))
+        {
+            return false;
+        }
+        *out = g_pane_rects[pane];
+        return true;
+
+    case PANE_COMBAT:
+        return sdl_combat_overlay_pane_current_rect(out);
+
+    case PANE_ROLLS:
+        if (g_description_overlay.active
+            && g_description_overlay.interactive)
+        {
+            return false;
+        }
+        if (sdl_overlay_log_pane_current_rect(out))
+            return true;
+        break;
+
+    case PANE_DEPTH:
+        if (!sdl_depth_menu_pane_current_rect(&frect))
+            return false;
+        sdl_frect_to_covering_rect(&frect, out);
+        return sdl_rect_has_area(out);
+
+    case PANE_STATUS:
+    {
+        status_pane_layout layout;
+
+        if (!sdl_status_pane_layout(&layout))
+            return false;
+        sdl_frect_to_covering_rect(&layout.panel, out);
+        return sdl_rect_has_area(out);
+    }
+
+    case PANE_STATUS_DEPTH:
+        if (!sdl_status_depth_pane_current_rect(&frect))
+            return false;
+        sdl_frect_to_covering_rect(&frect, out);
+        return sdl_rect_has_area(out);
+
+    case PANE_DESCRIPTION:
+    {
+        description_overlay_layout layout;
+
+        if (!sdl_description_overlay_layout(&layout))
+            return false;
+        sdl_frect_to_covering_rect(&layout.panel, out);
+        return sdl_rect_has_area(out);
+    }
+
+    case PANE_OVERLAY_MENU:
+        if (!sdl_touch_top_panel_compute_layout(NULL, &frect))
+            return false;
+        sdl_frect_to_covering_rect(&frect, out);
+        return sdl_rect_has_area(out);
+
+    default:
+        break;
+    }
+
+    if (!sdl_rect_has_area(&g_pane_rects[pane]))
+        return false;
+    *out = g_pane_rects[pane];
+    return sdl_rect_has_area(out);
+}
+
+static void sdl_map_overlay_add_coverage(const sdl_view* view,
+    const SDL_FRect* rect, int max_rects, int* start_cols, int* cols,
+    int* start_rows, int* rows, int* count)
+{
+    int start_col;
+    int col_count;
+    int start_row;
+    int row_count;
+
+    if (!view || !rect || !count || *count >= max_rects)
+        return;
+    if (!sdl_main_view_map_cell_coverage(view, rect, &start_col, &col_count,
+            &start_row, &row_count))
+    {
+        return;
+    }
+
+    start_cols[*count] = start_col;
+    cols[*count] = col_count;
+    start_rows[*count] = start_row;
+    rows[*count] = row_count;
+    (*count)++;
+}
+
+int sdl_map_overlay_map_coverages(int max_rects, int* start_cols,
+    int* cols, int* start_rows, int* rows)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    int count = 0;
+    SDL_Rect irect;
+    SDL_FRect rect;
+
+    if (max_rects <= 0 || !start_cols || !cols || !start_rows || !rows)
+        return 0;
+    for (int i = 0; i < max_rects; i++) {
+        start_cols[i] = 0;
+        cols[i] = 0;
+        start_rows[i] = 0;
+        rows[i] = 0;
+    }
+    if (!view->term_ready || view->cell_w <= 0 || view->cell_h <= 0)
+        return 0;
+
+    /* Configured overlay panes use their live painted rectangle, not their
+     * nominal anchor.  That includes Left Panel, Combat, Log, Status, Depth,
+     * Status & Depth, descriptions, and Quick Access when each is visible. */
+    for (int i = 0; i < pane_config_count && count < max_rects; i++) {
+        if (!pane_config[i].enabled
+            || !pane_placement_is_overlay(pane_config[i].where))
+        {
+            continue;
+        }
+        if (!sdl_overlay_stack_visible_rect(pane_config[i].pane, &irect))
+            continue;
+
+        rect = (SDL_FRect){
+            (float)irect.x, (float)irect.y,
+            (float)irect.w, (float)irect.h
+        };
+        sdl_map_overlay_add_coverage(view, &rect, max_rects, start_cols,
+            cols, start_rows, rows, &count);
+    }
+
+    /* These controls can overlap the map without using an overlay placement. */
+    if (count < max_rects && sdl_side_map_pane_current_rect(&irect)) {
+        rect = (SDL_FRect){
+            (float)irect.x, (float)irect.y,
+            (float)irect.w, (float)irect.h
+        };
+        sdl_map_overlay_add_coverage(view, &rect, max_rects, start_cols,
+            cols, start_rows, rows, &count);
+    }
+    if (count < max_rects && sdl_touch_pane_current_rect(&irect)) {
+        rect = (SDL_FRect){
+            (float)irect.x, (float)irect.y,
+            (float)irect.w, (float)irect.h
+        };
+        sdl_map_overlay_add_coverage(view, &rect, max_rects, start_cols,
+            cols, start_rows, rows, &count);
+    }
+    if (count < max_rects && sdl_touch_round_layer_config_enabled()
+        && !g_main_menu_overlay_active
+        && sdl_mouse_gameplay_context_active())
+    {
+        float cx;
+        float cy;
+        float radius;
+
+        if (sdl_touch_round_compute_layout(&cx, &cy, &radius, NULL, NULL)) {
+            rect = (SDL_FRect){
+                cx - radius, cy - radius, radius * 2.0f, radius * 2.0f
+            };
+            sdl_map_overlay_add_coverage(view, &rect, max_rects, start_cols,
+                cols, start_rows, rows, &count);
+        }
+    }
+    if (count < max_rects && sdl_touch_thumb_current_bounds(&rect)) {
+        sdl_map_overlay_add_coverage(view, &rect, max_rects, start_cols,
+            cols, start_rows, rows, &count);
+    }
+
+    return count;
+}
+
+static bool sdl_overlay_placement_is_left(
+    enum pane_placement where)
+{
+    return where == PLACE_TOP_LEFT || where == PLACE_LEFT_CENTER
+        || where == PLACE_BOTTOM_LEFT;
+}
+
+static void sdl_overlay_shared_side_edges(int* out_left,
+    bool* out_have_left, int* out_right, bool* out_have_right)
+{
+    bool have_left = false;
+    bool have_right = false;
+    int left = 0;
+    int right = 0;
+
+    for (int i = 0; i < pane_config_count; i++) {
+        enum pane_type pane = pane_config[i].pane;
+        enum pane_placement where = pane_config[i].where;
+        SDL_Rect visible;
+
+        if (!pane_config[i].enabled || !pane_placement_is_overlay(where))
+            continue;
+        if (pane <= PANE_MAIN || pane >= PANE_MAX)
+            continue;
+        if (!sdl_overlay_stack_visible_rect(pane, &visible))
+            continue;
+
+        if (!have_left && sdl_overlay_placement_is_left(where)) {
+            left = visible.x;
+            have_left = true;
+        } else if (!have_right
+            && sdl_left_panel_pane_placement_is_right(where))
+        {
+            right = visible.x + visible.w;
+            have_right = true;
+        }
+
+        if (have_left && have_right)
+            break;
+    }
+
+    if (out_left)
+        *out_left = left;
+    if (out_have_left)
+        *out_have_left = have_left;
+    if (out_right)
+        *out_right = right;
+    if (out_have_right)
+        *out_have_right = have_right;
+}
+
+/* Generic pane allocation stacks configured anchors, but the renderers above
+ * often paint smaller live rectangles inside those anchors.  That leaves gaps
+ * (especially after the left panel collapses) and staggered side edges. Reflow
+ * each visible overlay stack from its painted rectangles:
+ * preserve pane order, abut every neighbour, and align the horizontal edge
+ * selected by the slot (left, centred, or right). */
+static void sdl_apply_overlay_stack_layout(void)
+{
+    static const enum pane_placement placements[] = {
+        PLACE_TOP_LEFT,
+        PLACE_TOP_CENTER,
+        PLACE_TOP_RIGHT,
+        PLACE_LEFT_CENTER,
+        PLACE_RIGHT_CENTER,
+        PLACE_BOTTOM_LEFT,
+        PLACE_BOTTOM_CENTER,
+        PLACE_BOTTOM_RIGHT,
+    };
+    bool have_shared_left;
+    bool have_shared_right;
+    int shared_left;
+    int shared_right;
+
+    if (!sdl_should_show_supporting_panes()) {
+        return;
+    }
+
+    sdl_overlay_shared_side_edges(&shared_left, &have_shared_left,
+        &shared_right, &have_shared_right);
+
+    if (get_sdl_left_overlays_touch_screen_edge()) {
+        SDL_Rect screen = sdl_get_layout_screen_rect();
+
+        if (sdl_rect_has_area(&screen)) {
+            shared_left = screen.x;
+            have_shared_left = true;
+        }
+    }
+
+    for (int slot = 0; slot < (int)N_ELEMENTS(placements); slot++) {
+        enum pane_placement where = placements[slot];
+        bool bottom = sdl_left_panel_pane_placement_is_bottom(where);
+        bool right = sdl_left_panel_pane_placement_is_right(where);
+        bool center = sdl_left_panel_pane_placement_is_horizontal_center(
+            where);
+        /* Dynamic overlays can change shape after a neighbour moves.  Quick
+         * Access, for example, expands into horizontal space returned by a
+         * pane that has just moved above it.  Reflow the whole slot a few
+         * times so those new measurements feed back into the stack instead
+         * of recreating an overlap after the one-pass placement. */
+        for (int pass = 0; pass < 3; pass++) {
+            bool have_first = false;
+            int cursor_y = 0;
+
+            for (int i = 0; i < pane_config_count; i++) {
+                enum pane_type pane = pane_config[i].pane;
+                SDL_Rect visible;
+
+                if (!pane_config[i].enabled || pane_config[i].where != where)
+                    continue;
+                if (pane <= PANE_MAIN || pane >= PANE_MAX)
+                    continue;
+                if (!sdl_overlay_stack_visible_rect(pane, &visible))
+                    continue;
+
+                {
+                    int target_y = !have_first ? visible.y
+                        : (bottom ? cursor_y - visible.h : cursor_y);
+                    int dx = 0;
+                    int dy = target_y - visible.y;
+
+                    if (right && have_shared_right)
+                        dx = shared_right - (visible.x + visible.w);
+                    else if (!center && have_shared_left)
+                        dx = shared_left - visible.x;
+
+                    sdl_overlay_stack_shift_pane(pane, dx, dy);
+                }
+
+                /* Re-read the live rectangle after moving its anchor.
+                 * Dynamic panels can clamp to the safe screen or change
+                 * their packing. */
+                if (!sdl_overlay_stack_visible_rect(pane, &visible))
+                    continue;
+                cursor_y = bottom ? visible.y : visible.y + visible.h;
+                have_first = true;
+            }
+        }
+    }
+}
+
 /*
  * Move the ordered Top Right stack below overlays that actually cross it.
  * The generic pane layout cannot know the measured compact-left width or the
  * separately-rendered Menu button rectangle, so resolve both here.
  */
-void sdl_apply_top_right_overlay_offset(void)
+static void sdl_apply_top_right_overlay_blocker_offset(void)
 {
     SDL_Rect visible_rects[PANE_MAX] = { 0 };
     bool have_visible_rect[PANE_MAX] = { false };
@@ -2490,10 +2931,6 @@ void sdl_apply_top_right_overlay_offset(void)
     int stack_top = INT_MAX;
     int desired_top;
     bool compact_left_blocker;
-
-    /* Presentation recomputes measured overlay sizes, so first restore the
-     * base layout rectangles before calculating the current frame's offset. */
-    sdl_remove_top_right_overlay_offset();
 
     if (!sdl_should_show_supporting_panes())
         return;
@@ -2594,10 +3031,19 @@ void sdl_apply_top_right_overlay_offset(void)
     }
 }
 
+void sdl_apply_top_right_overlay_offset(void)
+{
+    /* Presentation recomputes measured overlay sizes, so first restore the
+     * base layout rectangles before calculating the current frame's offsets. */
+    sdl_remove_overlay_stack_offsets();
+    sdl_remove_top_right_overlay_offset();
+    sdl_apply_top_right_overlay_blocker_offset();
+    sdl_apply_overlay_stack_layout();
+}
+
 bool sdl_left_panel_pane_has_border_columns(void)
 {
-    return !sdl_left_panel_pane_collapsed()
-        || !sdl_left_panel_compact_row_mode();
+    return true;
 }
 
 int sdl_main_view_visual_cols_for_width(int width_px, int cell_w)
@@ -2676,8 +3122,11 @@ void sdl_apply_startup_input_defaults_to_config(
         target->touch_top_panel_cell_count =
             SDL_TOUCH_TOP_PANEL_CELL_COUNT_DEFAULT;
         target->touch_top_panel_rows = SDL_TOUCH_TOP_PANEL_ROWS_DEFAULT;
+        target->touch_top_panel_arrows_visible = false;
         target->touch_top_panel_default_open = true;
-        target->touch_top_panel_size = SDL_TOUCH_TOP_PANEL_SIZE_STRETCH;
+        target->touch_top_panel_size = target->mobile_portrait_mode
+            ? SDL_TOUCH_TOP_PANEL_SIZE_STRETCH
+            : (float)target->main_view_scale;
         target->touch_swipe_enabled = true;
     }
 }
@@ -3470,6 +3919,15 @@ int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
     int active_count = 0;
     bool proto_touch = sdl_touch_pane_proto_mode_active();
 
+#if SIL_SDL_MOBILE_BUILD
+    /* Mobile reserves the display for the main view.  The touch controls and
+     * SDL-rendered HUD/modal overlays are the only pane-backed surfaces that
+     * may participate in layout. */
+    include_side = false;
+    include_bottom = false;
+    touch_only = true;
+#endif
+
     if (proto_touch)
         sdl_ensure_touch_pane_config_present();
 
@@ -3484,6 +3942,7 @@ int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
         bool is_description_pane;
         bool is_overlay_menu_pane;
         bool is_overlay_log_pane;
+        bool is_status_depth_pane;
 
         where = effective.where;
         is_touch_pane = (effective.pane == PANE_TOUCH);
@@ -3495,6 +3954,7 @@ int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
         is_overlay_menu_pane = (effective.pane == PANE_OVERLAY_MENU);
         is_overlay_log_pane = effective.pane == PANE_ROLLS
             && pane_placement_is_overlay(where);
+        is_status_depth_pane = (effective.pane == PANE_STATUS_DEPTH);
 
         if (effective.pane == PANE_MAIN_MENU)
             continue;
@@ -3502,7 +3962,7 @@ int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
             && !is_left_panel && !is_depth_pane
             && !is_combat_pane
             && !is_description_pane && !is_overlay_menu_pane
-            && !is_overlay_log_pane)
+            && !is_overlay_log_pane && !is_status_depth_pane)
         {
             continue;
         }
@@ -3513,7 +3973,7 @@ int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
         if (!is_touch_pane && !is_status_pane && !is_left_panel
             && !is_depth_pane && !is_combat_pane
             && !is_description_pane && !is_overlay_menu_pane
-            && !is_overlay_log_pane)
+            && !is_overlay_log_pane && !is_status_depth_pane)
         {
             if (pane_placement_is_side(where) && !include_side)
                 continue;
@@ -3618,7 +4078,7 @@ int sdl_auto_aux_view_font_size(void)
 
 int sdl_auto_pane_font_size(enum pane_type type)
 {
-    if (type == PANE_STATUS)
+    if (type == PANE_STATUS || type == PANE_STATUS_DEPTH)
         return sdl_auto_font_size_from_main(1, 2);
     if (type == PANE_LEFT_PANEL || type == PANE_COMBAT || type == PANE_LOG)
 #if SIL_SDL_MOBILE_BUILD
@@ -4366,6 +4826,7 @@ bool sdl_hide_supporting_panes_mode_effective(void)
             || pane_config[i].pane == PANE_TOUCH
             || pane_config[i].pane == PANE_STATUS
             || pane_config[i].pane == PANE_DEPTH
+            || pane_config[i].pane == PANE_STATUS_DEPTH
             || pane_config[i].pane == PANE_COMBAT
             || pane_config[i].pane == PANE_MAIN_MENU
             || pane_config[i].pane == PANE_DESCRIPTION
@@ -4965,7 +5426,6 @@ bool sdl_prompt_reset_sdl_defaults(const char* issue_summary,
 
     sdl_reset_config_to_resolution_defaults(screen_width, screen_height);
     sdl_ensure_default_pane_profiles_present(false);
-    sdl_apply_screen_aspect_pane_default_profiles(screen_width, screen_height);
     sdl_apply_stored_pane_profile(config.min_terminal_mode);
     sdl_ensure_touch_pane_config_present();
     sdl_touch_pane_ensure_main_panel_confirm();

@@ -154,7 +154,6 @@ static bool monster_recall_screen_capture_build(
     int term_wid = 80;
     int term_hgt = 24;
     int target_wid;
-    int max_target_wid;
     int used_rows;
     int used_cols;
 
@@ -167,10 +166,7 @@ static bool monster_recall_screen_capture_build(
     Term_get_size(&term_wid, &term_hgt);
     (void)term_hgt;
 
-    target_wid = term_wid;
-    max_target_wid = sdl_description_overlay_max_cols();
-    if (max_target_wid > 0 && target_wid > max_target_wid)
-        target_wid = max_target_wid;
+    target_wid = sdl_description_overlay_capture_cols(term_wid, true);
     if (target_wid < 20)
         target_wid = 20;
 

@@ -233,12 +233,9 @@ bool sdl_halls_screen_active(void)
     return g_sdl_halls.active;
 }
 
-bool sdl_halls_screen_begin(cptr subtitle, cptr page_status,
+void sdl_halls_screen_begin(cptr subtitle, cptr page_status,
     bool detailed, int outside_choice)
 {
-    if (!g_state.window || !g_state.renderer)
-        return false;
-
     memset(&g_sdl_halls, 0, sizeof(g_sdl_halls));
     g_sdl_halls.active = true;
     g_sdl_halls.detailed = detailed;
@@ -249,7 +246,6 @@ bool sdl_halls_screen_begin(cptr subtitle, cptr page_status,
     SDL_strlcpy(g_sdl_halls.page_status, page_status ? page_status : "",
         sizeof(g_sdl_halls.page_status));
     g_state.need_present = true;
-    return true;
 }
 
 int sdl_halls_screen_page_capacity(bool detailed)

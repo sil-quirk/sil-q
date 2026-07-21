@@ -149,6 +149,15 @@ bool sdl_depth_menu_pane_layout(depth_pane_layout* out)
 
         out->panel = sdl_overlay_panel_rect(&anchor, pc->where,
             (int)panel_w, (int)panel_h, &screen);
+        /* Right-hand overlays sit flush with the pane edge.  Do this after
+         * the general screen-margin clamp so the depth panel shares the same
+         * right border as the overlay log. */
+        if (pc->where == PLACE_TOP_RIGHT
+            || pc->where == PLACE_RIGHT_CENTER
+            || pc->where == PLACE_BOTTOM_RIGHT)
+        {
+            out->panel.x = (float)(anchor.x + anchor.w) - out->panel.w;
+        }
         out->label = (SDL_FRect){
             .x = out->panel.x,
             .y = out->panel.y,
@@ -226,10 +235,8 @@ void sdl_depth_menu_pane_render(void)
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 126);
     SDL_RenderFillRect(g_state.renderer, &shadow);
-    if (g_depth_pane_hover_action != SDL_DEPTH_PANE_HOVER_NONE)
-        SDL_SetRenderDrawColor(g_state.renderer, 22, 24, 18, 238);
-    else
-        SDL_SetRenderDrawColor(g_state.renderer, 8, 10, 12, 226);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0,
+        SDL_OVERLAY_LOG_PANE_ALPHA);
     SDL_RenderFillRect(g_state.renderer, &layout.panel);
 
     if (g_depth_pane_hover_action == SDL_DEPTH_PANE_HOVER_ZOOM_OUT) {
@@ -399,6 +406,9 @@ bool sdl_narrative_banner_top_center_pane_rect(
         *out = layout.panel;
         return out->w > 0.0f && out->h > 0.0f;
     }
+
+    case PANE_STATUS_DEPTH:
+        return sdl_status_depth_pane_current_rect(out);
 
     case PANE_LEFT_PANEL:
         if (!sdl_left_panel_pane_presentation_active())

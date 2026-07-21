@@ -5,8 +5,7 @@
 #include "metarun.h"
 #include "sdl-config.h"
 
-/* Screen-cell rectangle [x1,x2) x [y1,y2) of an SDL pane floating over the
- * map. */
+/* Screen-cell rectangle [x1,x2) x [y1,y2) of an SDL overlay over the map. */
 struct map_pane_span {
     int x1;
     int y1;
@@ -14,51 +13,35 @@ struct map_pane_span {
     int y2;
 };
 
-#define MAP_PANE_SPAN_MAX 3
+#define MAP_OVERLAY_SPAN_MAX (MAX_PANE_CONFIGS + 4)
 
-/* Collect the panes currently obscuring the map: the styled left panel pane
- * the combat overlay, and the overlay log band. */
-static int map_pane_spans(struct map_pane_span* spans, int max_spans)
+static int map_center_clearance(void)
+{
+#ifdef USE_SDL
+    return get_sdl_camera_center_clearance();
+#else
+    return SDL_CAMERA_CENTER_CLEARANCE_DEFAULT;
+#endif
+}
+
+/* Collect every live SDL overlay which currently obscures the map. */
+static int map_overlay_spans(struct map_pane_span* spans, int max_spans)
 {
     int count = 0;
 
 #ifdef USE_SDL
-    int pane_start_col = 0;
-    int pane_cols = 0;
-    int pane_start_row = 0;
-    int pane_rows = 0;
+    int start_cols[MAP_OVERLAY_SPAN_MAX];
+    int cols[MAP_OVERLAY_SPAN_MAX];
+    int start_rows[MAP_OVERLAY_SPAN_MAX];
+    int rows[MAP_OVERLAY_SPAN_MAX];
 
-    if (count < max_spans
-        && sdl_left_panel_pane_map_coverage(&pane_start_col, &pane_cols,
-            &pane_start_row, &pane_rows))
-    {
-        spans[count].x1 = pane_start_col;
-        spans[count].y1 = pane_start_row;
-        spans[count].x2 = pane_start_col + pane_cols;
-        spans[count].y2 = pane_start_row + pane_rows;
-        count++;
-    }
-
-    if (count < max_spans
-        && sdl_combat_overlay_pane_map_coverage(&pane_start_col, &pane_cols,
-            &pane_start_row, &pane_rows))
-    {
-        spans[count].x1 = pane_start_col;
-        spans[count].y1 = pane_start_row;
-        spans[count].x2 = pane_start_col + pane_cols;
-        spans[count].y2 = pane_start_row + pane_rows;
-        count++;
-    }
-
-    if (count < max_spans
-        && sdl_overlay_log_pane_map_coverage(&pane_start_col, &pane_cols,
-            &pane_start_row, &pane_rows))
-    {
-        spans[count].x1 = pane_start_col;
-        spans[count].y1 = pane_start_row;
-        spans[count].x2 = pane_start_col + pane_cols;
-        spans[count].y2 = pane_start_row + pane_rows;
-        count++;
+    count = sdl_map_overlay_map_coverages(max_spans, start_cols, cols,
+        start_rows, rows);
+    for (int i = 0; i < count; i++) {
+        spans[i].x1 = start_cols[i];
+        spans[i].y1 = start_rows[i];
+        spans[i].x2 = start_cols[i] + cols[i];
+        spans[i].y2 = start_rows[i] + rows[i];
     }
 #else
     (void)spans;
@@ -79,222 +62,284 @@ static int clamp_screen_center(int value, int size)
     return value;
 }
 
-static bool map_pane_span_contains(const struct map_pane_span* s, int y, int x)
+static bool map_pane_span_contains(const struct map_pane_span* s, int y,
+    int x, int clearance)
 {
-    return s && x >= s->x1 && x < s->x2 && y >= s->y1 && y < s->y2;
+    return s && x >= s->x1 - clearance && x < s->x2 + clearance
+        && y >= s->y1 - clearance && y < s->y2 + clearance;
 }
 
 static bool map_center_clear(int y, int x,
-    const struct map_pane_span* spans, int span_count)
+    const struct map_pane_span* spans, int span_count, int clearance)
 {
     for (int i = 0; i < span_count; i++)
     {
-        if (map_pane_span_contains(&spans[i], y, x))
+        if (map_pane_span_contains(&spans[i], y, x, clearance))
             return false;
     }
 
     return true;
 }
 
-static void map_safe_center_try_candidate(int y, int x, int base_y,
-    int base_x, int screen_h, int screen_w, const struct map_pane_span* spans,
-    int span_count, bool* have_best, int* best_score, int* best_y,
-    int* best_x)
+static bool map_zone_cell_clear(int y, int x, int screen_h, int screen_w,
+    const struct map_pane_span* spans, int span_count, int clearance)
 {
-    int dy;
-    int dx;
-    int score;
+    if (x < clearance || x >= screen_w - clearance
+        || y < clearance || y >= screen_h - clearance)
+        return false;
 
-    y = clamp_screen_center(y, screen_h);
-    x = clamp_screen_center(x, screen_w);
-    if (!map_center_clear(y, x, spans, span_count))
-        return;
-
-    dy = y - base_y;
-    dx = x - base_x;
-    score = dy * dy + dx * dx;
-    if (!*have_best || score < *best_score)
-    {
-        *have_best = true;
-        *best_score = score;
-        *best_y = y;
-        *best_x = x;
-    }
+    return map_center_clear(y, x, spans, span_count, clearance);
 }
 
-/* Center the player unless that exact center cell is obscured by an SDL pane. */
-static void map_safe_center(int* center_y, int* center_x,
+static int* map_zone_labels = NULL;
+static int* map_zone_queue = NULL;
+static int map_zone_capacity = 0;
+static int map_zone_cached_h = 0;
+static int map_zone_cached_w = 0;
+static int map_zone_cached_clearance = 0;
+static int map_zone_cached_span_count = 0;
+static struct map_pane_span map_zone_cached_spans[MAP_OVERLAY_SPAN_MAX];
+static bool map_zone_cache_valid = false;
+
+static bool map_zone_cache_matches(int screen_h, int screen_w, int clearance,
     const struct map_pane_span* spans, int span_count)
+{
+    if (!map_zone_cache_valid || screen_h != map_zone_cached_h
+        || screen_w != map_zone_cached_w
+        || clearance != map_zone_cached_clearance
+        || span_count != map_zone_cached_span_count)
+        return false;
+
+    for (int i = 0; i < span_count; i++)
+    {
+        if (spans[i].x1 != map_zone_cached_spans[i].x1
+            || spans[i].y1 != map_zone_cached_spans[i].y1
+            || spans[i].x2 != map_zone_cached_spans[i].x2
+            || spans[i].y2 != map_zone_cached_spans[i].y2)
+            return false;
+    }
+
+    return true;
+}
+
+static bool map_zone_cache_reserve(int cell_count)
+{
+    int* labels;
+    int* queue;
+
+    if (cell_count <= map_zone_capacity)
+        return true;
+
+    labels = mem_alloc_array(cell_count, int);
+    queue = mem_alloc_array(cell_count, int);
+    if (!labels || !queue)
+    {
+        mem_free_null(labels);
+        mem_free_null(queue);
+        return false;
+    }
+
+    mem_free_null(map_zone_labels);
+    mem_free_null(map_zone_queue);
+    map_zone_labels = labels;
+    map_zone_queue = queue;
+    map_zone_capacity = cell_count;
+    return true;
+}
+
+/* Label each connected region left after screen edges and live overlays have
+ * been expanded by the configured recenter distance. */
+static bool map_zone_cache_build(int screen_h, int screen_w, int clearance,
+    const struct map_pane_span* spans, int span_count)
+{
+    static const int step_y[4] = { -1, 0, 1, 0 };
+    static const int step_x[4] = { 0, 1, 0, -1 };
+    int cell_count = screen_h * screen_w;
+    int next_label = 1;
+
+    if (screen_h <= 0 || screen_w <= 0 || cell_count <= 0
+        || !map_zone_cache_reserve(cell_count))
+        return false;
+
+    for (int y = 0; y < screen_h; y++)
+    {
+        for (int x = 0; x < screen_w; x++)
+        {
+            int index = y * screen_w + x;
+
+            map_zone_labels[index] = map_zone_cell_clear(y, x, screen_h,
+                screen_w, spans, span_count, clearance) ? -1 : 0;
+        }
+    }
+
+    for (int start = 0; start < cell_count; start++)
+    {
+        int head = 0;
+        int tail = 0;
+
+        if (map_zone_labels[start] != -1)
+            continue;
+
+        map_zone_labels[start] = next_label;
+        map_zone_queue[tail++] = start;
+
+        while (head < tail)
+        {
+            int index = map_zone_queue[head++];
+            int y = index / screen_w;
+            int x = index % screen_w;
+
+            for (int direction = 0; direction < 4; direction++)
+            {
+                int near_y = y + step_y[direction];
+                int near_x = x + step_x[direction];
+                int near_index;
+
+                if (near_y < 0 || near_y >= screen_h
+                    || near_x < 0 || near_x >= screen_w)
+                    continue;
+
+                near_index = near_y * screen_w + near_x;
+                if (map_zone_labels[near_index] != -1)
+                    continue;
+
+                map_zone_labels[near_index] = next_label;
+                map_zone_queue[tail++] = near_index;
+            }
+        }
+
+        next_label++;
+    }
+
+    map_zone_cached_h = screen_h;
+    map_zone_cached_w = screen_w;
+    map_zone_cached_clearance = clearance;
+    map_zone_cached_span_count = span_count;
+    for (int i = 0; i < span_count; i++)
+        map_zone_cached_spans[i] = spans[i];
+    map_zone_cache_valid = true;
+    return true;
+}
+
+/* Select the visible zone nearest the player's present screen position, then
+ * use the cell nearest that zone's area centroid as the recenter target. */
+static void map_safe_center(int* center_y, int* center_x,
+    const struct map_pane_span* spans, int span_count, int anchor_y,
+    int anchor_x)
 {
     int screen_h = SCREEN_HGT;
     int screen_w = SCREEN_WID;
+    int clearance = map_center_clearance();
     int cy = clamp_screen_center(screen_h / 2, screen_h);
     int cx = clamp_screen_center(screen_w / 2, screen_w);
-    bool have_best = false;
-    int best_score = 0;
-    int best_y = cy;
-    int best_x = cx;
+    int zone_label = 0;
+    long long nearest_distance = 0;
+    long long sum_y = 0;
+    long long sum_x = 0;
+    int zone_cells = 0;
+    long long center_distance = 0;
+    bool have_zone_center = false;
 
-    if (!map_center_clear(cy, cx, spans, span_count))
+    if (!map_zone_cache_matches(screen_h, screen_w, clearance, spans,
+            span_count)
+        && !map_zone_cache_build(screen_h, screen_w, clearance, spans,
+            span_count))
+        goto finish;
+
+    if (anchor_y >= 0 && anchor_y < screen_h
+        && anchor_x >= 0 && anchor_x < screen_w)
+        zone_label = map_zone_labels[anchor_y * screen_w + anchor_x];
+
+    if (zone_label <= 0)
     {
-        for (int i = 0; i < span_count; i++)
+        for (int y = 0; y < screen_h; y++)
         {
-            const struct map_pane_span* s = &spans[i];
+            for (int x = 0; x < screen_w; x++)
+            {
+                int label = map_zone_labels[y * screen_w + x];
+                long long dy;
+                long long dx;
+                long long distance;
 
-            if (!map_pane_span_contains(s, cy, cx))
-                continue;
+                if (label <= 0)
+                    continue;
 
-            map_safe_center_try_candidate(cy, s->x1 - 1, cy, cx, screen_h,
-                screen_w, spans, span_count, &have_best, &best_score, &best_y,
-                &best_x);
-            map_safe_center_try_candidate(cy, s->x2, cy, cx, screen_h,
-                screen_w, spans, span_count, &have_best, &best_score, &best_y,
-                &best_x);
-            map_safe_center_try_candidate(s->y1 - 1, cx, cy, cx, screen_h,
-                screen_w, spans, span_count, &have_best, &best_score, &best_y,
-                &best_x);
-            map_safe_center_try_candidate(s->y2, cx, cy, cx, screen_h,
-                screen_w, spans, span_count, &have_best, &best_score, &best_y,
-                &best_x);
-        }
-
-        if (have_best)
-        {
-            cy = best_y;
-            cx = best_x;
+                dy = y - anchor_y;
+                dx = x - anchor_x;
+                distance = dy * dy + dx * dx;
+                if (zone_label <= 0 || distance < nearest_distance)
+                {
+                    zone_label = label;
+                    nearest_distance = distance;
+                }
+            }
         }
     }
 
+    if (zone_label <= 0)
+        goto finish;
+
+    for (int y = 0; y < screen_h; y++)
+    {
+        for (int x = 0; x < screen_w; x++)
+        {
+            if (map_zone_labels[y * screen_w + x] != zone_label)
+                continue;
+
+            sum_y += y;
+            sum_x += x;
+            zone_cells++;
+        }
+    }
+
+    for (int y = 0; y < screen_h; y++)
+    {
+        for (int x = 0; x < screen_w; x++)
+        {
+            long long dy;
+            long long dx;
+            long long distance;
+
+            if (map_zone_labels[y * screen_w + x] != zone_label)
+                continue;
+
+            /* Compare to the exact rational centroid without rounding it into
+             * an overlay or another disconnected zone. */
+            dy = (long long)y * zone_cells - sum_y;
+            dx = (long long)x * zone_cells - sum_x;
+            distance = dy * dy + dx * dx;
+            if (!have_zone_center || distance < center_distance)
+            {
+                cy = y;
+                cx = x;
+                center_distance = distance;
+                have_zone_center = true;
+            }
+        }
+    }
+
+finish:
     if (center_y)
         *center_y = cy;
     if (center_x)
         *center_x = cx;
 }
 
-static int floor_div_int(int value, int divisor)
+/* Screen edges and every overlay are the same kind of hidden space. */
+static bool map_cell_near_hidden(int y, int x,
+    const struct map_pane_span* spans, int span_count)
 {
-    int quot;
-    int rem;
+    int clearance = map_center_clearance();
 
-    if (divisor <= 0)
-        return 0;
-
-    quot = value / divisor;
-    rem = value % divisor;
-    if (rem != 0 && value < 0)
-        quot--;
-    return quot;
-}
-
-static int scroll_axis_margin_for_target(int margin, int lo, int hi, int target)
-{
-    int screen = hi - lo;
-    int target_offset = target - lo;
-    int max_before = target_offset - 1;
-    int max_after = screen - target_offset - 2;
-    int max_margin = (max_before < max_after) ? max_before : max_after;
-
-    if (max_margin < 0)
-        max_margin = 0;
-    if (margin > max_margin)
-        margin = max_margin;
-
-    return margin;
-}
-
-/*
- * How close (as a fraction of the viewport) the player may drift from the
- * centre of a small viewport before the view recentres on them.  Smaller =>
- * the player is kept nearer the middle and the view recentres more often;
- * larger => a bigger "dead zone" and less frequent recentring.  At 2 the dead
- * zone spans half the viewport; tend toward 3-4 for a tighter, more centred
- * feel.
- */
-#define SCROLL_RECENTER_DIVISOR 3
-
-/*
- * Scroll one axis so the player sits comfortably inside a viewport that spans
- * screen cells [lo, hi).  Parameterised on a sub-window so it can be applied to
- * just the map area the styled pane leaves clear: passing the reduced range
- * keeps the player out of the pane while still scrolling normally, instead of
- * being pinned against the pane edge.
- *
- *   p    = player map coordinate on this axis (py or px)
- *   w    = current map offset on this axis (p_ptr->wy or ->wx)
- *   lo   = first usable screen cell (0, or just past a top/left pane)
- *   hi   = one-past the last usable screen cell (SCREEN_*, or a bottom/right pane)
- *   center = preferred screen cell for the player on this axis
- *   panel= PANEL_HGT / PANEL_WID
- *   big  = margin used on a large viewport (the classic 13 / 17)
- *
- * Small viewports recentre the player on the preferred center once they wander
- * past the margin (so the camera keeps up with them); large viewports keep the
- * classic panel-aligned scroll.  When [lo,hi) is the whole screen and the
- * viewport is large this reduces to the original logic, so the no-pane case is
- * unchanged.
- */
-static int scroll_axis_within(int p, int w, int lo, int hi, int center,
-    int panel, int big)
-{
-    int screen = hi - lo;
-    bool compact;
-    int margin;
-    int wv;
-    int target;
-
-    if (screen < 1)
+    if (x < clearance
+        || x >= SCREEN_WID - clearance
+        || y < clearance
+        || y >= SCREEN_HGT - clearance)
     {
-        screen = 1;
-        hi = lo + 1;
+        return true;
     }
 
-    compact = (screen < panel * 2);
-    target = center;
-    if (target < lo)
-        target = lo;
-    if (target >= hi)
-        target = hi - 1;
-
-    /* Work in the virtual frame where the viewport starts at screen cell 0. */
-    wv = w + lo;
-
-    if (compact)
-    {
-        margin = screen / SCROLL_RECENTER_DIVISOR;
-        if (margin < 1)
-            margin = 1;
-        if (margin > (screen - 1) / 2)
-            margin = (screen - 1) / 2;
-        margin = scroll_axis_margin_for_target(margin, lo, hi, target);
-
-        /* Recentre on the player once they drift past the margin. */
-        if (p < wv + margin || p >= wv + screen - margin)
-            wv = p - (target - lo);
-    }
-    else
-    {
-        margin = big;
-        if (margin > (screen - panel) / 2)
-            margin = (screen - panel) / 2;
-        if (margin < 1)
-            margin = 1;
-        margin = scroll_axis_margin_for_target(margin, lo, hi, target);
-
-        /* Classic panel-aligned jump near the edges. */
-        if (p < wv + margin || p >= wv + screen - margin)
-        {
-            wv = floor_div_int(p - panel / 2, panel) * panel;
-
-            /* The panel-aligned jump knows nothing of the [lo,hi) window; if
-             * it would still leave the player outside it (i.e. under a pane),
-             * recentre on the player instead.  The jump always lands well
-             * inside a full-size viewport, so the classic feel is unchanged. */
-            if (p < wv || p >= wv + screen)
-                wv = p - (target - lo);
-        }
-    }
-
-    return wv - lo;
+    return !map_center_clear(y, x, spans, span_count, clearance);
 }
 
 /*
@@ -311,8 +356,8 @@ static int scroll_axis_within(int p, int w, int lo, int hi, int center,
  */
 bool modify_panel(int wy, int wx)
 {
-    struct map_pane_span spans[MAP_PANE_SPAN_MAX];
-    int span_count = map_pane_spans(spans, MAP_PANE_SPAN_MAX);
+    struct map_pane_span spans[MAP_OVERLAY_SPAN_MAX];
+    int span_count = map_overlay_spans(spans, MAP_OVERLAY_SPAN_MAX);
     int center_y;
     int center_x;
     int min_wy;
@@ -320,7 +365,8 @@ bool modify_panel(int wy, int wx)
     int max_wy;
     int max_wx;
 
-    map_safe_center(&center_y, &center_x, spans, span_count);
+    map_safe_center(&center_y, &center_x, spans, span_count,
+        p_ptr->py - wy, p_ptr->px - wx);
 
     min_wy = -center_y;
     min_wx = -center_x;
@@ -408,9 +454,8 @@ bool change_panel(int dir)
 /*
  * Verify the current panel (relative to the player location).
  *
- * By default, when the player gets "too close" to the edge of the current
- * panel, the map scrolls one panel in that direction so that the player
- * is no longer so close to the edge.
+ * By default, when the player comes within the configured clearance of hidden
+ * space (the screen edge or an overlay), center the map on the player.
  *
  * The "center_player" option allows the current panel to always be centered
  * around the player, which is very expensive, and also has some interesting
@@ -422,37 +467,21 @@ void verify_panel(void)
     int px = p_ptr->px;
     int center_y = SCREEN_HGT / 2;
     int center_x = SCREEN_WID / 2;
-    struct map_pane_span spans[MAP_PANE_SPAN_MAX];
-    int span_count = map_pane_spans(spans, MAP_PANE_SPAN_MAX);
+    struct map_pane_span spans[MAP_OVERLAY_SPAN_MAX];
+    int span_count = map_overlay_spans(spans, MAP_OVERLAY_SPAN_MAX);
 
     int wy = p_ptr->wy;
     int wx = p_ptr->wx;
 
-    map_safe_center(&center_y, &center_x, spans, span_count);
+    map_safe_center(&center_y, &center_x, spans, span_count,
+        py - wy, px - wx);
 
     bool do_center = center_player && (!p_ptr->running || !run_avoid_center);
 
-    /* Scroll vertically: centre on demand, else use the full map viewport. */
-    if (do_center)
-        wy = py - center_y;
-    else
-        wy = scroll_axis_within(py, wy, 0, SCREEN_HGT, center_y,
-            PANEL_HGT, 13);
-
-    /* Scroll horizontally: centre on demand, else use the full map viewport. */
-    if (do_center)
-    {
-        if (px != wx + center_x)
-            wx = px - center_x;
-    }
-    else
-        wx = scroll_axis_within(px, wx, 0, SCREEN_WID, center_x,
-            PANEL_WID, 17);
-
-    /* Panes are rectangles, not full-width or full-height bands.  Let the
-     * normal camera use every visible map cell and intervene only when the
-     * player's resulting screen cell is inside a pane on both axes. */
-    if (!map_center_clear(py - wy, px - wx, spans, span_count))
+    /* One rule for every camera boundary: once the player is within the
+     * configured distance of a screen edge or live overlay, center both axes. */
+    if (do_center
+        || map_cell_near_hidden(py - wy, px - wx, spans, span_count))
     {
         wy = py - center_y;
         wx = px - center_x;

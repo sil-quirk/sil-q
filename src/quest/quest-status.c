@@ -237,9 +237,7 @@ void display_wrapped_text(int col, int *row, cptr text, byte color, int max_widt
     }
 }
 
-static bool quest_status_tabs_active = false;
 static bool quest_status_tabs_focus = false;
-static bool quest_status_touch_active = false;
 static int quest_status_content_col = 0;
 
 static bool hint_quest_tab_key(char ch)
@@ -293,9 +291,7 @@ static void quest_status_reset_page(int col, int *row)
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
     sdl_hint_quest_menu_begin(HINT_QUEST_PAGE_QUESTS,
-        quest_status_tabs_active ? "Hints & Quests" : "Quest Status",
-        quest_status_tabs_active ? "Quest Status" : "",
-        quest_status_tabs_active, false, 0);
+        "Hints & Quests", "Quest Status", true, false, 0);
     if (row)
         *row = 0;
 }
@@ -558,8 +554,7 @@ void free_quest_texts(cptr* texts, int count)
  * Show quest status for current metarun - only active and completed quests
  * Now uses quest.txt data instead of hardcoded values
  */
-static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
-    bool manage_screen)
+hint_quest_page do_cmd_quest_status_page(void)
 {
     char buf[128];
     int row = 0;
@@ -569,7 +564,7 @@ static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
     int hgt = 0;
     hint_quest_page next_page = HINT_QUEST_PAGE_EXIT;
 
-    log_trace("QUEST STATUS: do_cmd_quest_status() called");
+    log_trace("QUEST STATUS: SDL book page opened");
 
     /* Safety check: ensure we have a valid player and metarun */
     if (!p_ptr) {
@@ -581,14 +576,7 @@ static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
     log_trace("QUEST STATUS: Player exists, quest states - Tulkas: %d, Aulë: %d, Mandos: %d",
               p_ptr->tulkas_quest, p_ptr->aule_quest, p_ptr->mandos_quest);
 
-    if (manage_screen)
-    {
-        screen_save();
-        screen_push_supporting_panes_hidden();
-    }
-    quest_status_tabs_active = tabbed;
-    quest_status_tabs_focus = tabbed;
-    quest_status_touch_active = true;
+    quest_status_tabs_focus = true;
     quest_status_reset_page(col, &row);
 
     /* Check Tulkas quest */
@@ -1076,8 +1064,7 @@ static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
         ch = inkey();
         hide_cursor = saved_hide_cursor;
 
-        if ((tabbed || quest_status_touch_active)
-            && ui_menu_click_take_action(&clicked_choice, &click_action))
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
         {
             if (clicked_choice == HINT_QUEST_CLICK_RETURN)
             {
@@ -1120,15 +1107,14 @@ static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
             }
             break;
         }
-        if ((tabbed || quest_status_touch_active)
-            && ch == UI_MENU_CLICK_WAKE_KEY)
+        if (ch == UI_MENU_CLICK_WAKE_KEY)
             continue;
-        if (tabbed && hint_quest_tab_key(ch))
+        if (hint_quest_tab_key(ch))
         {
             next_page = HINT_QUEST_PAGE_THRALLS;
             break;
         }
-        if (tabbed && hint_quest_handle_tab_navigation(ch,
+        if (hint_quest_handle_tab_navigation(ch,
                 &quest_status_tabs_focus, true, &next_page))
         {
             if (next_page != HINT_QUEST_PAGE_EXIT)
@@ -1138,35 +1124,11 @@ static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
         break;
     }
 
-    if (tabbed || quest_status_touch_active)
-        ui_menu_click_clear();
-    if (tabbed && next_page != HINT_QUEST_PAGE_EXIT)
+    ui_menu_click_clear();
+    if (next_page != HINT_QUEST_PAGE_EXIT)
         sdl_hint_quest_menu_prepare_page_turn(next_page);
     else
         sdl_hint_quest_menu_hide();
-    quest_status_tabs_active = false;
     quest_status_tabs_focus = false;
-    quest_status_touch_active = false;
-    if (manage_screen)
-    {
-        screen_pop_supporting_panes_hidden();
-        screen_load();
-    }
     return next_page;
-}
-
-void do_cmd_quest_status(void)
-{
-    (void)do_cmd_quest_status_internal(false, true);
-}
-
-bool do_cmd_quest_status_tabs(void)
-{
-    return do_cmd_quest_status_internal(true, true)
-        == HINT_QUEST_PAGE_HINTS;
-}
-
-hint_quest_page do_cmd_quest_status_tabs_in_place(void)
-{
-    return do_cmd_quest_status_internal(true, false);
 }

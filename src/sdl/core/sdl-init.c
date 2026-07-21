@@ -200,9 +200,6 @@ errr init_sdl(int argc, char **argv)
     sdl_normalize_unified_log_pane_profiles(true);
     sdl_ensure_default_pane_profiles_present(false);
     sdl_normalize_unified_log_pane_profiles(true);
-    if (!config_exists)
-        sdl_apply_screen_aspect_pane_default_profiles(profile_pixels_w,
-            profile_pixels_h);
     sdl_apply_stored_pane_profile(config.min_terminal_mode);
 
 #if defined(__ANDROID__) || defined(SIL_IOS)
@@ -397,7 +394,8 @@ errr init_sdl(int argc, char **argv)
     }
 
     g_touch_pane_mobile_open = config.touch_pane_default_open;
-    g_touch_top_panel_open = config.touch_top_panel_default_open;
+    g_touch_top_panel_open = !config.touch_top_panel_arrows_visible
+        || config.touch_top_panel_default_open;
     
     log_info("SDL Configuration:");
     log_info("  Main view scale: %d", config.main_view_scale);

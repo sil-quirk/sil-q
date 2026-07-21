@@ -950,6 +950,7 @@ extern errr file_character(cptr name, bool full);
 extern bool show_buffer(cptr name, int line);
 extern bool show_file(cptr name, cptr what, int line);
 extern void do_cmd_help(void);
+extern void do_cmd_help_menu(void);
 extern void process_player_name(bool sf);
 extern bool get_name(void);
 extern void do_cmd_escape(int);
@@ -1650,7 +1651,7 @@ extern bool sdl_tale_screen_advance_page(void);
 extern bool sdl_tale_screen_is_last_page(void);
 extern void sdl_tale_screen_hide(void);
 extern bool sdl_tale_screen_active(void);
-extern bool sdl_halls_screen_begin(cptr subtitle, cptr page_status,
+extern void sdl_halls_screen_begin(cptr subtitle, cptr page_status,
     bool detailed, int outside_choice);
 extern int sdl_halls_screen_page_capacity(bool detailed);
 extern void sdl_halls_screen_add_entry(int choice, cptr rank, cptr name,
@@ -1714,6 +1715,7 @@ extern int sdl_character_sheet_screen_select_page_count(void);
 extern bool sdl_character_sheet_screen_page_turning(void);
 extern void sdl_character_sheet_screen_begin_page_turn(int dir);
 extern void sdl_character_sheet_screen_begin_page_turn_to(int page);
+extern bool sdl_character_sheet_screen_scroll_book(int direction);
 extern void sdl_character_sheet_screen_set_select_size_hint(cptr longest_desc);
 extern void sdl_character_sheet_screen_add_select_description_candidate(
     cptr text);
@@ -2092,9 +2094,7 @@ enum {
     HINT_QUEST_CLICK_RETURN = -20104,
     HINT_QUEST_CLICK_CONTINUE = -20105
 };
-extern void do_cmd_quest_status(void);
-extern bool do_cmd_quest_status_tabs(void);
-extern hint_quest_page do_cmd_quest_status_tabs_in_place(void);
+extern hint_quest_page do_cmd_quest_status_page(void);
 extern cptr* extract_quest_init_texts(int quest_idx, int* count);
 extern cptr* extract_quest_completion_texts(int quest_idx, int* count);
 extern void free_quest_texts(cptr* texts, int count);
@@ -2263,6 +2263,8 @@ extern int get_sdl_terminal_menu_scale(void);
 extern void sdl_push_terminal_menu_scale(void);
 extern void sdl_pop_terminal_menu_scale(void);
 extern int sdl_description_overlay_max_cols(void);
+extern int sdl_description_overlay_capture_cols(int terminal_cols,
+    bool interactive);
 extern int sdl_description_overlay_visible_cols(void);
 extern int sdl_description_overlay_text_px(void);
 extern int sdl_description_overlay_story_text_width(cptr text, int len, int slot);
@@ -2339,6 +2341,8 @@ extern bool get_sdl_show_main_menu_button(void);
 extern void set_sdl_show_main_menu_button(bool value);
 extern int get_sdl_margin(void);
 extern void set_sdl_margin(int value);
+extern int get_sdl_camera_center_clearance(void);
+extern void set_sdl_camera_center_clearance(int value);
 extern bool get_sdl_fullscreen(void);
 extern void set_sdl_fullscreen(bool value);
 extern bool get_sdl_tiles(void);
@@ -2352,6 +2356,8 @@ extern bool get_sdl_enable_bottom_panes(void);
 extern void set_sdl_enable_bottom_panes(bool value);
 extern bool get_sdl_show_pane_borders(void);
 extern void set_sdl_show_pane_borders(bool value);
+extern bool get_sdl_left_overlays_touch_screen_edge(void);
+extern void set_sdl_left_overlays_touch_screen_edge(bool value);
 extern bool get_sdl_show_overlay_log_border(void);
 extern void set_sdl_show_overlay_log_border(bool value);
 extern bool g_hide_left_panel;
@@ -2555,6 +2561,9 @@ extern int get_sdl_touch_corner_up_down_default_side(void);
 extern int get_sdl_touch_corner_action_binding(int index);
 extern void set_sdl_touch_corner_action_binding(int index, int binding);
 extern int get_sdl_touch_corner_action_default_binding(int index);
+extern bool get_sdl_touch_top_panel_arrows_visible(void);
+extern void set_sdl_touch_top_panel_arrows_visible(bool value);
+extern bool get_sdl_touch_top_panel_arrows_default_visible(void);
 extern bool get_sdl_touch_top_panel_default_open(void);
 extern void set_sdl_touch_top_panel_default_open(bool value);
 extern bool get_sdl_touch_top_panel_default_open_default(void);
@@ -2627,5 +2636,7 @@ extern bool sdl_combat_overlay_pane_map_coverage(int* start_col, int* cols,
     int* start_row, int* rows);
 extern bool sdl_overlay_log_pane_map_coverage(int* start_col, int* cols,
     int* start_row, int* rows);
+extern int sdl_map_overlay_map_coverages(int max_rects, int* start_cols,
+    int* cols, int* start_rows, int* rows);
 extern void binding_action_label(int binding, char* buf, size_t buflen);
 extern void binding_action_short(int binding, char* buf, size_t buflen);

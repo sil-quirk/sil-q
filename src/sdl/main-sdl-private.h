@@ -783,6 +783,27 @@ typedef struct status_pane_layout {
     bool right_align;
 } status_pane_layout;
 
+typedef struct status_depth_pane_layout_item {
+    int row_from_bottom;
+    int right;
+    int w;
+    char line[96];
+    byte attr;
+} status_depth_pane_layout_item;
+
+typedef struct status_depth_pane_layout {
+    SDL_FRect panel;
+    status_depth_pane_layout_item items[SDL_STATUS_PANE_MAX_ENTRIES + 1];
+    int layout_count;
+    int row_count;
+    int content_w;
+    int font_px;
+    int row_h;
+    int pad_x;
+    int pad_y;
+    int gap_x;
+} status_depth_pane_layout;
+
 typedef enum log_pane_menu_action {
     LOG_PANE_MENU_FILTER,
     LOG_PANE_MENU_ROWS,
@@ -1511,6 +1532,7 @@ extern bool g_default_touch_round_movement_enabled;
 extern int g_default_touch_zone_center_bindings[SDL_TOUCH_ZONE_CENTER_BINDING_COUNT];
 extern int g_default_touch_corner_up_down_side;
 extern int g_default_touch_corner_action_bindings[SDL_TOUCH_CORNER_ACTION_BINDING_COUNT];
+extern bool g_default_touch_top_panel_arrows_visible;
 extern bool g_default_touch_top_panel_default_open;
 extern float g_default_touch_top_panel_size;
 extern int g_default_touch_top_panel_cell_count;
@@ -1670,11 +1692,8 @@ void sdl_seed_all_pane_profiles_from_active(void);
 int sdl_pane_config_index_in_array(const struct pane_config* configs, int count, enum pane_type pane);
 bool sdl_normalize_unified_log_pane_config(struct pane_config* configs, int* config_count, bool enable_added_log);
 void sdl_normalize_unified_log_pane_profiles(bool enable_added_log);
-bool sdl_screen_is_wide_for_pane_defaults(int screen_width, int screen_height);
 enum pane_placement sdl_default_status_pane_placement(
     const struct pane_config* configs, int config_count);
-void sdl_apply_screen_aspect_pane_defaults(struct pane_config* configs, int* config_count, int screen_width, int screen_height);
-void sdl_apply_screen_aspect_pane_default_profiles(int screen_width, int screen_height);
 int sdl_default_main_scale_for_screen_size(int screen_width, int screen_height, int mode);
 void sdl_store_platform_max_main_view_scales(int screen_width, int screen_height);
 void sdl_refresh_platform_max_main_view_scales_for_current_layout(const char* reason);
@@ -1702,6 +1721,7 @@ void sdl_sync_palette(void);
 void sdl_view_destroy(sdl_view* d);
 void sdl_left_panel_canvas_destroy(void);
 int sdl_overlay_margin_px(void);
+int sdl_overlay_inner_gap_px(void);
 int sdl_overlay_edge_gap_px(int area_px, int content_px);
 bool sdl_pane_default_enabled_on_migration(enum pane_type pane);
 bool sdl_migrate_legacy_main_menu_depth_pane( struct pane_config* configs, int count);
@@ -1753,6 +1773,7 @@ int sdl_left_panel_source_row_for_output_row(int output_row);
 bool sdl_left_panel_pane_map_coverage(int* start_col, int* cols, int* start_row, int* rows);
 bool sdl_combat_overlay_pane_map_coverage(int* start_col, int* cols, int* start_row, int* rows);
 bool sdl_overlay_log_pane_map_coverage(int* start_col, int* cols, int* start_row, int* rows);
+int sdl_map_overlay_map_coverages(int max_rects, int* start_cols, int* cols, int* start_rows, int* rows);
 bool sdl_overlay_log_pane_current_rect(SDL_Rect* out_rect);
 void sdl_reset_top_right_overlay_offset(void);
 void sdl_apply_top_right_overlay_offset(void);
@@ -1889,6 +1910,7 @@ bool sdl_touch_pane_current_rect(SDL_Rect* out_rect);
 bool sdl_side_map_pane_current_rect(SDL_Rect* out_rect);
 const struct pane_config* sdl_status_pane_config(void);
 const struct pane_config* sdl_depth_pane_config(void);
+const struct pane_config* sdl_status_depth_pane_config(void);
 float sdl_overlay_panel_x(const SDL_Rect* anchor, enum pane_placement where, int panel_w);
 float sdl_overlay_panel_y(const SDL_Rect* anchor, enum pane_placement where, int panel_h);
 SDL_FRect sdl_overlay_panel_rect(const SDL_Rect* anchor, enum pane_placement where, int panel_w, int panel_h, const SDL_Rect* screen);
@@ -1913,6 +1935,9 @@ int sdl_status_pane_layout_entries(TTF_Font* font, const status_pane_entry* entr
 void sdl_status_pane_draw_text(TTF_Font* font, cptr text, SDL_Color color, float x, float y, float max_w, float row_h, bool right_align);
 bool sdl_status_pane_layout(status_pane_layout* out);
 void sdl_status_pane_render(void);
+bool sdl_status_depth_pane_layout(status_depth_pane_layout* out);
+bool sdl_status_depth_pane_current_rect(SDL_FRect* out);
+void sdl_status_depth_pane_render(void);
 bool sdl_overlay_pane_anchor_rect(enum pane_type pane_type, SDL_Rect* out);
 void sdl_push_description_overlay_main_anchor(void);
 void sdl_pop_description_overlay_main_anchor(void);
@@ -2420,6 +2445,8 @@ bool sdl_object_tooltip_flush_expired(Uint64 now_ns);
 void sdl_object_tooltip_render(void);
 int sdl_description_overlay_font_px(void);
 int sdl_description_overlay_max_cols(void);
+int sdl_description_overlay_capture_cols(int terminal_cols,
+    bool interactive);
 int sdl_description_overlay_visible_cols(void);
 SDL_Color sdl_description_overlay_attr_color(byte attr);
 cptr sdl_description_overlay_footer_text( const description_overlay_state* overlay);
@@ -2783,7 +2810,7 @@ int sdl_touch_thumb_button_binding(int index, bool long_press);
 bool sdl_touch_thumb_config_enabled(void);
 bool sdl_touch_thumb_layout_active(void);
 bool sdl_touch_thumb_compute_rects(SDL_FRect* out_rects);
-bool sdl_touch_thumb_current_right_edge(float* out_right);
+bool sdl_touch_thumb_current_bounds(SDL_FRect* out_bounds);
 bool sdl_touch_thumb_point_to_button(float px, float py, int* out_index);
 void sdl_touch_thumb_render(void);
 void sdl_touch_thumb_cancel_press(void);
@@ -3222,6 +3249,8 @@ int get_sdl_effective_aux_view_font_size(void);
 void set_sdl_aux_view_font_size(int value);
 int get_sdl_margin(void);
 void set_sdl_margin(int value);
+int get_sdl_camera_center_clearance(void);
+void set_sdl_camera_center_clearance(int value);
 bool get_sdl_fullscreen(void);
 void set_sdl_fullscreen(bool value);
 bool get_sdl_tiles(void);
@@ -3259,6 +3288,8 @@ bool get_sdl_enable_bottom_panes(void);
 void set_sdl_enable_bottom_panes(bool value);
 bool get_sdl_show_pane_borders(void);
 void set_sdl_show_pane_borders(bool value);
+bool get_sdl_left_overlays_touch_screen_edge(void);
+void set_sdl_left_overlays_touch_screen_edge(bool value);
 bool get_sdl_show_overlay_log_border(void);
 void set_sdl_show_overlay_log_border(bool value);
 bool get_sdl_hide_left_panel(void);
@@ -3371,6 +3402,9 @@ int get_sdl_touch_corner_up_down_default_side(void);
 int get_sdl_touch_corner_action_binding(int index);
 void set_sdl_touch_corner_action_binding(int index, int binding);
 int get_sdl_touch_corner_action_default_binding(int index);
+bool get_sdl_touch_top_panel_arrows_visible(void);
+void set_sdl_touch_top_panel_arrows_visible(bool value);
+bool get_sdl_touch_top_panel_arrows_default_visible(void);
 bool get_sdl_touch_top_panel_default_open(void);
 void set_sdl_touch_top_panel_default_open(bool value);
 bool get_sdl_touch_top_panel_default_open_default(void);
@@ -4035,6 +4069,8 @@ bool sdl_layout_matches_supporting_pane_visibility(void);
 bool sdl_status_pane_current_rect(SDL_Rect* out_rect,
     enum pane_placement* out_where);
 void sdl_status_pane_render(void);
+bool sdl_status_depth_pane_current_rect(SDL_FRect* out);
+void sdl_status_depth_pane_render(void);
 void sdl_narrative_banner_render(void);
 void sdl_present_if_needed(sdl_view* d);
 int sdl_build_active_pane_config(struct pane_config* active, bool include_side,

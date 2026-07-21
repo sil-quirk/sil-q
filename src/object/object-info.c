@@ -2569,7 +2569,7 @@ static int object_info_screen_capture_used_cols(term* t, int rows)
 static bool object_info_screen_capture_build(
     const object_type** objects, const char** headings, int count,
     object_info_screen_capture* capture, int preferred_width,
-    bool use_story_font)
+    bool use_story_font, bool interactive)
 {
     term scratch;
     term* saved_term = Term;
@@ -2584,7 +2584,6 @@ static bool object_info_screen_capture_build(
     int term_wid = 80;
     int term_hgt = 24;
     int target_wid;
-    int max_target_wid;
     int capture_hgt;
     int used_rows;
     int used_cols;
@@ -2596,10 +2595,8 @@ static bool object_info_screen_capture_build(
     SDL_memset(&scratch, 0, sizeof(scratch));
 
     Term_get_size(&term_wid, &term_hgt);
-    target_wid = term_wid;
-    max_target_wid = sdl_description_overlay_max_cols();
-    if (max_target_wid > 0 && target_wid > max_target_wid)
-        target_wid = max_target_wid;
+    target_wid = sdl_description_overlay_capture_cols(term_wid,
+        interactive);
     if (target_wid < 20)
         target_wid = 20;
     term_wid = use_story_font ? preferred_width : target_wid;
@@ -2709,7 +2706,7 @@ bool object_info_overlay_show_multi(const object_type** objects,
     overlay_width = object_info_screen_preferred_capture_width(use_story_font);
 
     if (!object_info_screen_capture_build(objects, headings, count, &capture,
-            overlay_width, use_story_font))
+            overlay_width, use_story_font, false))
         return false;
 
     object_info_overlay_capture_release();
@@ -2883,7 +2880,7 @@ char object_info_screen_multi_with_actions(const object_type** objects,
     have_capture =
         object_info_screen_capture_build(objects, headings, count, &capture,
             object_info_screen_preferred_capture_width(use_story_font),
-            use_story_font);
+            use_story_font, true);
     if (have_capture)
     {
         result = object_info_screen_capture_view(&capture, footer, actions,

@@ -644,7 +644,7 @@ static void main_menu_about(void)
 static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
     int* out_look_y,
     int* out_look_x, bool* out_pending_map, int* out_map_y,
-    int* out_map_x, bool manage_screen);
+    int* out_map_x);
 static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
     int* out_look_y, int* out_look_x, bool* out_pending_map,
     int* out_map_y, int* out_map_x);
@@ -1181,6 +1181,99 @@ static void log_history_entry_search_text(const log_history_entry* entry,
     }
 }
 
+static void log_history_wrapped_entry_text(int filter, int idx, char* out,
+    size_t out_sz, byte* attr)
+{
+    if (!out || out_sz == 0 || !attr)
+        return;
+
+    out[0] = '\0';
+    *attr = TERM_WHITE;
+
+    if (filter == LOG_HISTORY_FILTER_NOTES)
+    {
+        const log_history_note_line* nl = &log_history_note_lines[idx];
+        int len = MIN(nl->len, (int)out_sz - 1);
+
+        memcpy(out, nl->text, len);
+        out[len] = '\0';
+        return;
+    }
+
+    if (log_history_entries[idx].kind == LOG_HISTORY_ENTRY_MESSAGE)
+    {
+        s16b age = log_history_entries[idx].message_age;
+
+        SDL_strlcpy(out, message_str(age), out_sz);
+        *attr = message_color(age);
+        return;
+    }
+
+    log_history_entry_search_text(&log_history_entries[idx], out, out_sz);
+}
+
+static int log_history_wrapped_entry_rows(int filter, int idx, int width)
+{
+    char text[256];
+    byte attr;
+
+    log_history_wrapped_entry_text(filter, idx, text, sizeof(text), &attr);
+    return count_wrapped_lines(text, width, 0);
+}
+
+static void log_history_draw_wrapped_text(int row, int width, byte attr,
+    cptr text, cptr highlight)
+{
+    int old_wrap = text_out_wrap;
+    int old_indent = text_out_indent;
+    cptr cursor = text ? text : "";
+
+    text_out_wrap = width;
+    text_out_indent = 0;
+    Term_gotoxy(0, row);
+
+    while (highlight && highlight[0])
+    {
+        cptr match = strstr(cursor, highlight);
+        char prefix[256];
+        int prefix_len;
+
+        if (!match)
+            break;
+        prefix_len = MIN((int)(match - cursor), (int)sizeof(prefix) - 1);
+        memcpy(prefix, cursor, prefix_len);
+        prefix[prefix_len] = '\0';
+        text_out_to_screen(attr, prefix);
+        text_out_to_screen(TERM_YELLOW, highlight);
+        cursor = match + strlen(highlight);
+    }
+
+    text_out_to_screen(attr, cursor);
+    text_out_wrap = old_wrap;
+    text_out_indent = old_indent;
+}
+
+static int log_history_wrapped_last_page_start(int filter, int count,
+    int width, int available_rows)
+{
+    int top = count;
+    int used_rows = 0;
+
+    while (top > 0)
+    {
+        int rows = log_history_wrapped_entry_rows(filter, top - 1, width);
+
+        if (used_rows > 0 && used_rows + rows > available_rows)
+            break;
+        top--;
+        used_rows += rows;
+        if (used_rows >= available_rows)
+            break;
+    }
+
+    return top;
+}
+
 static bool hint_quest_tab_key(char ch)
 {
     return (ch == '\t');
@@ -1259,7 +1352,7 @@ static void do_cmd_hint_quest_menu(bool* out_pending_look, int* out_look_y,
     {
         if (page == HINT_QUEST_PAGE_QUESTS)
         {
-            page = do_cmd_quest_status_tabs_in_place();
+            page = do_cmd_quest_status_page();
         }
         else if (page == HINT_QUEST_PAGE_THRALLS)
         {
@@ -1269,7 +1362,7 @@ static void do_cmd_hint_quest_menu(bool* out_pending_look, int* out_look_y,
         else
         {
             page = do_cmd_hint_messages(&pending_look, &look_y, &look_x,
-                &pending_map, &map_y, &map_x, false);
+                &pending_map, &map_y, &map_x);
         }
 
         if (pending_look || pending_map)
@@ -1437,17 +1530,17 @@ static bool do_cmd_main_menu_execute_choice_impl(int actiontype,
             {
                 if (postmortem_path[0])
                 {
-                    show_scores_interactive_highlight_from_file(true,
+                    show_scores_interactive_highlight_from_file(
                         postmortem_path, &final_score);
                 }
                 else
-                    show_scores_interactive_highlight(true, &final_score);
+                    show_scores_interactive_highlight(&final_score);
             }
             else
-                show_scores_interactive(true);
+                show_scores_interactive();
         }
         else
-            show_scores_interactive(true);
+            show_scores_interactive();
         screen_pop_supporting_panes_hidden();
         screen_load();
         return true;
@@ -1488,7 +1581,7 @@ static bool do_cmd_main_menu_execute_choice_impl(int actiontype,
     }
     case MAIN_MENU_HELP: // Help (h)
     {
-        do_cmd_help();
+        do_cmd_help_menu();
         return true;
     }
     case MAIN_MENU_ABOUT: // About (b)
@@ -1567,9 +1660,7 @@ bool do_cmd_main_menu_execute_choice(int actiontype)
     if (pending_hint_map)
     {
         do_cmd_redraw();
-#ifdef USE_SDL
         sdl_minimap_focus(pending_hint_map_y, pending_hint_map_x);
-#endif
         do_cmd_view_map();
     }
     else if (pending_hint_look)
@@ -1743,16 +1834,13 @@ static bool skeleton_tip_text_by_index(int index, char* buf, size_t buf_sz)
     return (buf[0] != '\0');
 }
 
-static bool skeleton_tip_show_internal(int index, bool manage_screen)
+static void skeleton_tip_show(int index)
 {
     char tip_text[512];
     char ch;
 
     if (!skeleton_tip_text_by_index(index, tip_text, sizeof(tip_text)))
-        return false;
-
-    if (manage_screen)
-        screen_save();
+        return;
 
     while (1)
     {
@@ -1793,18 +1881,11 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
     }
 
     ui_menu_click_clear();
-    if (manage_screen)
-        sdl_hint_quest_menu_hide();
-    else
-        sdl_hint_quest_menu_prepare_leaf_turn(HINT_QUEST_PAGE_HINTS, -1);
-    if (manage_screen)
-        screen_load();
-
-    return false;
+    sdl_hint_quest_menu_prepare_leaf_turn(HINT_QUEST_PAGE_HINTS, -1);
 }
 
 static hint_message_action hint_message_show_internal(int index, int* source_y, int* source_x,
-    bool manage_screen)
+    bool standalone)
 {
     char ch;
     char body_text[768];
@@ -1820,7 +1901,7 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
 
     hint_messages_message_meta(index, &meta);
     hint_message_body_text(index, body_text, sizeof(body_text));
-    if (manage_screen)
+    if (standalone)
         screen_save();
 
     while (1)
@@ -1919,11 +2000,11 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
     }
 
     ui_menu_click_clear();
-    if (manage_screen || action != HINT_MESSAGE_ACTION_NONE)
+    if (standalone || action != HINT_MESSAGE_ACTION_NONE)
         sdl_hint_quest_menu_hide();
     else
         sdl_hint_quest_menu_prepare_leaf_turn(HINT_QUEST_PAGE_HINTS, -1);
-    if (manage_screen)
+    if (standalone)
         screen_load();
 
     return action;
@@ -1978,7 +2059,7 @@ static void hint_message_pixel_list_text(int index, char* out,
 static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
     int* out_look_y,
     int* out_look_x, bool* out_pending_map, int* out_map_y,
-    int* out_map_x, bool manage_screen)
+    int* out_map_x)
 {
     char ch;
     bool pending_look = false;
@@ -2003,12 +2084,6 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
     int tip_n = skeleton_tip_template_count();
     int sel = 0;
     show_all_tips = false;
-
-    if (manage_screen)
-    {
-        screen_save();
-        screen_push_supporting_panes_hidden();
-    }
 
     while (1)
     {
@@ -2262,7 +2337,7 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
 
             if (show_all_tips)
             {
-                (void)skeleton_tip_show_internal(sel, false);
+                skeleton_tip_show(sel);
             }
             else
             {
@@ -2341,12 +2416,6 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
         sdl_hint_quest_menu_prepare_page_turn(next_page);
     else
         sdl_hint_quest_menu_hide();
-
-    if (manage_screen)
-    {
-        screen_pop_supporting_panes_hidden();
-        screen_load();
-    }
 
     if (out_pending_look)
         *out_pending_look = pending_look;
@@ -2779,9 +2848,8 @@ static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
  * This command shows you which commands you are viewing, and allows
  * you to "search" for strings in the recall.
  *
- * Note that messages may be longer than 80 characters, but they are
- * displayed using "infinite" length, with a special sub-command to
- * "slide" the virtual display to the left or right.
+ * Long messages wrap to the available width and pagination accounts for the
+ * resulting variable-height entries.
  *
  * Attempt to only hilite the matching portions of the string.
  */
@@ -2789,7 +2857,7 @@ void do_cmd_messages_with_filter(int initial_filter)
 {
     char ch;
 
-    int i, j, n, q;
+    int i, j, n;
     int wid, hgt;
     char prompt[160];
 
@@ -2815,9 +2883,6 @@ void do_cmd_messages_with_filter(int initial_filter)
     /* Start on first message */
     i = 0;
 
-    /* Start at leftmost edge */
-    q = 0;
-
     /* Save screen */
     screen_save();
     screen_push_supporting_panes_hidden();
@@ -2837,7 +2902,7 @@ void do_cmd_messages_with_filter(int initial_filter)
         int range_first;
         int range_last;
         int old_i;
-        int old_q;
+        int used_rows = 0;
 
         /* Clear screen */
         Term_clear();
@@ -2867,7 +2932,8 @@ void do_cmd_messages_with_filter(int initial_filter)
             n = log_history_collect_entries(log_history_entries,
                 LOG_HISTORY_MAX_ENTRIES, filter);
 
-        max_i = (n > visible_rows) ? (n - visible_rows) : 0;
+        max_i = log_history_wrapped_last_page_start(filter, n, wid,
+            visible_rows);
         if (i > max_i)
             i = max_i;
         if (i < 0)
@@ -2881,96 +2947,45 @@ void do_cmd_messages_with_filter(int initial_filter)
         ui_menu_click_set_touch_exit_button(true);
 
         /* Dump log entries */
-        for (j = 0; (j < visible_rows) && (i + j < n); j++)
+        for (j = 0; (i + j < n); j++)
         {
-            log_history_entry* entry;
-            int line_y = notes_mode ? (body_top + j) : (body_bottom - j);
+            char wrapped_text[256];
+            byte wrapped_attr;
+            int wrapped_rows = log_history_wrapped_entry_rows(filter,
+                i + j, wid);
+            int line_y;
 
-            if (notes_mode)
+            if (used_rows + wrapped_rows > visible_rows)
+                break;
+
+            line_y = notes_mode ? (body_top + used_rows)
+                                : (body_bottom - used_rows - wrapped_rows + 1);
+            log_history_wrapped_entry_text(filter, i + j, wrapped_text,
+                sizeof(wrapped_text), &wrapped_attr);
+            if (!notes_mode
+                && log_history_entries[i + j].kind == LOG_HISTORY_ENTRY_COMBAT
+                && wrapped_rows == 1)
             {
-                const log_history_note_line* nl =
-                    &log_history_note_lines[i + j];
-                char line_buf[256];
-                int len = nl->len;
-                cptr msg;
-
-                if (len > (int)sizeof(line_buf) - 1)
-                    len = (int)sizeof(line_buf) - 1;
-                memcpy(line_buf, nl->text, len);
-                line_buf[len] = '\0';
-
-                /* Apply horizontal scroll */
-                msg = ((int)strlen(line_buf) >= q) ? (line_buf + q) : "";
-
-                Term_putstr(0, line_y, -1, TERM_WHITE, msg);
-
-                /* Hilite "shower" */
-                if (shower[0])
-                {
-                    cptr str = msg;
-
-                    while ((str = strstr(str, shower)) != NULL)
-                    {
-                        int slen = strlen(shower);
-
-                        Term_putstr(str - msg, line_y, slen, TERM_YELLOW,
-                            shower);
-                        str += slen;
-                    }
-                }
-
-                continue;
-            }
-
-            entry = &log_history_entries[i + j];
-
-            if (entry->kind == LOG_HISTORY_ENTRY_COMBAT)
-            {
-                log_history_draw_combat_entry(entry, line_y, q);
-                continue;
+                log_history_draw_combat_entry(&log_history_entries[i + j],
+                    line_y, 0);
             }
             else
             {
-                cptr msg = message_str(entry->message_age);
-                byte attr = message_color(entry->message_age);
-
-                /* Apply horizontal scroll */
-                msg = ((int)strlen(msg) >= q) ? (msg + q) : "";
-
-                /* Dump the messages, bottom to top */
-                Term_putstr(0, line_y, -1, attr, msg);
-
-                /* Hilite "shower" */
-                if (shower[0])
-                {
-                    cptr str = msg;
-
-                    /* Display matches */
-                    while ((str = strstr(str, shower)) != NULL)
-                    {
-                        int len = strlen(shower);
-
-                        /* Display the match */
-                        Term_putstr(
-                            str - msg, line_y, len, TERM_YELLOW, shower);
-
-                        /* Advance */
-                        str += len;
-                    }
-                }
+                log_history_draw_wrapped_text(line_y, wid, wrapped_attr,
+                    wrapped_text, shower);
             }
+            used_rows += wrapped_rows;
         }
 
         range_first = (n > 0) ? (i + 1) : 0;
         range_last = (n > 0) ? (i + j) : 0;
+        page_rows = (j > 1) ? (j - 1) : 1;
 
         log_history_draw_filters(filter, hover_filter, wid);
 
         /* Display header XXX XXX XXX */
-        prt(format(
-                "Log (%s, %d-%d of %d), Offset %d",
-                log_history_filter_label(filter), range_first, range_last, n,
-                q),
+        prt(format("Log (%s, %d-%d of %d)",
+                log_history_filter_label(filter), range_first, range_last, n),
             (body_top > 0) ? body_top - 1 : 0, 0);
 
         /* Display prompt */
@@ -2992,7 +3007,7 @@ void do_cmd_messages_with_filter(int initial_filter)
                 controller_prompt_label(steamdeck_back_key(), "B",
                     back_label, sizeof(back_label));
                 strnfmt(prompt_full, sizeof(prompt_full),
-                    "%s/%s page  Up/Down line  / find  = highlight  Left/Right pan  %s back",
+                    "%s/%s page  Up/Down line  / find  = highlight  %s back",
                     prev_label, next_label, back_label);
                 strnfmt(prompt_mid, sizeof(prompt_mid),
                     "%s/%s page  Up/Down line  / find  %s back",
@@ -3018,9 +3033,9 @@ void do_cmd_messages_with_filter(int initial_filter)
             else
             {
                 const char* variants[] = {
-                    "e/i filter  Up/Down line  PgUp/PgDn page  / find  = highlight  Left/Right pan  Esc",
-                    "e/i filter  Up/Down line  Pg page  / find  Left/Right pan  Esc",
-                    "e/i filter  / find  Left/Right pan  Esc",
+                    "e/i filter  Up/Down line  PgUp/PgDn page  / find  = highlight  Esc",
+                    "e/i filter  Up/Down line  Pg page  / find  Esc",
+                    "e/i filter  / find  Esc",
                     "Esc"
                 };
                 terminal_prompt_pick_variant(prompt, sizeof(prompt), wid, false,
@@ -3038,8 +3053,6 @@ void do_cmd_messages_with_filter(int initial_filter)
         ui_menu_click_add_text_token('/', 0, hgt - 1, prompt, "find");
         ui_menu_click_add_text_token('=', 0, hgt - 1, prompt, "=");
         ui_menu_click_add_text_token('=', 0, hgt - 1, prompt, "highlight");
-        ui_menu_click_add_text_token('4', 0, hgt - 1, prompt, "Left");
-        ui_menu_click_add_text_token('6', 0, hgt - 1, prompt, "Right");
         ui_menu_click_add_text_token(ESCAPE, 0, hgt - 1, prompt, "Esc");
 
         /* Get a command without showing the terminal cursor */
@@ -3073,7 +3086,6 @@ void do_cmd_messages_with_filter(int initial_filter)
                     }
                     filter = clicked_filter;
                     i = 0;
-                    q = 0;
                     continue;
                 }
                 else if (click_action == UI_MENU_CLICK_HOVER)
@@ -3095,7 +3107,6 @@ void do_cmd_messages_with_filter(int initial_filter)
         {
             filter = log_history_next_filter(filter);
             i = 0;
-            q = 0;
             continue;
         }
 
@@ -3105,7 +3116,6 @@ void do_cmd_messages_with_filter(int initial_filter)
 
         /* Hack -- Save the old index */
         old_i = i;
-        old_q = q;
 
         /*
          * The notes tab reads top-down like a document, so flip the vertical
@@ -3124,26 +3134,6 @@ void do_cmd_messages_with_filter(int initial_filter)
             case '1': ch = '7'; break;
             default: break;
             }
-        }
-
-        /* Horizontal scroll */
-        if (ch == '4')
-        {
-            /* Scroll left */
-            q = (q >= wid / 2) ? (q - wid / 2) : 0;
-
-            /* Success */
-            continue;
-        }
-
-        /* Horizontal scroll */
-        if (ch == '6')
-        {
-            /* Scroll right */
-            q = q + wid / 2;
-
-            /* Success */
-            continue;
         }
 
         /* Hack -- handle show */
@@ -3291,7 +3281,7 @@ void do_cmd_messages_with_filter(int initial_filter)
         }
 
         /* Hack -- Error of some kind */
-        if (i == old_i && q == old_q)
+        if (i == old_i)
             bell(NULL);
     }
 

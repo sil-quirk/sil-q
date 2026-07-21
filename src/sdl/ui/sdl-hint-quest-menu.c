@@ -181,16 +181,22 @@ static void sdl_hint_quest_draw_text(TTF_Font* font, cptr text,
 static int sdl_hint_quest_body_px(const SDL_Rect* screen)
 {
     float short_side;
+    bool portrait;
     int px;
 
     if (!screen)
-        return 32;
+        return 44;
     short_side = (float)MIN(screen->w, screen->h);
-    px = (int)(short_side * 0.072f + 0.5f);
-    if (px < 28)
-        px = 28;
-    if (px > 56)
-        px = 56;
+    portrait = screen->h > screen->w;
+
+    /* Match the readability-first Tale Statistics scale.  Portrait needs a
+     * little more of the short side because the narrow measure makes the same
+     * nominal type look smaller; long lists already scroll safely. */
+    px = (int)(short_side * (portrait ? 0.108f : 0.090f) + 0.5f);
+    if (px < 44)
+        px = 44;
+    if (px > 72)
+        px = 72;
     return px;
 }
 
@@ -232,7 +238,10 @@ static bool sdl_hint_quest_layout_compute(sdl_hint_quest_layout* out)
         10.0f, 28.0f);
     panel_w = (float)screen.w - margin * 2.0f;
     {
-        float panel_max = (float)screen.w * (portrait ? 0.90f : 0.72f);
+        /* Larger prose needs a wider reading leaf as well as a larger font.
+         * Keep the frame comfortably inside the safe layout rectangle while
+         * giving wrapped quest and hint text useful line lengths. */
+        float panel_max = (float)screen.w * (portrait ? 0.94f : 0.82f);
 
         if (!portrait && panel_max < 680.0f)
             panel_max = 680.0f;

@@ -68,7 +68,7 @@ bool sdl_pane_layout_config_draggable(int index)
     if (type == PANE_TOUCH || type == PANE_MAP || type == PANE_LEFT_PANEL
         || type == PANE_STATUS || type == PANE_DEPTH
         || type == PANE_DESCRIPTION || type == PANE_OVERLAY_MENU
-        || type == PANE_COMBAT)
+        || type == PANE_COMBAT || type == PANE_STATUS_DEPTH)
     {
         return false;
     }
@@ -1067,6 +1067,7 @@ const char* sdl_side_pane_menu_label(enum pane_type pane)
     case PANE_DESCRIPTION: return "Description";
     case PANE_OVERLAY_MENU: return "Quick Access";
     case PANE_COMBAT: return "Combat";
+    case PANE_STATUS_DEPTH: return "Status & Depth";
     default: return "Pane";
     }
 }
@@ -1083,7 +1084,8 @@ bool sdl_side_pane_menu_config_is_entry(int index)
         return false;
     if (type == PANE_TOUCH || type == PANE_LEFT_PANEL || type == PANE_STATUS
         || type == PANE_DEPTH || type == PANE_DESCRIPTION
-        || type == PANE_OVERLAY_MENU || type == PANE_COMBAT)
+        || type == PANE_OVERLAY_MENU || type == PANE_COMBAT
+        || type == PANE_STATUS_DEPTH)
     {
         return false;
     }
@@ -1604,5 +1606,4 @@ void sdl_side_pane_menu_render(void)
             0.30f, 0.40f);
     }
 }
-
 
