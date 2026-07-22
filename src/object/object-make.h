@@ -47,6 +47,7 @@ void object_into_artefact(object_type* o_ptr, artefact_type* a_ptr);
 bool object_apply_ego_affix(object_type* o_ptr, int e_idx, bool smithing);
 bool object_break_brass_lantern(object_type* o_ptr);
 bool object_is_fire_broken(const object_type* o_ptr);
+bool object_has_broken_prefix(const object_type* o_ptr);
 bool object_break_shafted_weapon_by_fire(object_type* o_ptr);
 bool object_repair_fire_broken_weapon(object_type* o_ptr);
 void object_into_special(object_type* o_ptr, int lev, bool smithing);

@@ -1253,11 +1253,11 @@ void search_square(int y, int x, int dist, int searching)
         if (dist == 4)
             difficulty += 6; // distance 4
         if cave_trap_bold (y, x)
-            difficulty += 5; // dungeon trap
+            difficulty += 8; // dungeon trap
         if (cave_feat[y][x] == FEAT_SECRET)
             difficulty += 10; // secret door
         if (chest_trap_present)
-            difficulty += 15; // chest trap
+            difficulty += 18; // chest trap
         // if (cave_info[y][x] & (CAVE_ICKY)) difficulty
         // += 2;   // inside least/lesser/greater vaults
 

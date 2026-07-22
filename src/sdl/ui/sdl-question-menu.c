@@ -649,6 +649,12 @@ void sdl_question_menu_clear(void)
     g_question_menu.highlight = -1;
 }
 
+void sdl_question_menu_clear_nonblocking(void)
+{
+    if (g_question_menu.active && g_question_menu.nonblocking)
+        sdl_question_menu_clear();
+}
+
 void sdl_question_menu_begin(cptr title)
 {
     memset(&g_question_menu, 0, sizeof(g_question_menu));

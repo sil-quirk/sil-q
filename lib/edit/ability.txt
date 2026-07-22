@@ -175,7 +175,7 @@ E:+1 Strength.
 N:15:Warden
 I:0:15:7
 D:As the March-wardens of Doriath, who kept the bounds of the Girdle of Melian and ranged its shadowed eaves with bow and blade alike. Beleg Strongbow, captain of that watchful company, was no less deadly with his sword than with his great bow, for a hand long schooled to the close clash of steel does not waver upon the bowstring, and the warrior's eye, trained to read a foe's every movement, guides the arrow as surely as the sword-stroke.
-E:Archery bonus of half (Melee - Archery) when Melee exceeds Archery, or half your full Melee skill if you also have Versatility. Switching from melee to ranged is free, whether loosing arrows or throwing, but readying your melee weapon still takes a turn.
+E:Archery bonus of half (Melee - Archery) when Melee exceeds Archery, or one third of your full Melee skill, rounded up, if you also have Versatility. Switching from melee to ranged is free, whether loosing arrows or throwing, but readying your melee weapon still takes a turn.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -233,7 +233,7 @@ T:35:0:99  # Cloak
 N:25:Versatility
 I:1:5:7
 D:Versatile in arms as was Túrin Turambar, who bore both the great bow of Beleg and the black sword Gurthang in the forests about Nargothrond. The greatest warriors of the First Age disdained no weapon, and their skill with the bow lent sureness to their sword-arm, for a keen eye serves all forms of combat.
-E:Melee bonus of half (Archery - Melee) when Archery exceeds Melee, or half your full Archery skill if you also have Warden. Switching from ranged to melee is free, but readying ranged still takes a turn.
+E:Melee bonus of half (Archery - Melee) when Archery exceeds Melee, or one third of your full Archery skill, rounded up, if you also have Warden. Switching from ranged to melee is free, but readying ranged still takes a turn.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 

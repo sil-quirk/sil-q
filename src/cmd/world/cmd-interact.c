@@ -498,6 +498,8 @@ typedef enum door_minigame_choice
 #define DOOR_MINIGAME_RETRY_DELAY_MS 1000
 #define DOOR_JAM_CHANCE_PER_MISS 10
 #define DOOR_JAM_CHANCE_MAX 75
+#define DOOR_LOCKPICK_BASE_DIFFICULTY 8
+#define FLOOR_TRAP_DISARM_BASE_DIFFICULTY 3
 
 static door_minigame_retry_state door_retry;
 
@@ -545,7 +547,8 @@ static int door_lockpick_difficulty(int y, int x)
 {
     int power = cave_feat[y][x] - FEAT_DOOR_HEAD;
 
-    return (power & 0x07) + 5 + door_condition_penalty();
+    return (power & 0x07) + DOOR_LOCKPICK_BASE_DIFFICULTY
+        + door_condition_penalty();
 }
 
 static int door_bash_difficulty(int y, int x)
@@ -810,8 +813,8 @@ bool do_cmd_open_aux(int y, int x)
         /* Determine door power based on the door power (1 to 7)*/
         power = cave_feat[y][x] - FEAT_DOOR_HEAD;
 
-        // Base difficulty is the door power + 5
-        difficulty = power + 5;
+        // Base difficulty is the door power plus the lockpick baseline.
+        difficulty = power + DOOR_LOCKPICK_BASE_DIFFICULTY;
 
         /* Penalize some conditions */
         if (p_ptr->blind || no_light() || p_ptr->image)
@@ -1295,7 +1298,8 @@ static int trap_disarm_score(void)
 
 static int trap_disarm_difficulty(int power)
 {
-    int difficulty = power + p_ptr->depth / 6;
+    int difficulty = FLOOR_TRAP_DISARM_BASE_DIFFICULTY + power
+        + p_ptr->depth / 6;
 
     if (p_ptr->blind || no_light() || p_ptr->image)
         difficulty += 5;
@@ -1627,7 +1631,7 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
                 "The door is locked (lock difficulty %d). Picking the lock "
                 "quietly tests your Perception; bashing it down tests your "
                 "Strength and makes a great noise.",
-                power + 5);
+                power + DOOR_LOCKPICK_BASE_DIFFICULTY);
             GRID_Q_ADD('o', 'o', "Pick the lock", TERM_L_GREEN);
             GRID_Q_ADD('b', 'b', "Bash it open", TERM_ORANGE);
         }

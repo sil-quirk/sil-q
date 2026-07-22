@@ -760,6 +760,9 @@ void do_cmd_walk(void)
 {
     int y, x, dir;
 
+    /* A movement command supersedes a lingering interaction-roll result. */
+    sdl_question_menu_clear_nonblocking();
+
     /* Get a direction (or abort) */
     if (!get_rep_dir(&dir))
         return;
@@ -819,6 +822,9 @@ void do_cmd_walk(void)
 void do_cmd_run(void)
 {
     int y, x, dir;
+
+    /* A movement command supersedes a lingering interaction-roll result. */
+    sdl_question_menu_clear_nonblocking();
 
     /* Hack XXX XXX XXX */
     if (p_ptr->confused)

@@ -370,6 +370,9 @@ void calc_torch(void)
         p_ptr->cur_light++;
     if (weapon_glows(&inventory[INVEN_ARM]))
         p_ptr->cur_light++;
+    /* Quiver 2 retains passive bonuses even when it is not the active quiver. */
+    if (weapon_glows(&inventory[INVEN_QUIVER2]))
+        p_ptr->cur_light++;
 
     /* Player is darkened */
     if (p_ptr->darkened && (p_ptr->cur_light > 0))

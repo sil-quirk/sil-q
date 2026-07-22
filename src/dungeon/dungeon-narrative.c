@@ -20,6 +20,7 @@ static int last_narrated_style_idx = -1;
 /* Forward declarations for partition kind helpers (defined later in file). */
 static bool is_big_partition_kind(level_partition_kind kind);
 static bool is_small_cave_partition_kind(level_partition_kind kind);
+static cptr partition_display_name(level_partition_kind kind);
 
 char greater_vault_xp_name[80] = "";
 bool greater_vault_xp_awarded = false;
@@ -304,6 +305,27 @@ static bool is_small_cave_partition_kind(level_partition_kind kind)
     return (kind == LEVEL_PART_CAVEY);
 }
 
+static cptr partition_display_name(level_partition_kind kind)
+{
+    switch (kind)
+    {
+    case LEVEL_PART_ROOMY:
+        return "Roomy";
+    case LEVEL_PART_CAVEY:
+        return "Cavey";
+    case LEVEL_PART_RUINED:
+        return "Ruined";
+    case LEVEL_PART_LABYRINTH:
+        return "Labyrinth";
+    case LEVEL_PART_CHASM:
+        return "Chasm";
+    case LEVEL_PART_BIG_CAVE:
+        return "Big Cave";
+    default:
+        return NULL;
+    }
+}
+
 static byte partition_discovery_lore_flag(level_partition_kind kind)
 {
     if (!p_ptr)
@@ -465,7 +487,16 @@ void handle_partition_entry(bool force_message, int narrative_mode)
     int sidx = styles_decode_color_style(cave_color[p_ptr->py][p_ptr->px]);
 
     if ((pi >= 0) && (pi != last_partition_pi) && !p_ptr->restoring)
-        msg_print("You have entered a new partition.");
+    {
+        cptr name = partition_display_name(kind);
+        if (name)
+        {
+            char entry_message[80];
+            strnfmt(entry_message, sizeof(entry_message),
+                "You have entered a %s partition.", name);
+            queue_message_recall_only(entry_message);
+        }
+    }
 
     /*
      * Greater vaults have their own first-entry narrative.  Their cells carry

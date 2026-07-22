@@ -593,7 +593,6 @@ static int skeleton_note_map_distance(int y1, int x1, int y2, int x2);
 static const char* skeleton_note_direction_phrase(int from_y, int from_x, int to_y, int to_x);
 static const char* skeleton_note_distance_phrase(int dist,
     const level_layout_info* layout, char* buf, size_t buf_sz);
-static int skeleton_note_effective_wrap_width(int col);
 static int skeleton_note_append_wrapped_text(
     const char* text, char lines[][100], int idx, int limit, int wrap);
 static void skeleton_note_recount_templates(void)
@@ -2809,25 +2808,6 @@ static int skeleton_note_append_expanded_lines(const skeleton_note_line* line,
     return idx;
 }
 
-static int skeleton_note_effective_wrap_width(int col)
-{
-    int wrap = 70;
-
-    if (Term && Term->wid > 0)
-    {
-        int avail = Term->wid - col - 1;
-        if (avail < wrap)
-            wrap = avail;
-    }
-
-    if (wrap < 10)
-        wrap = 10;
-    if (wrap > 95)
-        wrap = 95;
-
-    return wrap;
-}
-
 static int skeleton_note_append_wrapped_text(
     const char* text, char lines[][100], int idx, int limit, int wrap)
 {
@@ -2874,11 +2854,15 @@ static const char* skeleton_note_body_separator(byte sval)
 
 static void skeleton_note_build_lines(const char* opening,
     const skeleton_note_line* body_lines, int body_count, const char* closing,
-    const level_layout_info* layout, char lines[][100], int col,
+    const level_layout_info* layout, char lines[][100],
     const char* body_separator)
 {
-    const int max_lines = 12; /* Reserve final slot for terminator */
-    int wrap = skeleton_note_effective_wrap_width(col);
+    /* These lines are archived content, not terminal rows.  The native SDL
+     * surface wraps them to its measured pixel width when displayed.  Using
+     * the narrow portrait Term width here can exhaust the archive before a
+     * second hint is appended. */
+    const int max_lines = HINT_MESSAGE_LINES_MAX - 2; /* Title + terminator. */
+    const int wrap = 95;
 
     int idx = 0;
     idx = skeleton_note_append_wrapped_text(opening, lines, idx, max_lines, wrap);
@@ -4312,9 +4296,9 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         body_count++;
     }
 
-    char note_lines[16][100];
+    char note_lines[HINT_MESSAGE_LINES_MAX][100] = {{0}};
     skeleton_note_build_lines(
-        opening, body_lines, body_count, signoff, &layout, note_lines, 8,
+        opening, body_lines, body_count, signoff, &layout, note_lines,
         skeleton_note_body_separator(sval));
 
     /* Prepend title */
@@ -4343,7 +4327,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
                 (hint1 == SKEL_HINT_STAIRS) ? stairs_feat : -1));
     }
 
-    for (int i = 14; i >= 0; --i)
+    for (int i = HINT_MESSAGE_LINES_MAX - 2; i >= 0; --i)
         strnfmt(note_lines[i+1], 100, "%s", note_lines[i]);
     strnfmt(note_lines[0], 100, "%s", title_buf);
 
@@ -4490,6 +4474,10 @@ static chest_minigame_retry_state chest_retry;
 #define CHEST_LOOK_DIE_SIDES 5
 #define CHEST_FULL_DETECTION_DISARM_BONUS 5
 #define CHEST_MINIGAME_RETRY_DELAY_MS 1000
+#define CHEST_LOCK_BASE_DIFFICULTY 8
+#define CHEST_LOOK_BASE_DIFFICULTY 8
+#define CHEST_DISARM_BASE_DIFFICULTY 6
+#define CHEST_CONCEALED_TRAP_BASE_DIFFICULTY 18
 
 static bool chest_was_inspected(const object_type* o_ptr)
 {
@@ -4566,7 +4554,8 @@ static int chest_lock_difficulty(const object_type* o_ptr)
     int level = o_ptr ? ABS(o_ptr->pval) : 0;
     int power = 1 + (level / 4);
 
-    return power + 5 + chest_condition_penalty();
+    return power + CHEST_LOCK_BASE_DIFFICULTY
+        + chest_condition_penalty();
 }
 
 static int chest_look_difficulty(const object_type* o_ptr)
@@ -4575,7 +4564,8 @@ static int chest_look_difficulty(const object_type* o_ptr)
 
     /* A deliberate close inspection is substantially easier than noticing a
      * chest trap in passing.  The d5 opposed throw keeps its variance low. */
-    return (level / 2) + 5 + chest_condition_penalty();
+    return (level / 2) + CHEST_LOOK_BASE_DIFFICULTY
+        + chest_condition_penalty();
 }
 
 static int chest_disarm_difficulty(const object_type* o_ptr)
@@ -4583,7 +4573,8 @@ static int chest_disarm_difficulty(const object_type* o_ptr)
     int level = o_ptr ? ABS(o_ptr->pval) : 0;
     int power = 1 + (level / 4);
 
-    return power + (level / 4) + 3 + chest_condition_penalty();
+    return power + (level / 4) + CHEST_DISARM_BASE_DIFFICULTY
+        + chest_condition_penalty();
 }
 
 static void chest_trap_effect_desc(char* buf, size_t buf_size,
@@ -4782,6 +4773,14 @@ static bool do_cmd_chest_minigame(int y, int x, s16b o_idx)
             "You need higher base Perception to inspect it again.");
     }
 
+    if (trap_known && o_ptr->pval > 0)
+    {
+        chest_desc_append(desc, sizeof(desc),
+            "The Open anyway percentage is only the chance to pick the lock. "
+            "If the lock is picked, the trap triggers with 100% certainty, "
+            "then the chest opens.");
+    }
+
     strnfmt(look_label, sizeof(look_label), "Look for trap: %d%%",
         player_skill_check_success_percent(p_ptr->skill_use[S_PER],
             chest_look_difficulty(o_ptr), CHEST_LOOK_DIE_SIDES,
@@ -4799,7 +4798,7 @@ static bool do_cmd_chest_minigame(int y, int x, s16b o_idx)
     if (o_ptr->pval > 0)
     {
         strnfmt(open_label, sizeof(open_label),
-            trap_known ? "Open anyway: %d%%" : "Open: %d%%",
+            trap_known ? "Open anyway (lock): %d%%" : "Open: %d%%",
             player_skill_check_success_percent(p_ptr->skill_use[S_PER],
                 chest_lock_difficulty(o_ptr), 10, 10));
     }
@@ -4977,8 +4976,8 @@ static bool do_cmd_open_chest_legacy(int y, int x, s16b o_idx)
         /* Determine trap power based on the chest pval (power is 1--7)*/
         power = 1 + (o_ptr->pval / 4);
 
-        // Base difficulty is the lock power + 5
-        difficulty = power + 5;
+        // Base difficulty is the lock power plus the lockpick baseline.
+        difficulty = power + CHEST_LOCK_BASE_DIFFICULTY;
 
         /* Penalize some conditions */
         if (p_ptr->blind || no_light() || p_ptr->image)
@@ -5002,7 +5001,8 @@ static bool do_cmd_open_chest_legacy(int y, int x, s16b o_idx)
                 /* Chest traps are concealed and fiddly: harder to disarm than
                  * a floor trap of the same depth, and harder still on better
                  * (higher-pval) chests. */
-                difficulty = power + (o_ptr->pval / 4) + 3;
+                difficulty = power + (o_ptr->pval / 4)
+                    + CHEST_DISARM_BASE_DIFFICULTY;
                 if (p_ptr->blind || no_light() || p_ptr->image)
                     difficulty += 5;
                 if (p_ptr->confused)
@@ -5090,7 +5090,8 @@ static bool do_cmd_disarm_chest_legacy(int y, int x, s16b o_idx)
     {
         if ((o_ptr->pval > 0) && object_chest_trap_flags(o_ptr))
         {
-            int find_diff = (o_ptr->pval / 2) + 15;
+            int find_diff = (o_ptr->pval / 2)
+                + CHEST_CONCEALED_TRAP_BASE_DIFFICULTY;
 
             if (p_ptr->blind || no_light() || p_ptr->image)
                 find_diff += 5;
@@ -5135,7 +5136,8 @@ static bool do_cmd_disarm_chest_legacy(int y, int x, s16b o_idx)
 
     // Chest traps are concealed and fiddly: harder to disarm than a floor trap
     // of the same depth, and harder still on better (higher-pval) chests.
-    difficulty = power + (o_ptr->pval / 4) + 3;
+    difficulty = power + (o_ptr->pval / 4)
+        + CHEST_DISARM_BASE_DIFFICULTY;
 
     /* Penalize some conditions */
     if (p_ptr->blind || no_light() || p_ptr->image)

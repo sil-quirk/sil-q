@@ -207,6 +207,7 @@ bool askfor_aux(char* buf, size_t len)
         Term_gotoxy(x + k, y);
 
         /* Get a key */
+        inkey_request_text_cursor();
         ch = inkey();
 
         /* Analyze the key */
@@ -305,6 +306,7 @@ bool askfor_name(char* buf, size_t len)
         Term_gotoxy(x + k, y);
 
         /* Get a key */
+        inkey_request_text_cursor();
         ch = inkey();
 
         /* Analyze the key */

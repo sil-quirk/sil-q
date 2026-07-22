@@ -2,6 +2,15 @@
 #include "externs.h"
 #include "object/object-ui-select.h"
 
+static bool reject_broken_item_use(const object_type* o_ptr)
+{
+    if (!object_has_broken_prefix(o_ptr))
+        return false;
+
+    msg_print("Broken items must be repaired before they can be used.");
+    return true;
+}
+
 static void format_staff_prompt_name(char* buf, size_t max,
     const object_type* o_ptr, bool pref)
 {
@@ -365,6 +374,9 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
     if (!o_ptr)
         return;
 
+    if (reject_broken_item_use(o_ptr))
+        return;
+
     /* Sound */
     sound(MSG_EAT);
 
@@ -508,6 +520,9 @@ void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
     if (!o_ptr)
         return;
 
+    if (reject_broken_item_use(o_ptr))
+        return;
+
     /* Sound */
     sound(MSG_QUAFF);
 
@@ -612,6 +627,9 @@ void do_cmd_play_instrument(object_type* default_o_ptr, int default_item)
         msg_print("You can only sound a horn.");
         return;
     }
+
+    if (reject_broken_item_use(o_ptr))
+        return;
 
     if (o_ptr != &inventory[INVEN_HORN])
     {
@@ -743,6 +761,9 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
         msg_print("You can only activate a staff.");
         return;
     }
+
+    if (reject_broken_item_use(o_ptr))
+        return;
 
     if (o_ptr->tval == TV_STAFF && o_ptr != &inventory[INVEN_STAFF])
     {
@@ -936,6 +957,9 @@ void do_cmd_use_gem(object_type* default_o_ptr, int default_item)
     if (!o_ptr)
         return;
 
+    if (reject_broken_item_use(o_ptr))
+        return;
+
     if (o_ptr->number <= 0)
     {
         msg_print("You have no gems left.");
@@ -1020,6 +1044,9 @@ static bool item_tester_hook_activate(const object_type* o_ptr)
 {
     u32b f1, f2, f3;
 
+    if (object_has_broken_prefix(o_ptr))
+        return (false);
+
     /* Not known */
     if (!object_known_p(o_ptr))
         return (false);
@@ -1070,6 +1097,9 @@ void do_cmd_activate(void)
     {
         o_ptr = &o_list[0 - item];
     }
+
+    if (reject_broken_item_use(o_ptr))
+        return;
 
     /* Take a turn */
     p_ptr->energy_use = 100;

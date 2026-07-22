@@ -4681,7 +4681,16 @@ static bool equipment_entry_display_values(equipment_list_entry* entry,
         && entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
     {
         *base_attr = TERM_L_DARK;
-        if (show_source)
+        if (show_source && entry->equip_idx == INVEN_ARM
+            && inventory[INVEN_WIELD].k_idx
+            && ((k_info[inventory[INVEN_WIELD].k_idx].flags3
+                    & TR3_TWO_HANDED)
+                || hand_and_a_half_bonus(&inventory[INVEN_WIELD])))
+        {
+            strnfmt(display_name, display_name_len,
+                "%s(used by two-handed weapon)", label_prefix);
+        }
+        else if (show_source)
             strnfmt(display_name, display_name_len, "%s(empty)", label_prefix);
         else
             strnfmt(display_name, display_name_len, "%s(empty) %s",
@@ -9723,6 +9732,16 @@ static void supply_preview_focus_entry_column(bool desc_overlay_on,
         *column = 1;
 }
 
+static void supply_touch_preview_restore_group_focus(bool touch_generated,
+    bool preview_was_open, bool preview_is_open, int* column)
+{
+    /* A long tap temporarily focuses an entry so its description can follow
+     * that row.  Do not leave that entry cursor exposed when touch closes the
+     * preview; return to the browser's category/slot side instead. */
+    if (touch_generated && preview_was_open && !preview_is_open && column)
+        *column = 0;
+}
+
 bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 {
     int i;
@@ -10390,6 +10409,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 #ifdef ARROW_RIGHT
             case ARROW_RIGHT:
 #endif
+            {
+                bool preview_was_open = desc_overlay_on;
+
                 if (!equip_column && equip_entry_cnt)
                 {
                     equip_column = 1;
@@ -10405,7 +10427,11 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                             ? SUPPLY_INTERACTION_NONE
                             : SUPPLY_INTERACTION_DESCRIPTION);
                 }
+                supply_touch_preview_restore_group_focus(
+                    touch_only && click_generated_command, preview_was_open,
+                    desc_overlay_on, &equip_column);
                 break;
+            }
 
             case 'u':
             case 'U':
@@ -11424,6 +11450,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 #ifdef ARROW_RIGHT
             case ARROW_RIGHT:
 #endif
+            {
+                bool preview_was_open = desc_overlay_on;
+
                 if (replacement_mode || slot_pick_mode || item_select_mode)
                 {
                     if (inventory_entry_cnt)
@@ -11433,6 +11462,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                             &desc_overlay_on, &drop_click_mode,
                             &delete_click_mode, SUPPLY_INTERACTION_DESCRIPTION);
                     }
+                    supply_touch_preview_restore_group_focus(
+                        touch_only && click_generated_command,
+                        preview_was_open, desc_overlay_on, &inv_column);
                     break;
                 }
                 if (inventory_entry_cnt)
@@ -11453,7 +11485,11 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                                 : SUPPLY_INTERACTION_DESCRIPTION);
                     }
                 }
+                supply_touch_preview_restore_group_focus(
+                    touch_only && click_generated_command, preview_was_open,
+                    desc_overlay_on, &inv_column);
                 break;
+            }
 
             case 'u':
             case 'U':
@@ -12318,6 +12354,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 #ifdef ARROW_RIGHT
         case ARROW_RIGHT:
 #endif
+        {
+            bool preview_was_open = desc_overlay_on;
+
             if (!column && entry_cnt)
             {
                 column = 1;
@@ -12332,7 +12371,11 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         ? SUPPLY_INTERACTION_NONE
                         : SUPPLY_INTERACTION_DESCRIPTION);
             }
+            supply_touch_preview_restore_group_focus(
+                touch_only && click_generated_command, preview_was_open,
+                desc_overlay_on, &column);
             break;
+        }
 
         case 'u':
         case 'U':

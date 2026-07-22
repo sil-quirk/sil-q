@@ -914,6 +914,31 @@ bool object_is_fire_broken(const object_type* o_ptr)
     return object_runtime_state(o_ptr) == OBJECT_RUNTIME_STATE_FIRE_BROKEN;
 }
 
+/*
+ * Check for the literal "(broken)" prefix shown in object descriptions.
+ * This is deliberately narrower than TR3_DAMAGED: rusty, bent, splintered,
+ * and other damaged items remain usable until the player chooses to repair
+ * them.
+ */
+bool object_has_broken_prefix(const object_type* o_ptr)
+{
+    byte e_idx;
+    const char* name;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (object_is_fire_broken(o_ptr))
+        return true;
+
+    e_idx = object_ego_prefix(o_ptr);
+    if (!e_idx || e_idx >= z_info->e_max || !e_info[e_idx].name)
+        return false;
+
+    name = e_name + e_info[e_idx].name;
+    return SDL_strcasecmp(name, "(broken)") == 0;
+}
+
 bool object_break_shafted_weapon_by_fire(object_type* o_ptr)
 {
     if (!object_is_fire_breakable_weapon(o_ptr))

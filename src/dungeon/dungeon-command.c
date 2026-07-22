@@ -488,7 +488,7 @@ void process_command(void)
     case 'q':
     {
         open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE,
-            SUPPLY_GROUP_SUPPLY, true, true);
+            SUPPLY_GROUP_POTIONS, true, true);
         break;
     }
 
@@ -662,8 +662,8 @@ void process_command(void)
     /* Supplies overview */
     case 'j':
     {
-        open_supplies_menu_with_context(SUPPLY_MENU_ACTION_NONE, -1,
-            false, false);
+        open_supplies_menu_with_context(SUPPLY_MENU_ACTION_NONE,
+            SUPPLY_GROUP_SUPPLY, true, false);
         break;
     }
 

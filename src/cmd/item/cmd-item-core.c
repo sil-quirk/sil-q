@@ -107,6 +107,10 @@ static int get_unequip_sound(const object_type* o_ptr)
  */
 static bool item_tester_hook_wear(const object_type* o_ptr)
 {
+    /* Literal (broken) items cannot be equipped until repaired. */
+    if (object_has_broken_prefix(o_ptr))
+        return (false);
+
     // Despite being a crown, the Iron Crown cannot be worn
     if ((o_ptr->name1 >= ART_MORGOTH_0) && (o_ptr->name1 <= ART_MORGOTH_3))
         return (false);
@@ -577,6 +581,13 @@ static bool replacement_choice_allowed(const object_type* incoming,
             return false;
         if (cursed_p(candidate))
             return false;
+    }
+
+    /* Oil flasks are expendable lamp capacity, not a player-facing choice. */
+    if (incoming->tval == TV_LIGHT && incoming->sval == SV_LIGHT_LANTERN
+        && candidate->tval == TV_FLASK)
+    {
+        return false;
     }
 
     if (!inven_carry_limit_can_replace(candidate))
@@ -1308,6 +1319,10 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     int supply_index = supplies_current_action();
     bool from_supplies = false;
     int oil_swap_drop_idx = 0;
+    int lamp_flasks_to_replace = 0;
+    int lamp_flask_oil = 0;
+    int lamp_replacement_item = -1;
+    bool lamp_flask_replacement_planned = false;
 
     u32b f1, f2, f3, f4;
 
@@ -1356,6 +1371,12 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         {
             o_ptr = &o_list[0 - item];
         }
+    }
+
+    if (object_has_broken_prefix(o_ptr))
+    {
+        msg_print("Broken items must be repaired before they can be equipped.");
+        return;
     }
 
     // remember how many there were
@@ -1414,7 +1435,9 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         return;
     }
 
-    if ((item < 0) && player_light_carry_cap(o_ptr) > 0)
+    if ((item < 0) && player_light_carry_cap(o_ptr) > 0
+        && !(o_ptr->tval == TV_LIGHT
+            && o_ptr->sval == SV_LIGHT_LANTERN))
     {
         object_type* equipped_ptr = &inventory[slot];
         bool replacing_same_group = equipped_ptr->k_idx
@@ -1434,16 +1457,6 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
                 (void)open_inventory_menu_category(menu_group);
             return;
         }
-    }
-
-    if (!from_supplies
-        && o_ptr->tval == TV_LIGHT && o_ptr->sval == SV_LIGHT_LANTERN
-        && o_ptr->timeout > 0
-        && player_lamp_oil_would_overflow_with_bonus(o_ptr->timeout,
-            (item < 0) ? 1 : 0)
-        && !get_check("Taking this lamp will waste some oil. Proceed? "))
-    {
-        return;
     }
 
     /* Ask for ring to replace */
@@ -1971,6 +1984,48 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     {
         return;
     }
+
+    if (item < 0 && o_ptr->tval == TV_LIGHT
+        && o_ptr->sval == SV_LIGHT_LANTERN)
+    {
+        bool replacement_aborted = false;
+
+        lamp_flask_replacement_planned =
+            prepare_brass_lamp_flask_replacement(o_ptr,
+                &lamp_flasks_to_replace, &lamp_flask_oil,
+                &replacement_aborted);
+        if (replacement_aborted)
+            return;
+
+        if (!lamp_flask_replacement_planned
+            && player_light_available_capacity(o_ptr) <= 0)
+        {
+            inventory_menu_group menu_group =
+                inventory_menu_group_for_limit_group(
+                    inventory_limit_group_for_object(o_ptr));
+
+            (void)inven_carry_okay(o_ptr);
+            msg_print("You have no free lamp/flask slots.");
+            if (menu_group == INVENTORY_MENU_GROUP_ALL
+                || !open_inventory_replacement_menu(menu_group, o_ptr, true,
+                    true, "Replace a brass lantern to make room.",
+                    &lamp_replacement_item))
+            {
+                return;
+            }
+        }
+    }
+
+    if (!from_supplies
+        && o_ptr->tval == TV_LIGHT && o_ptr->sval == SV_LIGHT_LANTERN
+        && o_ptr->timeout > 0 && !lamp_flask_replacement_planned
+        && lamp_replacement_item < 0
+        && player_lamp_oil_would_overflow_with_bonus(o_ptr->timeout,
+            (item < 0) ? 1 : 0)
+        && !get_check("Taking this lamp will waste some oil. Proceed? "))
+    {
+        return;
+    }
     
     /* Oath of Light: warn before equipping light-dimming items */
     if (chosen_oath(OATH_LIGHT) && !oath_invalid(OATH_LIGHT))
@@ -1994,6 +2049,38 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
             apply_oath_breaking_curse(OATH_LIGHT);
             metarun_ban_oath(OATH_LIGHT);
             log_trace("do_cmd_wield: Oath of Light broken by equipping light-dimming item");
+        }
+    }
+
+    if (lamp_flask_replacement_planned)
+    {
+        if (!commit_brass_lamp_flask_replacement(lamp_flasks_to_replace,
+                lamp_flask_oil))
+        {
+            msg_print("The oil flask could not be replaced.");
+            return;
+        }
+    }
+    else if (lamp_replacement_item >= 0
+        && lamp_replacement_item != slot)
+    {
+        if (lamp_replacement_item >= SUPPLIES_INDEX)
+        {
+            if (!supplies_drop_amount(
+                    lamp_replacement_item - SUPPLIES_INDEX, 1))
+            {
+                msg_print("The brass lantern could not be replaced.");
+                return;
+            }
+        }
+        else if (lamp_replacement_item < INVEN_WIELD)
+        {
+            inven_drop(lamp_replacement_item, 1);
+        }
+        else
+        {
+            msg_print("That lantern cannot be replaced here.");
+            return;
         }
     }
 
@@ -3942,6 +4029,9 @@ void do_cmd_inscribe(void)
  */
 static bool item_tester_refuel_lantern(const object_type* o_ptr)
 {
+    if (object_has_broken_prefix(o_ptr))
+        return (false);
+
     /* Flasks of oil are okay */
     if (o_ptr->tval == TV_FLASK)
         return (true);
@@ -4029,6 +4119,12 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
     if (!o_ptr)
         return;
 
+    if (object_has_broken_prefix(o_ptr))
+    {
+        msg_print("Broken items must be repaired before they can be used.");
+        return;
+    }
+
     source_oil = (o_ptr->tval == TV_FLASK) ? o_ptr->pval : o_ptr->timeout;
 
     if (from_supplies)
@@ -4056,6 +4152,12 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
     if ((j_ptr->tval != TV_LIGHT) || (j_ptr->sval != SV_LIGHT_LANTERN))
     {
         msg_print("You are not wielding a lantern.");
+        return;
+    }
+
+    if (object_has_broken_prefix(j_ptr))
+    {
+        msg_print("Broken items must be repaired before they can be used.");
         return;
     }
 

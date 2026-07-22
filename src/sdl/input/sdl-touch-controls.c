@@ -2842,6 +2842,7 @@ void sdl_touch_round_render(void)
     SDL_Color line_color;
     SDL_FRect center_arrow;
     SDL_Rect clip;
+    SDL_Rect map_clip;
     bool active = g_touch_round_press.active;
     float cx;
     float cy;
@@ -2890,7 +2891,6 @@ void sdl_touch_round_render(void)
         }
     }
 
-    SDL_SetRenderClipRect(g_state.renderer, &clip);
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
 
     if (aim_targeting)
@@ -2926,9 +2926,20 @@ void sdl_touch_round_render(void)
         && target_dir != 0
         && sdl_touch_round_drag_is_run(dist, inner_radius, radius);
 
-    if (target_dir)
+    /* The wheel's pane-aware clip can be only the vertical lane containing
+     * the control, while the selected map square follows the player anywhere
+     * in the map.  Draw drag/repeat previews against the full map clip, then
+     * restore the wheel clip for the control itself.  Direct outer-button
+     * presses intentionally act immediately without a map-square preview. */
+    if (target_dir && !g_touch_round_press.button_press
+        && sdl_touch_round_compute_clip_rect(&map_clip))
+    {
+        SDL_SetRenderClipRect(g_state.renderer, &map_clip);
         sdl_touch_round_render_target_square(target_dir, ctrl_preview,
             run_preview);
+    }
+
+    SDL_SetRenderClipRect(g_state.renderer, &clip);
 
     sdl_touch_round_draw_circle(cx, cy, radius, frame);
     sdl_touch_round_draw_circle(cx, cy, radius - 2.0f, frame);

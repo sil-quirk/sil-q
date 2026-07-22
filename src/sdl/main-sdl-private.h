@@ -3709,6 +3709,7 @@ bool sdl_question_menu_take_touch_scrolled(void);
 void sdl_question_menu_set_blocking_input(bool blocking);
 bool sdl_question_menu_blocks_input(void);
 bool sdl_question_menu_captures_pointer(void);
+void sdl_question_menu_clear_nonblocking(void);
 void sdl_question_menu_set_nonblocking(bool nonblocking);
 void sdl_question_menu_set_timeout_ms(int ms);
 int sdl_question_menu_pending_timeout_ms(Uint64 now_ns);

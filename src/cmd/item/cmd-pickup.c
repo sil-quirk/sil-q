@@ -1180,13 +1180,17 @@ static bool brass_lamp_pickup_oil_would_overflow_after_discard(
     return current_oil + oil_amount > resulting_capacity;
 }
 
-static bool auto_replace_flasks_for_brass_lamp(const object_type* incoming,
-    bool* aborted)
+bool prepare_brass_lamp_flask_replacement(const object_type* incoming,
+    int* flasks_to_replace, int* flask_oil, bool* aborted)
 {
     int incoming_slots;
     int needed_slots;
     int discarded_flask_oil;
-    int discarded;
+
+    if (flasks_to_replace)
+        *flasks_to_replace = 0;
+    if (flask_oil)
+        *flask_oil = 0;
 
     if (aborted)
         *aborted = false;
@@ -1219,16 +1223,28 @@ static bool auto_replace_flasks_for_brass_lamp(const object_type* incoming,
             msg_print("You leave it on the ground.");
             return false;
         }
-
-        brass_lamp_pickup_overflow_checked = true;
     }
 
-    discarded = discard_oil_flasks_for_lamp(needed_slots);
+    if (flasks_to_replace)
+        *flasks_to_replace = needed_slots;
+    if (flask_oil)
+        *flask_oil = discarded_flask_oil;
+
+    return true;
+}
+
+bool commit_brass_lamp_flask_replacement(int flasks_to_replace, int flask_oil)
+{
+    int discarded;
+
+    if (flasks_to_replace <= 0)
+        return false;
+
+    discarded = discard_oil_flasks_for_lamp(flasks_to_replace);
     if (discarded > 0)
     {
-        brass_lamp_pickup_overflow_checked = true;
-        if (discarded_flask_oil > 0)
-            player_gain_lamp_oil(discarded_flask_oil, true);
+        if (flask_oil > 0)
+            player_gain_lamp_oil(flask_oil, true);
         msg_format("Your lamp replaces %d oil flask%s, keeping the oil in "
             "your lamp stores.",
             discarded, (discarded == 1) ? "" : "s");
@@ -1236,7 +1252,26 @@ static bool auto_replace_flasks_for_brass_lamp(const object_type* incoming,
         p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
     }
 
-    return discarded > 0;
+    return discarded == flasks_to_replace;
+}
+
+static bool auto_replace_flasks_for_brass_lamp(const object_type* incoming,
+    bool* aborted)
+{
+    int flasks_to_replace = 0;
+    int flask_oil = 0;
+
+    if (!prepare_brass_lamp_flask_replacement(incoming,
+            &flasks_to_replace, &flask_oil, aborted))
+    {
+        return false;
+    }
+
+    if (!commit_brass_lamp_flask_replacement(flasks_to_replace, flask_oil))
+        return false;
+
+    brass_lamp_pickup_overflow_checked = true;
+    return true;
 }
 
 /*

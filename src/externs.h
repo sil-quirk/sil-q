@@ -625,6 +625,11 @@ extern void search(void);
 extern void do_cmd_pickup_from_pile(void);
 extern void py_pickup_aux(int o_idx);
 extern void py_pickup(void);
+extern bool prepare_brass_lamp_flask_replacement(
+    const object_type* incoming, int* flasks_to_replace, int* flask_oil,
+    bool* aborted);
+extern bool commit_brass_lamp_flask_replacement(
+    int flasks_to_replace, int flask_oil);
 extern bool player_channel_floor_staff(object_type* donor, int floor_o_idx);
 extern bool smith_oath_forbids_object(const object_type* o_ptr);
 extern bool smith_oath_confirm_break(void);
@@ -1284,6 +1289,7 @@ extern void object_apply_pval_delta_with_mask(object_type* o_ptr, u32b mask, int
 extern bool object_apply_ego_affix(object_type* o_ptr, int e_idx, bool smithing);
 extern bool object_break_brass_lantern(object_type* o_ptr);
 extern bool object_is_fire_broken(const object_type* o_ptr);
+extern bool object_has_broken_prefix(const object_type* o_ptr);
 extern bool object_break_shafted_weapon_by_fire(object_type* o_ptr);
 extern bool object_repair_fire_broken_weapon(object_type* o_ptr);
 extern void object_into_special(object_type* o_ptr, int lev, bool smithing);
@@ -2028,6 +2034,9 @@ extern byte object_display_color(const object_type* o_ptr, byte base_color);
 extern void calc_torch(void);
 extern int song_effective_skill(int song);
 extern int ability_current_skill_bonus(int skilltype, int abilitynum);
+extern int ability_potential_skill_bonus(int skilltype, int abilitynum);
+extern int ability_potential_skill_bonus_with_partner(
+    int skilltype, int abilitynum);
 extern int ability_bonus(int skilltype, int abilitynum);
 extern int affinity_level(int skilltype);
 extern int minstrel_level(void);
@@ -2305,6 +2314,7 @@ extern void sdl_question_menu_add_text(cptr text, byte attr);
 extern void sdl_question_menu_set_highlight(int choice);
 extern void sdl_question_menu_finish(void);
 extern void sdl_question_menu_clear(void);
+extern void sdl_question_menu_clear_nonblocking(void);
 extern void sdl_question_menu_set_scroll_offset_target(int* offset,
     bool follow_highlight);
 extern bool sdl_question_menu_take_touch_scrolled(void);

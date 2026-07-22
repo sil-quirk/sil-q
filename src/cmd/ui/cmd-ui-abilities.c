@@ -361,20 +361,257 @@ static bool ability_menu_weapon_skill_bonus_text(int skilltype,
     int abilitynum, char* bonus_text, size_t text_size)
 {
     cptr target_skill = NULL;
+    cptr partner_name = NULL;
+    cptr partner_skill = NULL;
+    int partner_skilltype = -1;
+    int partner_abilitynum = -1;
+    bool current;
+    int bonus;
 
     if (!bonus_text || text_size == 0)
         return false;
 
     if (skilltype == S_MEL && abilitynum == MEL_WARDEN)
+    {
         target_skill = "Archery";
+        partner_name = "Versatility";
+        partner_skill = "Melee";
+        partner_skilltype = S_ARC;
+        partner_abilitynum = ARC_VERSATILITY;
+    }
     else if (skilltype == S_ARC && abilitynum == ARC_VERSATILITY)
+    {
         target_skill = "Melee";
+        partner_name = "Warden";
+        partner_skill = "Archery";
+        partner_skilltype = S_MEL;
+        partner_abilitynum = MEL_WARDEN;
+    }
     else
         return false;
 
-    strnfmt(bonus_text, text_size, "Current bonus: +%d %s.",
-        ability_current_skill_bonus(skilltype, abilitynum), target_skill);
+    current = p_ptr->have_ability[skilltype][abilitynum]
+        && p_ptr->active_ability[skilltype][abilitynum];
+    bonus = current
+        ? ability_current_skill_bonus(skilltype, abilitynum)
+        : ability_potential_skill_bonus(skilltype, abilitynum);
+
+    strnfmt(bonus_text, text_size, "%s bonus: +%d %s.",
+        current ? "Current" : "Potential", bonus, target_skill);
+
+    if (!current
+        && p_ptr->active_ability[partner_skilltype][partner_abilitynum])
+    {
+        size_t used = strlen(bonus_text);
+
+        strnfcat(bonus_text, text_size, &used,
+            " With both active, %s's %s bonus becomes +%d.",
+            partner_name, partner_skill,
+            ability_potential_skill_bonus_with_partner(partner_skilltype,
+                partner_abilitynum));
+    }
+
     return true;
+}
+
+static bool ability_menu_other_bonus_text(int skilltype, int abilitynum,
+    char* bonus_text, size_t text_size)
+{
+    bool current;
+    int bonus;
+
+    if (!bonus_text || text_size == 0)
+        return false;
+
+    current = p_ptr->have_ability[skilltype][abilitynum]
+        && p_ptr->active_ability[skilltype][abilitynum];
+    bonus_text[0] = '\0';
+
+    switch (skilltype)
+    {
+    case S_EVN:
+        switch (abilitynum)
+        {
+        case EVN_DODGING:
+            if (current)
+            {
+                strnfmt(bonus_text, text_size,
+                    "Current bonus: %+d evasion while moving in light armour.",
+                    dodging_bonus());
+            }
+            else
+            {
+                strnfmt(bonus_text, text_size,
+                    "Potential bonus: +3 evasion when you move while wearing only light armour.");
+            }
+            break;
+
+        case EVN_PARRY:
+            bonus = inventory[INVEN_WIELD].k_idx
+                ? inventory[INVEN_WIELD].evn : 0;
+            if (current)
+            {
+                strnfmt(bonus_text, text_size,
+                    "Current bonus: %+d evasion from your primary melee weapon.",
+                    player_active_weapon_is_melee() ? bonus : 0);
+            }
+            else
+            {
+                strnfmt(bonus_text, text_size,
+                    "Potential bonus: %+d evasion from your primary melee weapon when melee is active.",
+                    bonus);
+            }
+            break;
+
+        default:
+            break;
+        }
+        break;
+
+    case S_STL:
+        if (abilitynum == STL_ASSASSINATION)
+        {
+            bonus = p_ptr->skill_use[S_STL];
+            if (current)
+            {
+                strnfmt(bonus_text, text_size,
+                    "Current bonus: %+d melee vs non-alert creatures and Song of Disguise targets.",
+                    bonus);
+            }
+            else
+            {
+                strnfmt(bonus_text, text_size,
+                    "Potential bonus: %+d melee vs non-alert creatures and Song of Disguise targets.",
+                    bonus);
+            }
+        }
+        break;
+
+    case S_PER:
+        switch (abilitynum)
+        {
+        case PER_FOCUSED_ATTACK:
+            bonus = p_ptr->skill_use[S_PER] / 2;
+            if (current)
+            {
+                strnfmt(bonus_text, text_size,
+                    "Current bonus: up to %+d attack after passing the previous turn.",
+                    bonus);
+            }
+            else
+            {
+                strnfmt(bonus_text, text_size,
+                    "Potential bonus: up to %+d attack after passing the previous turn.",
+                    bonus);
+            }
+            break;
+
+        case PER_CONCENTRATION:
+            bonus = p_ptr->skill_use[S_PER] / 2;
+            if (current)
+            {
+                int current_bonus = 0;
+
+                if (p_ptr->last_attack_m_idx > 0
+                    && p_ptr->last_attack_m_idx < mon_max
+                    && mon_list[p_ptr->last_attack_m_idx].r_idx)
+                {
+                    current_bonus = MIN(p_ptr->consecutive_attacks, bonus);
+                }
+
+                strnfmt(bonus_text, text_size,
+                    "Current bonus: up to %+d attack on the same target (currently %+d).",
+                    bonus, current_bonus);
+            }
+            else
+            {
+                strnfmt(bonus_text, text_size,
+                    "Potential bonus: up to %+d attack per consecutive round on the same target.",
+                    bonus);
+            }
+            break;
+
+        case PER_MASTER_HUNTER:
+            bonus = p_ptr->skill_use[S_PER] / 2;
+            if (current)
+            {
+                strnfmt(bonus_text, text_size,
+                    "Current bonus: up to %+d attack per previous kill of the same monster type.",
+                    bonus);
+            }
+            else
+            {
+                strnfmt(bonus_text, text_size,
+                    "Potential bonus: up to %+d attack per previous kill of the same monster type.",
+                    bonus);
+            }
+            break;
+
+        default:
+            break;
+        }
+        break;
+
+    case S_WIL:
+        switch (abilitynum)
+        {
+        case WIL_STRENGTH_IN_ADVERSITY:
+            if (current)
+            {
+                bonus = 0;
+                if (health_level(p_ptr->chp, p_ptr->mhp)
+                    <= HEALTH_BADLY_WOUNDED)
+                    bonus = 1;
+                if (health_level(p_ptr->chp, p_ptr->mhp)
+                    <= HEALTH_ALMOST_DEAD)
+                    bonus = 3;
+
+                strnfmt(bonus_text, text_size,
+                    "Current bonus: %+d Strength, %+d Dexterity, %+d Grace at current health.",
+                    bonus, bonus, bonus);
+            }
+            else
+            {
+                strnfmt(bonus_text, text_size,
+                    "Potential bonus: +1 Strength, Dexterity, and Grace at 50%% HP; +3 each at 25%% HP.");
+            }
+            break;
+
+        case WIL_VENGEANCE:
+            if (current)
+            {
+                strnfmt(bonus_text, text_size,
+                    "Current bonus: %+d melee damage die ready after taking melee damage.",
+                    p_ptr->vengeance);
+            }
+            else
+            {
+                strnfmt(bonus_text, text_size,
+                    "Potential bonus: +1 melee damage die after taking melee damage.");
+            }
+            break;
+
+        default:
+            break;
+        }
+        break;
+
+    default:
+        break;
+    }
+
+    return bonus_text[0] != '\0';
+}
+
+static bool ability_menu_dynamic_bonus_text(int skilltype, int abilitynum,
+    char* bonus_text, size_t text_size)
+{
+    if (ability_menu_weapon_skill_bonus_text(skilltype, abilitynum,
+            bonus_text, text_size))
+        return true;
+
+    return ability_menu_other_bonus_text(skilltype, abilitynum, bonus_text,
+        text_size);
 }
 
 static int ability_menu_minor_song_score(int song_skill)
@@ -620,13 +857,13 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
     }
 }
 
-static void ability_menu_render_weapon_skill_bonus(int skilltype,
+static void ability_menu_render_dynamic_bonus(int skilltype,
     int abilitynum)
 {
-    char bonus_text[160];
-    char rendered_text[180];
+    char bonus_text[320];
+    char rendered_text[340];
 
-    if (!ability_menu_weapon_skill_bonus_text(skilltype, abilitynum,
+    if (!ability_menu_dynamic_bonus_text(skilltype, abilitynum,
             bonus_text, sizeof(bonus_text)))
         return;
 
@@ -3714,7 +3951,7 @@ static void ability_browser_add_current_blocks(
     ability_browser_desc_line lines[], int* line_count, int skilltype,
     const ability_type* b_ptr, int width)
 {
-    char buf[220];
+    char buf[320];
 
     if (!b_ptr)
         return;
@@ -3732,16 +3969,12 @@ static void ability_browser_add_current_blocks(
         }
     }
 
-    if ((skilltype == S_MEL && b_ptr->abilitynum == MEL_WARDEN)
-        || (skilltype == S_ARC && b_ptr->abilitynum == ARC_VERSATILITY))
+    if (ability_menu_dynamic_bonus_text(skilltype, b_ptr->abilitynum,
+            buf, sizeof(buf)))
     {
-        if (ability_menu_weapon_skill_bonus_text(skilltype, b_ptr->abilitynum,
-                buf, sizeof(buf)))
-        {
-            ability_desc_add_blank(lines, line_count);
-            ability_desc_add_wrapped(lines, line_count, TERM_L_GREEN, buf,
-                width);
-        }
+        ability_desc_add_blank(lines, line_count);
+        ability_desc_add_wrapped(lines, line_count, TERM_L_GREEN, buf,
+            width);
     }
 
     if (skilltype == S_SPC && b_ptr->abilitynum == SPC_NIENA_MERCY
@@ -5189,14 +5422,8 @@ int abilities_menu2(int skilltype, int* highlight)
                     if (skilltype == S_SNG && !song_bonus_rendered)
                         ability_menu_render_song_bonus_block(b_ptr);
 
-                    if ((skilltype == S_MEL
-                            && b_ptr->abilitynum == MEL_WARDEN)
-                        || (skilltype == S_ARC
-                            && b_ptr->abilitynum == ARC_VERSATILITY))
-                    {
-                        ability_menu_render_weapon_skill_bonus(skilltype,
-                            b_ptr->abilitynum);
-                    }
+                    ability_menu_render_dynamic_bonus(skilltype,
+                        b_ptr->abilitynum);
 
                     /* For Nienna's Gift of Mercy, show current bonus */
                     if (skilltype == S_SPC && b_ptr->abilitynum == SPC_NIENA_MERCY &&

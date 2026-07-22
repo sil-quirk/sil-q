@@ -222,8 +222,7 @@ static int confirm_active_weapon_switch_to_ranged(int default_mode)
 {
     const ui_question_option options[] = {
         { '1', "Quiver 1", TERM_L_WHITE },
-        { '2', "Quiver 2", TERM_L_WHITE },
-        { 'n', "No", TERM_SLATE }
+        { '2', "Quiver 2", TERM_L_WHITE }
     };
     int default_index = (default_mode == PLAYER_ACTIVE_WEAPON_RANGED_2)
         ? 1 : 0;
