@@ -67,7 +67,7 @@ bool g_suppress_hidden_left_panel_overlay = false;
 
 static byte left_panel_selected_attack_attr(void)
 {
-    return (byte)(TERM_UI_SELECTED + TERM_YELLOW);
+    return (byte)(TERM_UI_SELECTED + TERM_L_BLUE);
 }
 
 static byte left_panel_selected_quiver_attr(void)

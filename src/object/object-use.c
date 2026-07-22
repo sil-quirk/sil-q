@@ -55,5 +55,26 @@ bool player_can_treat_as_throwing(const object_type* o_ptr)
     return player_can_treat_as_throwing_flags(o_ptr, f3);
 }
 
+bool potion_has_thrown_effect(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx || o_ptr->tval != TV_POTION)
+        return false;
+
+    switch (o_ptr->sval)
+    {
+    case SV_POTION_SLOWNESS:
+    case SV_POTION_CONFUSION:
+    case SV_POTION_true_SIGHT:
+    case SV_POTION_POISON:
+    case SV_POTION_ORCISH_LIQUOR:
+    case SV_POTION_BLINDNESS:
+    case SV_POTION_DEC_DEX:
+    case SV_POTION_DEC_GRA:
+        return true;
+    default:
+        return false;
+    }
+}
+
 #undef MAX_COMPARE_LINES
 #undef MAX_IDENT_ENTRIES

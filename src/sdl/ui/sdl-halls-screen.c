@@ -25,6 +25,8 @@ typedef struct sdl_halls_entry {
     char outcome[SDL_HALLS_TEXT_LEN];
     char details[SDL_HALLS_TEXT_LEN];
     char honors[96];
+    char score_increases[SDL_HALLS_TEXT_LEN];
+    char score_decreases[SDL_HALLS_TEXT_LEN];
     SDL_FRect hit_rect;
 } sdl_halls_entry;
 
@@ -57,6 +59,7 @@ typedef struct sdl_halls_layout {
     float content_w;
     float content_x;
     float header_h;
+    float header_body_gap;
     float footer_h;
     float body_top;
     float body_h;
@@ -114,13 +117,16 @@ static void sdl_halls_measure_layout(const SDL_Rect* canvas,
     layout->header_h = mobile
         ? sdl_halls_clampf((float)canvas->h * 0.27f, 148.0f, 300.0f)
         : sdl_halls_clampf((float)canvas->h * 0.225f, 136.0f, 280.0f);
+    layout->header_body_gap = sdl_halls_clampf(
+        (float)MIN(canvas->w, canvas->h) * 0.030f, 12.0f, 28.0f);
     layout->footer_h = mobile
         ? sdl_halls_clampf((float)canvas->h * 0.12f, 64.0f, 112.0f)
         : sdl_halls_clampf((float)canvas->h * 0.072f, 46.0f, 78.0f);
     layout->body_top = (float)canvas->y + layout->margin_top
-        + layout->header_h;
+        + layout->header_h + layout->header_body_gap;
     layout->body_h = (float)canvas->h - layout->margin_top
-        - layout->margin_bottom - layout->header_h - layout->footer_h;
+        - layout->margin_bottom - layout->header_h
+        - layout->header_body_gap - layout->footer_h;
     if (layout->body_h < 1.0f)
         layout->body_h = 1.0f;
     layout->gap = sdl_halls_clampf(layout->body_h * 0.015f,
@@ -141,7 +147,7 @@ static int sdl_halls_capacity_for_layout(const SDL_Rect* canvas,
     if (short_side <= 0.0f)
         short_side = 720.0f;
     target_card_h = detailed
-        ? sdl_halls_clampf(short_side * 0.145f, 96.0f, 300.0f)
+        ? sdl_halls_clampf(short_side * 0.300f, 210.0f, 480.0f)
         : sdl_halls_clampf(short_side * 0.090f, 72.0f, 220.0f);
     capacity = (int)((layout->body_h + layout->gap)
         / (target_card_h + layout->gap));
@@ -207,6 +213,74 @@ static SDL_FRect sdl_halls_draw_text(TTF_Font* font, cptr text, byte attr,
     return dst;
 }
 
+static TTF_Font* sdl_halls_wrapped_font(cptr text, SDL_FRect box,
+    int min_px, int max_px)
+{
+    TTF_Font* chosen = NULL;
+    int low = min_px;
+    int high = MAX(min_px, max_px);
+    int wrap_width = MAX(1, (int)(box.w + 0.5f));
+
+    while (low <= high)
+    {
+        int px = low + (high - low) / 2;
+        TTF_Font* font = sdl_story_font_for_height_slot(px,
+            SDL_STORY_FONT_SLOT_NARRATIVE);
+        int text_w = 0;
+        int text_h = 0;
+
+        if (font && TTF_GetStringSizeWrapped(font, text, 0, wrap_width,
+                &text_w, &text_h)
+            && (float)text_w <= box.w + 1.0f
+            && (float)text_h <= box.h + 1.0f)
+        {
+            chosen = font;
+            low = px + 1;
+        }
+        else
+            high = px - 1;
+    }
+
+    return chosen ? chosen : sdl_story_font_for_height_slot(min_px,
+        SDL_STORY_FONT_SLOT_NARRATIVE);
+}
+
+static void sdl_halls_draw_wrapped_text(cptr text, byte attr, SDL_FRect box,
+    int min_px, int max_px)
+{
+    TTF_Font* font;
+    SDL_Texture* texture;
+    SDL_Color color;
+    SDL_FRect dst;
+    float scale = 1.0f;
+    int text_w = 0;
+    int text_h = 0;
+
+    if (!text || !text[0] || box.w <= 0.0f || box.h <= 0.0f)
+        return;
+
+    font = sdl_halls_wrapped_font(text, box, min_px, max_px);
+    if (!font)
+        return;
+    color = sdl_halls_color(attr, 255);
+    texture = sdl_ui_wrapped_text_texture(font, text,
+        MAX(1, (int)(box.w + 0.5f)), color, &text_w, &text_h);
+    if (!texture || text_w <= 0 || text_h <= 0)
+        return;
+
+    if ((float)text_w > box.w)
+        scale = box.w / (float)text_w;
+    if ((float)text_h * scale > box.h)
+        scale = box.h / (float)text_h;
+    if (scale > 1.0f)
+        scale = 1.0f;
+
+    dst = (SDL_FRect){ box.x, box.y, (float)text_w * scale,
+        (float)text_h * scale };
+    dst.y += (box.h - dst.h) * 0.5f;
+    SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
+}
+
 static void sdl_halls_draw_rule(float x, float y, float w, byte attr,
     byte alpha)
 {
@@ -262,8 +336,8 @@ int sdl_halls_screen_page_capacity(bool detailed)
 }
 
 void sdl_halls_screen_add_entry(int choice, cptr rank, cptr name,
-    cptr score, cptr outcome, cptr details, cptr honors, byte attr,
-    bool selected)
+    cptr score, cptr outcome, cptr details, cptr honors,
+    cptr score_increases, cptr score_decreases, byte attr, bool selected)
 {
     sdl_halls_entry* entry;
 
@@ -284,6 +358,12 @@ void sdl_halls_screen_add_entry(int choice, cptr rank, cptr name,
     SDL_strlcpy(entry->outcome, outcome ? outcome : "", sizeof(entry->outcome));
     SDL_strlcpy(entry->details, details ? details : "", sizeof(entry->details));
     SDL_strlcpy(entry->honors, honors ? honors : "", sizeof(entry->honors));
+    SDL_strlcpy(entry->score_increases,
+        score_increases ? score_increases : "",
+        sizeof(entry->score_increases));
+    SDL_strlcpy(entry->score_decreases,
+        score_decreases ? score_decreases : "",
+        sizeof(entry->score_decreases));
     g_state.need_present = true;
 }
 
@@ -448,6 +528,7 @@ static void sdl_halls_render_entry(sdl_halls_entry* entry, SDL_FRect card,
     int meta_px = mobile
         ? sdl_halls_clampi((int)(card.h * 0.27f), 24, 48)
         : sdl_halls_clampi((int)(card.h * 0.20f), 15, 32);
+    int factor_min_px = mobile ? 20 : 15;
     TTF_Font* name_font = sdl_story_font_for_height_slot(name_px,
         SDL_STORY_FONT_SLOT_DEFAULT);
     TTF_Font* body_font = sdl_story_font_for_height_slot(body_px,
@@ -472,8 +553,10 @@ static void sdl_halls_render_entry(sdl_halls_entry* entry, SDL_FRect card,
     (void)sdl_halls_draw_text(meta_font, entry->rank,
         focused ? TERM_YELLOW : TERM_SLATE, box, -1);
 
-    box = (SDL_FRect){ text_x, card.y + pad * 0.55f,
-        text_w - score_w - pad, card.h * 0.31f };
+    box = (SDL_FRect){ text_x,
+        card.y + pad * (g_sdl_halls.detailed ? 0.35f : 0.55f),
+        text_w - score_w - pad,
+        card.h * (g_sdl_halls.detailed ? 0.19f : 0.31f) };
     (void)sdl_halls_draw_text(name_font, entry->name,
         focused ? TERM_YELLOW : entry->attr, box, -1);
     box.x = card.x + card.w - pad - score_w;
@@ -481,8 +564,9 @@ static void sdl_halls_render_entry(sdl_halls_entry* entry, SDL_FRect card,
     (void)sdl_halls_draw_text(name_font, entry->score,
         focused ? TERM_YELLOW : TERM_L_WHITE, box, 1);
 
-    box = (SDL_FRect){ text_x, card.y + card.h * 0.36f,
-        text_w, card.h * (g_sdl_halls.detailed ? 0.27f : 0.42f) };
+    box = (SDL_FRect){ text_x,
+        card.y + card.h * (g_sdl_halls.detailed ? 0.22f : 0.36f),
+        text_w, card.h * (g_sdl_halls.detailed ? 0.16f : 0.42f) };
     (void)sdl_halls_draw_text(body_font, entry->outcome,
         focused ? TERM_WHITE : TERM_L_WHITE, box, -1);
 
@@ -491,10 +575,9 @@ static void sdl_halls_render_entry(sdl_halls_entry* entry, SDL_FRect card,
         float honors_w = entry->honors[0]
             ? sdl_halls_clampf(card.w * 0.22f, 110.0f, 250.0f) : 0.0f;
 
-        box = (SDL_FRect){ text_x, card.y + card.h
-            * (mobile ? 0.66f : 0.68f),
+        box = (SDL_FRect){ text_x, card.y + card.h * 0.385f,
             text_w - honors_w - (honors_w > 0.0f ? pad : 0.0f),
-            card.h * (mobile ? 0.26f : 0.20f) };
+            card.h * 0.14f };
         sdl_halls_draw_details(meta_font, entry->details, box);
         if (honors_w > 0.0f)
         {
@@ -503,6 +586,21 @@ static void sdl_halls_render_entry(sdl_halls_entry* entry, SDL_FRect card,
             (void)sdl_halls_draw_text(meta_font, entry->honors, TERM_ORANGE,
                 box, 1);
         }
+
+        sdl_halls_draw_rule(text_x, card.y + card.h * 0.54f, text_w,
+            TERM_BLUE, 80);
+        box = (SDL_FRect){ text_x, card.y + card.h * 0.55f,
+            text_w, card.h * 0.25f };
+        sdl_halls_draw_wrapped_text(entry->score_increases,
+            prefix(entry->score_increases, "Score increases: none")
+                ? TERM_SLATE : TERM_L_GREEN,
+            box, factor_min_px, meta_px);
+        box.y = card.y + card.h * 0.805f;
+        box.h = card.h * 0.18f;
+        sdl_halls_draw_wrapped_text(entry->score_decreases,
+            prefix(entry->score_decreases, "Score decreases: none")
+                ? TERM_SLATE : TERM_L_RED,
+            box, factor_min_px, meta_px);
     }
     else if (entry->honors[0])
     {

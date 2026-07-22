@@ -566,14 +566,44 @@ void sdl_touch_pane_handle_pointer_up(float x, float y, bool mouse,
     }
 }
 
-#define SDL_TOUCH_THUMB_RUNTIME_BUTTON_COUNT 3
-#define SDL_TOUCH_THUMB_TOP_BUTTON 0
-#define SDL_TOUCH_THUMB_BOTTOM_BUTTON 1
-#define SDL_TOUCH_THUMB_SIDECAR_BUTTON 2
 #define SDL_TOUCH_THUMB_BIND_SPACE_CONTEXT -101
 #define SDL_TOUCH_THUMB_BIND_FIRE_SELECTED -102
 #define SDL_TOUCH_THUMB_BIND_CHANGE_QUIVER -103
 #define SDL_TOUCH_THUMB_BIND_QUICK_THROW -104
+#define SDL_TOUCH_THUMB_BIND_QUICK_THROW_TARGET -105
+
+enum {
+    SDL_TOUCH_THUMB_GAMEPLAY_ACTION_COUNT = 4,
+    /* Interactive descriptions already own the largest possible action list.
+     * Reusing that source capacity means Quick Touch adds no smaller display
+     * cap of its own. */
+    SDL_TOUCH_THUMB_RUNTIME_CAPACITY = SDL_DESCRIPTION_OVERLAY_MAX_ACTIONS
+};
+
+typedef struct touch_thumb_button {
+    int tap_binding;
+    int long_binding;
+} touch_thumb_button;
+
+typedef struct touch_thumb_button_set {
+    touch_thumb_button buttons[SDL_TOUCH_THUMB_RUNTIME_CAPACITY];
+    int count;
+    int gameplay_base_count;
+} touch_thumb_button_set;
+
+typedef struct touch_target_layout_state {
+    bool locked;
+    bool thumb_valid;
+    SDL_FRect thumb_rects[SDL_TOUCH_THUMB_RUNTIME_CAPACITY];
+    bool wheel_valid;
+    float wheel_cx;
+    float wheel_cy;
+    float wheel_radius;
+    float wheel_inner_radius;
+    SDL_Rect wheel_clip;
+} touch_target_layout_state;
+
+static touch_target_layout_state g_touch_target_layout;
 
 static bool sdl_touch_thumb_description_open(void);
 
@@ -584,13 +614,11 @@ static bool sdl_touch_thumb_description_open(void);
  * Column mode follows the left-panel width; row mode keeps the equivalent
  * compact-column footprint instead of stretching across the horizontal panel.
  * Touch-only.
- * Gameplay uses contextual actions:
- *   top: selected-quiver fire in ranged mode, quick throw in melee when ready,
- *        otherwise the current Space action or floor item description/pickup
- *   bottom: wait/rest
- *   sidecar: the current Space action or floor item description/pickup beside
- *        top when ranged/quick throw has claimed the top button; in portrait
- *        it becomes the upper button in a three-button vertical stack
+ * Gameplay publishes every contextual action that currently applies: selected
+ * quiver fire, quick throw, the current Space/floor-item action, and wait/rest.
+ * Interactive descriptions publish their complete footer action list.  Layout
+ * is driven by the resulting count rather than by fixed top/bottom/sidecar
+ * slots.
  * The press/long-press machinery and the action dispatch mirror the touch-pane
  * buttons; the look mirrors the translucent movement button-wheel.
  */
@@ -641,24 +669,14 @@ static bool sdl_touch_thumb_quick_throw_active(void)
 {
     if (!character_dungeon || !p_ptr || !p_ptr->playing || p_ptr->is_dead)
         return false;
-    if (!player_active_weapon_is_melee())
-        return false;
 
-    return player_quick_throw_quiver_slot() != 0
-        || player_power_throw_quiver_slot() != 0;
+    return player_quick_throw_available();
 }
 
 static void sdl_touch_thumb_throw_label(char* buf, size_t buflen)
 {
     if (!buf || !buflen)
         return;
-
-    if (player_power_throw_quiver_slot() != 0
-        && player_quick_throw_quiver_slot() == 0)
-    {
-        SDL_strlcpy(buf, "Power Throw", buflen);
-        return;
-    }
 
     SDL_strlcpy(buf, "Quick Throw", buflen);
 }
@@ -675,77 +693,119 @@ static bool sdl_touch_round_aim_targeting_active(void)
         && !g_pointer_aim.select_location;
 }
 
+static void sdl_touch_thumb_append_button(touch_thumb_button_set* set,
+    int tap_binding, int long_binding)
+{
+    if (!set || set->count >= SDL_TOUCH_THUMB_RUNTIME_CAPACITY)
+        return;
+    set->buttons[set->count++] = (touch_thumb_button){
+        tap_binding, long_binding
+    };
+}
+
+static void sdl_touch_thumb_collect_buttons(touch_thumb_button_set* set)
+{
+    bool ranged;
+    bool quick_throw;
+    bool space_action;
+    bool pickup_action;
+    touch_thumb_button primary = {
+        GAMEPAD_BIND_NONE, GAMEPAD_BIND_NONE
+    };
+    touch_thumb_button extras[SDL_TOUCH_THUMB_GAMEPLAY_ACTION_COUNT];
+    int extra_count = 0;
+
+    if (!set)
+        return;
+    *set = (touch_thumb_button_set){ 0 };
+
+    if (sdl_touch_thumb_description_open()) {
+        for (int i = 0; i < g_description_overlay.footer_action_count; i++) {
+            int key = g_description_overlay.footer_actions[i].key;
+
+            if (key != 0)
+                sdl_touch_thumb_append_button(set, key, GAMEPAD_BIND_NONE);
+        }
+        return;
+    }
+
+    ranged = sdl_touch_thumb_ranged_mode_active();
+    quick_throw = sdl_touch_thumb_quick_throw_active();
+    if (sdl_touch_thumb_fire_targeting_active()) {
+        if (ranged || quick_throw) {
+            sdl_touch_thumb_append_button(set,
+                SDL_TOUCH_THUMB_BIND_FIRE_SELECTED, GAMEPAD_BIND_NONE);
+        }
+        return;
+    }
+
+    space_action = sdl_touch_thumb_space_action(NULL, NULL, 0);
+    pickup_action = sdl_touch_thumb_pickup_action();
+
+    if (ranged) {
+        primary = (touch_thumb_button){
+            SDL_TOUCH_THUMB_BIND_FIRE_SELECTED,
+            SDL_TOUCH_THUMB_BIND_CHANGE_QUIVER
+        };
+        if (quick_throw) {
+            extras[extra_count++] = (touch_thumb_button){
+                SDL_TOUCH_THUMB_BIND_QUICK_THROW,
+                SDL_TOUCH_THUMB_BIND_QUICK_THROW_TARGET
+            };
+        }
+    } else if (quick_throw) {
+        primary = (touch_thumb_button){
+            SDL_TOUCH_THUMB_BIND_QUICK_THROW,
+            SDL_TOUCH_THUMB_BIND_QUICK_THROW_TARGET
+        };
+    } else if (space_action) {
+        primary = (touch_thumb_button){
+            SDL_TOUCH_THUMB_BIND_SPACE_CONTEXT, GAMEPAD_BIND_NONE
+        };
+    } else if (pickup_action) {
+        primary = (touch_thumb_button){ 'x', 'g' };
+    }
+
+    if (primary.tap_binding != SDL_TOUCH_THUMB_BIND_SPACE_CONTEXT
+        && space_action)
+    {
+        extras[extra_count++] = (touch_thumb_button){
+            SDL_TOUCH_THUMB_BIND_SPACE_CONTEXT, GAMEPAD_BIND_NONE
+        };
+    } else if (primary.tap_binding != 'x' && pickup_action) {
+        extras[extra_count++] = (touch_thumb_button){ 'x', 'g' };
+    }
+
+    if (primary.tap_binding != GAMEPAD_BIND_NONE) {
+        sdl_touch_thumb_append_button(set, primary.tap_binding,
+            primary.long_binding);
+    }
+    sdl_touch_thumb_append_button(set, 'z', 'Z');
+    set->gameplay_base_count = set->count;
+
+    for (int i = 0; i < extra_count; i++) {
+        sdl_touch_thumb_append_button(set, extras[i].tap_binding,
+            extras[i].long_binding);
+    }
+}
+
+static int sdl_touch_thumb_button_count(void)
+{
+    touch_thumb_button_set set;
+
+    sdl_touch_thumb_collect_buttons(&set);
+    return set.count;
+}
+
 int sdl_touch_thumb_button_binding(int index, bool long_press)
 {
-    bool description_open = sdl_touch_thumb_description_open();
-    bool ranged = sdl_touch_thumb_ranged_mode_active();
-    bool quick_throw = sdl_touch_thumb_quick_throw_active();
-    bool space_action = sdl_touch_thumb_space_action(NULL, NULL, 0);
-    bool pickup_action = sdl_touch_thumb_pickup_action();
-    bool fire_targeting = sdl_touch_thumb_fire_targeting_active();
-    bool description_x =
-        description_open && sdl_description_overlay_has_footer_action('x');
-    bool description_space =
-        description_open && sdl_description_overlay_has_footer_action(' ');
+    touch_thumb_button_set set;
 
-    if (index < 0 || index >= SDL_TOUCH_THUMB_RUNTIME_BUTTON_COUNT)
+    sdl_touch_thumb_collect_buttons(&set);
+    if (index < 0 || index >= set.count)
         return GAMEPAD_BIND_NONE;
-
-    if (description_open)
-    {
-        if (long_press)
-            return GAMEPAD_BIND_NONE;
-        if (index == SDL_TOUCH_THUMB_TOP_BUTTON)
-        {
-            if (description_x)
-                return 'x';
-            if (description_space)
-                return ' ';
-        }
-        if (index == SDL_TOUCH_THUMB_BOTTOM_BUTTON && description_x
-            && description_space)
-        {
-            return ' ';
-        }
-        return GAMEPAD_BIND_NONE;
-    }
-
-    if (fire_targeting)
-    {
-        if (ranged && index == SDL_TOUCH_THUMB_TOP_BUTTON && !long_press)
-            return SDL_TOUCH_THUMB_BIND_FIRE_SELECTED;
-        return GAMEPAD_BIND_NONE;
-    }
-
-    switch (index) {
-    case SDL_TOUCH_THUMB_TOP_BUTTON:
-        if (ranged)
-        {
-            if (long_press)
-                return SDL_TOUCH_THUMB_BIND_CHANGE_QUIVER;
-            return SDL_TOUCH_THUMB_BIND_FIRE_SELECTED;
-        }
-        if (quick_throw)
-            return long_press ? GAMEPAD_BIND_NONE
-                              : SDL_TOUCH_THUMB_BIND_QUICK_THROW;
-        if (space_action)
-            return long_press ? GAMEPAD_BIND_NONE
-                              : SDL_TOUCH_THUMB_BIND_SPACE_CONTEXT;
-        if (pickup_action)
-            return long_press ? 'g' : 'x';
-        return GAMEPAD_BIND_NONE;
-    case SDL_TOUCH_THUMB_BOTTOM_BUTTON:
-        return long_press ? 'Z' : 'z';
-    case SDL_TOUCH_THUMB_SIDECAR_BUTTON:
-        if ((ranged || quick_throw) && space_action)
-            return long_press ? GAMEPAD_BIND_NONE
-                              : SDL_TOUCH_THUMB_BIND_SPACE_CONTEXT;
-        if ((ranged || quick_throw) && pickup_action)
-            return long_press ? 'g' : 'x';
-        return GAMEPAD_BIND_NONE;
-    default:
-        return GAMEPAD_BIND_NONE;
-    }
+    return long_press ? set.buttons[index].long_binding
+                      : set.buttons[index].tap_binding;
 }
 
 static bool sdl_touch_thumb_button_has_binding(int index)
@@ -760,11 +820,7 @@ bool sdl_touch_thumb_config_enabled(void)
         return false;
     if (!config.touch_thumb_enabled)
         return false;
-    for (int i = 0; i < SDL_TOUCH_THUMB_RUNTIME_BUTTON_COUNT; i++) {
-        if (sdl_touch_thumb_button_has_binding(i))
-            return true;
-    }
-    return false;
+    return sdl_touch_thumb_button_count() > 0;
 }
 
 static bool sdl_touch_thumb_description_open(void)
@@ -790,7 +846,8 @@ bool sdl_touch_thumb_layout_active(void)
     /* Fire targeting keeps the fire thumb button available as an accept/fire
      * control while the aim selector owns normal gameplay input. */
     if (sdl_touch_thumb_fire_targeting_active()
-        && sdl_touch_thumb_ranged_mode_active()
+        && (sdl_touch_thumb_ranged_mode_active()
+            || sdl_touch_thumb_quick_throw_active())
         && sdl_left_panel_pane_layout_enabled()
         && p_ptr && p_ptr->playing && !p_ptr->is_dead)
     {
@@ -979,101 +1036,50 @@ bool sdl_touch_thumb_compute_rects(SDL_FRect* out_rects)
     return true;
 }
 
+static int sdl_touch_thumb_visual_index(const touch_thumb_button_set* set,
+    int slot, int columns)
+{
+    int extra_count;
+
+    if (!set || slot < 0 || slot >= set->count)
+        return -1;
+    extra_count = set->count - set->gameplay_base_count;
+    if (columns != 1 || set->gameplay_base_count <= 0 || extra_count <= 0)
+        return slot;
+
+    /* A single vertical stack keeps contextual extras above the established
+     * primary and Wait/Rest pair.  Once columns are needed, the pair keeps the
+     * first column and extras flow into the remaining measured cells. */
+    if (slot < extra_count)
+        return set->gameplay_base_count + slot;
+    return slot - extra_count;
+}
+
 static bool sdl_touch_thumb_compute_runtime_rects(
     SDL_FRect* out_rects, int rect_count)
 {
+    touch_thumb_button_set set;
     SDL_FRect base[SDL_TOUCH_THUMB_BUTTON_COUNT];
     SDL_Rect screen;
     float gap;
-    float right_limit;
 
     if (out_rects) {
         for (int i = 0; i < rect_count; i++)
             out_rects[i] = (SDL_FRect){ 0 };
     }
-    if (!out_rects || rect_count < SDL_TOUCH_THUMB_RUNTIME_BUTTON_COUNT)
+    if (!out_rects || rect_count < SDL_TOUCH_THUMB_RUNTIME_CAPACITY)
         return false;
-    if (!sdl_touch_thumb_compute_rects(base))
-        return false;
-
-    out_rects[SDL_TOUCH_THUMB_TOP_BUTTON] = base[0];
-    out_rects[SDL_TOUCH_THUMB_BOTTOM_BUTTON] = base[1];
-
-    if (sdl_mobile_portrait_layout_active()) {
-        if (sdl_touch_thumb_description_open()) {
-            SDL_Rect wheel_region;
-            SDL_Rect button_region;
-            bool sidecar = sdl_touch_thumb_button_has_binding(
-                SDL_TOUCH_THUMB_SIDECAR_BUTTON);
-            int button_count = sidecar ? 3 : 2;
-            int order[3] = {
-                SDL_TOUCH_THUMB_SIDECAR_BUTTON,
-                SDL_TOUCH_THUMB_TOP_BUTTON,
-                SDL_TOUCH_THUMB_BOTTOM_BUTTON,
-            };
-            float row_x;
-            float row_y;
-            float row_w;
-            float row_h;
-            float button_w;
-
-            if (!sdl_mobile_portrait_control_regions(&wheel_region,
-                    &button_region))
-            {
-                return false;
-            }
-
-            gap = base[1].y - (base[0].y + base[0].h);
-            row_x = (float)wheel_region.x;
-            row_w = (float)(button_region.x + button_region.w)
-                - row_x;
-            row_h = ((float)button_region.h
-                - gap * (float)(button_count - 1))
-                / (float)button_count;
-            row_y = (float)(button_region.y + button_region.h) - row_h;
-            button_w = (row_w - gap * (float)(button_count - 1))
-                / (float)button_count;
-
-            if (row_h <= 0.0f || button_w <= 0.0f)
-                return false;
-
-            for (int slot = 0; slot < button_count; slot++) {
-                int index = order[slot + (sidecar ? 0 : 1)];
-
-                out_rects[index] = (SDL_FRect){
-                    row_x + (button_w + gap) * (float)slot,
-                    row_y,
-                    button_w,
-                    row_h,
-                };
-            }
-            return true;
-        }
-
-        if (sdl_touch_thumb_button_has_binding(
-                SDL_TOUCH_THUMB_SIDECAR_BUTTON))
-        {
-            float column_h;
-            float button_h;
-
-            gap = base[1].y - (base[0].y + base[0].h);
-            column_h = base[1].y + base[1].h - base[0].y;
-            button_h = (column_h - gap * 2.0f) / 3.0f;
-
-            out_rects[SDL_TOUCH_THUMB_SIDECAR_BUTTON] = (SDL_FRect){
-                base[0].x, base[0].y, base[0].w, button_h
-            };
-            out_rects[SDL_TOUCH_THUMB_TOP_BUTTON] = (SDL_FRect){
-                base[0].x, base[0].y + button_h + gap,
-                base[0].w, button_h
-            };
-            out_rects[SDL_TOUCH_THUMB_BOTTOM_BUTTON] = (SDL_FRect){
-                base[0].x, base[0].y + (button_h + gap) * 2.0f,
-                base[0].w, button_h
-            };
-        }
+    if (g_touch_target_layout.locked) {
+        if (!g_touch_target_layout.thumb_valid)
+            return false;
+        for (int i = 0; i < SDL_TOUCH_THUMB_RUNTIME_CAPACITY; i++)
+            out_rects[i] = g_touch_target_layout.thumb_rects[i];
         return true;
     }
+
+    sdl_touch_thumb_collect_buttons(&set);
+    if (set.count <= 0 || !sdl_touch_thumb_compute_rects(base))
+        return false;
 
     gap = base[1].y - (base[0].y + base[0].h);
     if (gap < 4.0f)
@@ -1081,55 +1087,164 @@ static bool sdl_touch_thumb_compute_runtime_rects(
     if (gap < 4.0f)
         gap = 4.0f;
 
-    if (sdl_touch_thumb_button_has_binding(
-            SDL_TOUCH_THUMB_SIDECAR_BUTTON))
+    /* With no contextual primary action, preserve the established lower
+     * position of the lone Wait/Rest button. */
+    if (set.count == 1 && set.gameplay_base_count == 1) {
+        out_rects[0] = base[1];
+        return true;
+    }
+
+    if (sdl_mobile_portrait_layout_active()) {
+        if (sdl_touch_thumb_description_open()) {
+            SDL_Rect wheel_region;
+            SDL_Rect button_region;
+            float grid_x;
+            float grid_y;
+            float grid_w;
+            float grid_h;
+            float button_w;
+            float button_h;
+            float preferred_w;
+            int columns;
+            int rows;
+
+            if (!sdl_mobile_portrait_control_regions(&wheel_region,
+                    &button_region))
+            {
+                return false;
+            }
+
+            grid_x = (float)wheel_region.x;
+            grid_w = (float)(button_region.x + button_region.w) - grid_x;
+            preferred_w = base[0].w;
+            columns = (int)((grid_w + gap) / (preferred_w + gap));
+            if (columns < 1)
+                columns = 1;
+            if (columns > set.count)
+                columns = set.count;
+            rows = (set.count + columns - 1) / columns;
+            button_w = (grid_w - gap * (float)(columns - 1))
+                / (float)columns;
+            button_h = base[0].h;
+            grid_h = button_h * (float)rows + gap * (float)(rows - 1);
+            if (grid_h > (float)button_region.h) {
+                button_h = ((float)button_region.h
+                    - gap * (float)(rows - 1)) / (float)rows;
+                grid_h = (float)button_region.h;
+            }
+            grid_y = (float)(button_region.y + button_region.h) - grid_h;
+
+            if (button_h <= 0.0f || button_w <= 0.0f)
+                return false;
+
+            for (int index = 0; index < set.count; index++) {
+                int row = index / columns;
+                int col = index % columns;
+
+                out_rects[index] = (SDL_FRect){
+                    grid_x + (button_w + gap) * (float)col,
+                    grid_y + (button_h + gap) * (float)row,
+                    button_w,
+                    button_h,
+                };
+            }
+            return true;
+        }
+
+        {
+            float column_h = base[1].y + base[1].h - base[0].y;
+            float button_h = (column_h - gap * (float)(set.count - 1))
+                / (float)set.count;
+
+            if (button_h <= 0.0f)
+                return false;
+            for (int slot = 0; slot < set.count; slot++) {
+                int index = sdl_touch_thumb_visual_index(&set, slot, 1);
+
+                out_rects[index] = (SDL_FRect){
+                    base[0].x,
+                    base[0].y + (button_h + gap) * (float)slot,
+                    base[0].w,
+                    button_h,
+                };
+            }
+        }
+        return true;
+    }
+
     {
-        float button_h;
+        enum pane_placement where = sdl_left_panel_pane_placement();
+        float region_bottom;
+        float available_h;
         float min_button_h;
         float max_button_h;
-        float region_bottom;
+        float button_h;
+        float button_w;
+        float side_space;
+        float first_x;
+        bool expand_left;
+        int rows_fit;
+        int rows;
+        int columns;
 
         screen = sdl_get_layout_screen_rect();
         region_bottom = sdl_touch_thumb_region_bottom(base[0].x, base[0].w,
             base[0].y, &screen, gap);
+        available_h = region_bottom - base[0].y;
         min_button_h = (float)screen.h / 14.0f;
         if (min_button_h < 40.0f)
             min_button_h = 40.0f;
         max_button_h = (float)screen.h / 5.0f;
-        button_h = (region_bottom - base[0].y - gap * 2.0f) / 3.0f;
+
+        rows_fit = (int)((available_h + gap) / (min_button_h + gap));
+        if (rows_fit < 1)
+            rows_fit = 1;
+        if (rows_fit > set.count)
+            rows_fit = set.count;
+        columns = (set.count + rows_fit - 1) / rows_fit;
+        rows = (set.count + columns - 1) / columns;
+        button_h = (available_h - gap * (float)(rows - 1)) / (float)rows;
         if (button_h > max_button_h)
             button_h = max_button_h;
+        if (button_h <= 0.0f)
+            return false;
 
-        if (button_h >= min_button_h) {
-            out_rects[SDL_TOUCH_THUMB_SIDECAR_BUTTON] = (SDL_FRect){
-                base[0].x, base[0].y, base[0].w, button_h
-            };
-            out_rects[SDL_TOUCH_THUMB_TOP_BUTTON] = (SDL_FRect){
-                base[0].x, base[0].y + button_h + gap,
-                base[0].w, button_h
-            };
-            out_rects[SDL_TOUCH_THUMB_BOTTOM_BUTTON] = (SDL_FRect){
-                base[0].x, base[0].y + (button_h + gap) * 2.0f,
-                base[0].w, button_h
-            };
-            return true;
+        expand_left = sdl_left_panel_pane_placement_is_right(where);
+        if (!expand_left
+            && sdl_left_panel_pane_placement_is_horizontal_center(where))
+        {
+            float left_space = base[0].x - (float)screen.x;
+            float right_space = (float)(screen.x + screen.w)
+                - (base[0].x + base[0].w);
+            expand_left = left_space > right_space;
         }
-    }
+        side_space = expand_left
+            ? base[0].x - (float)screen.x
+            : (float)(screen.x + screen.w) - (base[0].x + base[0].w);
+        button_w = (base[0].w + side_space
+            - gap * (float)(columns - 1)) / (float)columns;
+        if (button_w > base[0].w)
+            button_w = base[0].w;
+        if (button_w <= 0.0f)
+            return false;
+        first_x = expand_left ? base[0].x + base[0].w - button_w
+                              : base[0].x;
 
-    out_rects[SDL_TOUCH_THUMB_SIDECAR_BUTTON] = (SDL_FRect){
-        base[0].x + base[0].w + gap, base[0].y, base[0].w, base[0].h
-    };
+        for (int slot = 0; slot < set.count; slot++) {
+            int index = sdl_touch_thumb_visual_index(&set, slot, columns);
+            int row = slot % rows;
+            int col = slot / rows;
+            float x = expand_left
+                ? first_x - (button_w + gap) * (float)col
+                : first_x + (button_w + gap) * (float)col;
 
-    screen = sdl_get_layout_screen_rect();
-    right_limit = (float)(screen.x + screen.w) - gap;
-    if (out_rects[SDL_TOUCH_THUMB_SIDECAR_BUTTON].x
-            + out_rects[SDL_TOUCH_THUMB_SIDECAR_BUTTON].w
-        > right_limit)
-    {
-        out_rects[SDL_TOUCH_THUMB_SIDECAR_BUTTON].w =
-            right_limit - out_rects[SDL_TOUCH_THUMB_SIDECAR_BUTTON].x;
-        if (out_rects[SDL_TOUCH_THUMB_SIDECAR_BUTTON].w < base[0].w * 0.58f)
-            out_rects[SDL_TOUCH_THUMB_SIDECAR_BUTTON] = (SDL_FRect){ 0 };
+            out_rects[index] = (SDL_FRect){
+                x,
+                base[0].y + (button_h + gap) * (float)row,
+                button_w,
+                button_h,
+            };
+        }
     }
 
     return true;
@@ -1137,19 +1252,20 @@ static bool sdl_touch_thumb_compute_runtime_rects(
 
 bool sdl_touch_thumb_current_bounds(SDL_FRect* out_bounds)
 {
-    SDL_FRect rects[SDL_TOUCH_THUMB_RUNTIME_BUTTON_COUNT];
+    SDL_FRect rects[SDL_TOUCH_THUMB_RUNTIME_CAPACITY];
     SDL_FRect bounds = { 0 };
     bool have_bounds = false;
+    int button_count = sdl_touch_thumb_button_count();
 
     if (out_bounds)
         *out_bounds = (SDL_FRect){ 0 };
     if (!sdl_touch_thumb_compute_runtime_rects(
-            rects, SDL_TOUCH_THUMB_RUNTIME_BUTTON_COUNT))
+            rects, SDL_TOUCH_THUMB_RUNTIME_CAPACITY))
     {
         return false;
     }
 
-    for (int i = 0; i < SDL_TOUCH_THUMB_RUNTIME_BUTTON_COUNT; i++) {
+    for (int i = 0; i < button_count; i++) {
         if (!sdl_touch_thumb_button_has_binding(i))
             continue;
         if (rects[i].w <= 0.0f || rects[i].h <= 0.0f)
@@ -1180,17 +1296,18 @@ bool sdl_touch_thumb_current_bounds(SDL_FRect* out_bounds)
 
 bool sdl_touch_thumb_point_to_button(float px, float py, int* out_index)
 {
-    SDL_FRect rects[SDL_TOUCH_THUMB_RUNTIME_BUTTON_COUNT];
+    SDL_FRect rects[SDL_TOUCH_THUMB_RUNTIME_CAPACITY];
+    int button_count = sdl_touch_thumb_button_count();
 
     if (out_index)
         *out_index = -1;
     if (!sdl_touch_thumb_compute_runtime_rects(
-            rects, SDL_TOUCH_THUMB_RUNTIME_BUTTON_COUNT))
+            rects, SDL_TOUCH_THUMB_RUNTIME_CAPACITY))
     {
         return false;
     }
 
-    for (int i = 0; i < SDL_TOUCH_THUMB_RUNTIME_BUTTON_COUNT; i++) {
+    for (int i = 0; i < button_count; i++) {
         if (!sdl_touch_thumb_button_has_binding(i))
             continue;
         if (rects[i].w <= 0.0f || rects[i].h <= 0.0f)
@@ -1249,7 +1366,10 @@ static void sdl_touch_context_label_for_binding(int binding, char* buf,
     }
     if (binding == SDL_TOUCH_THUMB_BIND_FIRE_SELECTED) {
         if (sdl_touch_thumb_fire_targeting_active()) {
-            SDL_strlcpy(buf, "Fire at target", buflen);
+            SDL_strlcpy(buf,
+                sdl_touch_thumb_ranged_mode_active()
+                    ? "Fire at target" : "Throw at target",
+                buflen);
             return;
         }
         SDL_strlcpy(buf,
@@ -1268,6 +1388,10 @@ static void sdl_touch_context_label_for_binding(int binding, char* buf,
     }
     if (binding == SDL_TOUCH_THUMB_BIND_QUICK_THROW) {
         sdl_touch_thumb_throw_label(buf, buflen);
+        return;
+    }
+    if (binding == SDL_TOUCH_THUMB_BIND_QUICK_THROW_TARGET) {
+        SDL_strlcpy(buf, "Choose target", buflen);
         return;
     }
     if (binding == TOUCH_BIND_TOGGLE_TILES) {
@@ -1345,7 +1469,8 @@ static void sdl_touch_thumb_render_button(const SDL_FRect* rect, int index,
 
 void sdl_touch_thumb_render(void)
 {
-    SDL_FRect rects[SDL_TOUCH_THUMB_RUNTIME_BUTTON_COUNT];
+    SDL_FRect rects[SDL_TOUCH_THUMB_RUNTIME_CAPACITY];
+    int button_count = sdl_touch_thumb_button_count();
 
     if (g_touch_thumb_flash_button >= 0
         && SDL_GetTicksNS() >= g_touch_thumb_flash_until)
@@ -1355,14 +1480,14 @@ void sdl_touch_thumb_render(void)
     }
 
     if (!sdl_touch_thumb_compute_runtime_rects(
-            rects, SDL_TOUCH_THUMB_RUNTIME_BUTTON_COUNT))
+            rects, SDL_TOUCH_THUMB_RUNTIME_CAPACITY))
     {
         sdl_touch_thumb_cancel_press();
         return;
     }
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
-    for (int i = 0; i < SDL_TOUCH_THUMB_RUNTIME_BUTTON_COUNT; i++) {
+    for (int i = 0; i < button_count; i++) {
         bool pressed;
 
         if (!sdl_touch_thumb_button_has_binding(i))
@@ -1414,6 +1539,9 @@ static bool sdl_touch_thumb_send_internal_binding(int binding)
         return true;
     case SDL_TOUCH_THUMB_BIND_QUICK_THROW:
         Term_keypress(KTRL('T'));
+        return true;
+    case SDL_TOUCH_THUMB_BIND_QUICK_THROW_TARGET:
+        Term_keypress('t');
         return true;
     default:
         return false;
@@ -1721,6 +1849,22 @@ bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
     bool anchor_center = false;
     bool sized = false;
 
+    if (g_touch_target_layout.locked) {
+        if (!g_touch_target_layout.wheel_valid)
+            return false;
+        if (out_cx)
+            *out_cx = g_touch_target_layout.wheel_cx;
+        if (out_cy)
+            *out_cy = g_touch_target_layout.wheel_cy;
+        if (out_radius)
+            *out_radius = g_touch_target_layout.wheel_radius;
+        if (out_inner_radius)
+            *out_inner_radius = g_touch_target_layout.wheel_inner_radius;
+        if (out_clip)
+            *out_clip = g_touch_target_layout.wheel_clip;
+        return true;
+    }
+
     if (!sdl_touch_round_compute_clip_rect(&clip))
         return false;
     if (!sdl_rect_has_area(&clip))
@@ -1873,6 +2017,28 @@ bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
         *out_clip = render_clip;
 
     return true;
+}
+
+void sdl_touch_target_layout_begin(void)
+{
+    touch_target_layout_state snapshot = { 0 };
+
+    /* Target selectors temporarily change input ownership, button bindings,
+     * and which overlay panes report live rectangles.  Snapshot the gameplay
+     * geometry before that transition so the wheel and contextual buttons do
+     * not jump when choosing a ranged, thrown, song, or other target. */
+    snapshot.thumb_valid = sdl_touch_thumb_compute_runtime_rects(
+        snapshot.thumb_rects, SDL_TOUCH_THUMB_RUNTIME_CAPACITY);
+    snapshot.wheel_valid = sdl_touch_round_compute_layout(
+        &snapshot.wheel_cx, &snapshot.wheel_cy, &snapshot.wheel_radius,
+        &snapshot.wheel_inner_radius, &snapshot.wheel_clip);
+    snapshot.locked = true;
+    g_touch_target_layout = snapshot;
+}
+
+void sdl_touch_target_layout_end(void)
+{
+    g_touch_target_layout = (touch_target_layout_state){ 0 };
 }
 
 static bool sdl_touch_round_point_to_wheel(float x, float y,
@@ -4650,6 +4816,7 @@ static int sdl_touch_top_panel_player_action_kind_for_binding(int binding)
     case 't':
     case KTRL('T'):
     case SDL_TOUCH_THUMB_BIND_QUICK_THROW:
+    case SDL_TOUCH_THUMB_BIND_QUICK_THROW_TARGET:
         return SDL_PLAYER_ACTION_QUICK_THROW;
     case 'Z': return SDL_PLAYER_ACTION_REST;
     case KTRL('F'):

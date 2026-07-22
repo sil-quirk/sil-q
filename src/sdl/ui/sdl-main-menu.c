@@ -1,6 +1,7 @@
 #include "angband.h"
 #include "blitz.h"
 #include "sdl/main-sdl-private.h"
+#include "ui/question.h"
 
 enum {
     SDL_POPUP_NOTIFICATION_TEXT_LEN = 96,
@@ -20,7 +21,20 @@ typedef struct sdl_popup_notification_state {
     Uint64 next_frame_ns;
 } sdl_popup_notification_state;
 
+typedef struct sdl_main_menu_button_press_state {
+    bool active;
+    bool canceled;
+    SDL_FingerID finger_id;
+    float start_x;
+    float start_y;
+    Uint64 start_time;
+} sdl_main_menu_button_press_state;
+
 static sdl_popup_notification_state g_popup_notification;
+static sdl_main_menu_button_press_state g_main_menu_button_press;
+static bool g_main_menu_button_disable_prompt_pending;
+
+static bool sdl_main_menu_button_run_pending_disable_prompt(void);
 
 static int sdl_popup_notification_phase(Uint64 now_ns)
 {
@@ -610,6 +624,9 @@ void sdl_main_menu_overlay_begin(void)
 {
     main_menu_pane_layout layout;
 
+    if (sdl_main_menu_button_run_pending_disable_prompt())
+        return;
+
     if (!sdl_main_menu_overlay_layout(&layout))
     {
         log_warn("Unable to lay out the SDL main menu overlay");
@@ -1140,6 +1157,301 @@ bool sdl_main_menu_pane_handle_pointer(float x, float y)
     g_main_menu_pane_hover = false;
     g_state.need_present = true;
     sdl_main_menu_overlay_begin();
+    return true;
+}
+
+static void sdl_main_menu_button_clear_press(void)
+{
+    bool redraw = g_main_menu_button_press.active || g_main_menu_pane_hover;
+
+    memset(&g_main_menu_button_press, 0,
+        sizeof(g_main_menu_button_press));
+    g_main_menu_pane_hover = false;
+    if (redraw)
+        g_state.need_present = true;
+}
+
+static void sdl_main_menu_button_queue_disable_prompt(void)
+{
+    sdl_main_menu_button_clear_press();
+    if (g_main_menu_button_disable_prompt_pending)
+        return;
+
+    g_main_menu_button_disable_prompt_pending = true;
+    Term_keypress('m');
+}
+
+bool sdl_main_menu_button_handle_secondary_pointer(float x, float y)
+{
+    if (!sdl_main_menu_pane_hit(x, y, NULL))
+        return false;
+
+    sdl_main_menu_button_queue_disable_prompt();
+    return true;
+}
+
+bool sdl_main_menu_button_handle_long_press_down(float x, float y,
+    SDL_FingerID finger_id)
+{
+    if (!sdl_main_menu_pane_hit(x, y, NULL))
+        return false;
+
+    sdl_main_menu_button_clear_press();
+    g_main_menu_button_press.active = true;
+    g_main_menu_button_press.finger_id = finger_id;
+    g_main_menu_button_press.start_x = x;
+    g_main_menu_button_press.start_y = y;
+    g_main_menu_button_press.start_time = SDL_GetTicksNS();
+    g_main_menu_pane_hover = true;
+    g_state.need_present = true;
+    return true;
+}
+
+bool sdl_main_menu_button_handle_long_press_motion(float x, float y,
+    SDL_FingerID finger_id)
+{
+    float dx;
+    float dy;
+    float threshold;
+
+    if (!g_main_menu_button_press.active
+        || g_main_menu_button_press.finger_id != finger_id)
+    {
+        return false;
+    }
+    if (g_main_menu_button_press.canceled)
+        return true;
+
+    dx = x - g_main_menu_button_press.start_x;
+    dy = y - g_main_menu_button_press.start_y;
+    if (dx < 0.0f)
+        dx = -dx;
+    if (dy < 0.0f)
+        dy = -dy;
+    threshold = sdl_touch_swipe_threshold_px();
+    if (dx > threshold || dy > threshold) {
+        g_main_menu_button_press.canceled = true;
+        g_main_menu_pane_hover = false;
+        g_state.need_present = true;
+    }
+
+    return true;
+}
+
+bool sdl_main_menu_button_handle_long_press_up(float x, float y,
+    SDL_FingerID finger_id)
+{
+    bool activate;
+
+    if (!g_main_menu_button_press.active
+        || g_main_menu_button_press.finger_id != finger_id)
+    {
+        return false;
+    }
+
+    activate = !g_main_menu_button_press.canceled
+        && sdl_main_menu_pane_hit(x, y, NULL);
+    sdl_main_menu_button_clear_press();
+    if (activate)
+        sdl_main_menu_overlay_begin();
+    return true;
+}
+
+void sdl_main_menu_button_cancel_long_press(SDL_FingerID finger_id)
+{
+    if (!g_main_menu_button_press.active
+        || g_main_menu_button_press.finger_id != finger_id)
+    {
+        return;
+    }
+
+    sdl_main_menu_button_clear_press();
+}
+
+int sdl_main_menu_button_pending_timeout_ms(Uint64 now_ns)
+{
+    Uint64 elapsed;
+
+    if (!g_main_menu_button_press.active
+        || g_main_menu_button_press.canceled)
+    {
+        return -1;
+    }
+    if (!sdl_main_menu_pane_hit(g_main_menu_button_press.start_x,
+            g_main_menu_button_press.start_y, NULL))
+    {
+        return 0;
+    }
+
+    elapsed = now_ns - g_main_menu_button_press.start_time;
+    if (elapsed >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+        return 0;
+    return TOUCH_PANE_LONG_PRESS_MS - (int)(elapsed / 1000000ULL);
+}
+
+bool sdl_main_menu_button_flush_pending_press(Uint64 now_ns)
+{
+    if (!g_main_menu_button_press.active)
+        return false;
+    if (!sdl_main_menu_pane_hit(g_main_menu_button_press.start_x,
+            g_main_menu_button_press.start_y, NULL))
+    {
+        sdl_main_menu_button_clear_press();
+        return false;
+    }
+    if (g_main_menu_button_press.canceled
+        || now_ns - g_main_menu_button_press.start_time
+            < (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+    {
+        return false;
+    }
+
+    sdl_main_menu_button_queue_disable_prompt();
+    return true;
+}
+
+static int sdl_main_menu_quick_access_pane_index(void)
+{
+    for (int i = 0; i < get_pane_config_count(); i++) {
+        if (get_sdl_pane_type(i) == PANE_OVERLAY_MENU)
+            return i;
+    }
+
+    return -1;
+}
+
+static bool sdl_main_menu_quick_access_has_shortcut(void)
+{
+    int count = get_sdl_touch_top_panel_cell_count();
+
+    for (int i = 0; i < count; i++) {
+        if (get_sdl_touch_top_panel_binding(i, false) == 'm')
+            return true;
+    }
+
+    return false;
+}
+
+static int sdl_main_menu_quick_access_add_slot(bool* replaces_assignment)
+{
+    int count = get_sdl_touch_top_panel_cell_count();
+
+    if (replaces_assignment)
+        *replaces_assignment = false;
+    for (int i = 0; i < count; i++) {
+        if (get_sdl_touch_top_panel_binding(i, false) == GAMEPAD_BIND_NONE)
+            return i;
+    }
+    if (count < SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
+        return count;
+    if (replaces_assignment)
+        *replaces_assignment = true;
+    return count - 1;
+}
+
+static bool sdl_main_menu_button_run_pending_disable_prompt(void)
+{
+    ui_question_option options[3];
+    char desc[768];
+    char recovery_label[96];
+    int quick_access_index;
+    int add_slot = -1;
+    int option_count = 2;
+    int cancel_option = 1;
+    int choice;
+    bool touch_only;
+    bool quick_access_enabled = false;
+    bool has_shortcut = false;
+    bool replace_assignment = false;
+    bool recovery_needed = false;
+
+    if (!g_main_menu_button_disable_prompt_pending)
+        return false;
+    g_main_menu_button_disable_prompt_pending = false;
+
+    quick_access_index = sdl_main_menu_quick_access_pane_index();
+    touch_only = sdl_touch_only_device_active();
+    if (quick_access_index >= 0) {
+        quick_access_enabled = get_sdl_pane_enabled(quick_access_index);
+        has_shortcut = sdl_main_menu_quick_access_has_shortcut();
+    }
+    recovery_needed = touch_only && quick_access_index >= 0
+        && (!quick_access_enabled || !has_shortcut);
+    if (recovery_needed && !has_shortcut) {
+        add_slot = sdl_main_menu_quick_access_add_slot(&replace_assignment);
+    }
+
+    strnfmt(desc, sizeof(desc),
+        "Turn off the fixed Main Menu button? You can turn it back on in "
+        "Interface settings.");
+
+    if (recovery_needed) {
+        if (!quick_access_enabled && !has_shortcut) {
+            SDL_strlcat(desc, replace_assignment
+                ? " Quick Access is off and full, with no Main Menu shortcut. "
+                  "Do you want to enable it and replace its last assignment "
+                  "with Main Menu before turning the button off?"
+                : " Quick Access is off and has no Main Menu shortcut. Do you "
+                  "want to enable it and add one before turning the button off?",
+                sizeof(desc));
+            SDL_strlcpy(recovery_label, replace_assignment
+                ? "Turn off, enable, and replace"
+                : "Turn off, enable, and add", sizeof(recovery_label));
+        } else if (!quick_access_enabled) {
+            SDL_strlcat(desc,
+                " Quick Access already has a Main Menu shortcut, but the panel "
+                "is off. Do you want to enable it before turning the button off?",
+                sizeof(desc));
+            SDL_strlcpy(recovery_label, "Turn off and enable",
+                sizeof(recovery_label));
+        } else {
+            SDL_strlcat(desc, replace_assignment
+                ? " Quick Access is full and has no Main Menu shortcut. Do you "
+                  "want to replace its last assignment with Main Menu before "
+                  "turning the button off?"
+                : " Quick Access has no Main Menu shortcut. Do you want to add "
+                  "one before turning the button off?",
+                sizeof(desc));
+            SDL_strlcpy(recovery_label, replace_assignment
+                ? "Turn off and replace assignment"
+                : "Turn off and add shortcut", sizeof(recovery_label));
+        }
+
+        options[0] = (ui_question_option){ 'y', recovery_label, TERM_L_GREEN };
+        options[1] = (ui_question_option){ 'n', "Turn off only", TERM_ORANGE };
+        options[2] = (ui_question_option){ 'c', "Cancel", TERM_SLATE };
+        option_count = 3;
+        cancel_option = 2;
+    } else {
+        options[0] = (ui_question_option){ 'y', "Turn off button", TERM_ORANGE };
+        options[1] = (ui_question_option){ 'c', "Cancel", TERM_SLATE };
+    }
+
+    choice = ui_question_ask("Turn off Main Menu button", desc, options,
+        option_count, UI_QUESTION_GLOBAL, UI_QUESTION_GLOBAL, cancel_option);
+    if (choice < 0 || choice == cancel_option)
+        return true;
+
+    if (recovery_needed && choice == 0) {
+        if (!quick_access_enabled) {
+            set_sdl_pane_enabled(quick_access_index, true);
+            sdl_touch_top_panel_set_open(true);
+        }
+        if (!has_shortcut && add_slot >= 0) {
+            int count = get_sdl_touch_top_panel_cell_count();
+
+            if (add_slot >= count)
+                set_sdl_touch_top_panel_cell_count(add_slot + 1);
+            set_sdl_touch_top_panel_binding(add_slot, false, 'm');
+        }
+    }
+
+    set_sdl_show_main_menu_button(false);
+    sdl_apply_config();
+    (void)save_pane_config_to_json();
+    log_info("Fixed Main Menu button disabled%s",
+        recovery_needed && choice == 0
+            ? " with Quick Access recovery configured" : "");
     return true;
 }
 

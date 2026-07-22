@@ -66,7 +66,7 @@ T:34:0:99  # Shields
 N:3:Throwing
 I:0:3:4
 D:Recalling the deadly casts of spears by the Sindar in the defense of Doriath's borders. The march-wardens of Thingol were trained to hurl their javelins with lethal accuracy across great distances, striking down intruders before they could set foot beneath the enchanted trees of Neldoreth.
-E:+1 attack when throwing from the quiver. Distance penalties halved. Thrown criticals easier. With one one-handed or one-and-a-half-handed melee weapon equipped, quivered daggers can be quick-thrown while melee stays active.
+E:+1 attack when throwing from the quiver. Distance penalties halved. Thrown criticals easier. Quivered daggers can be quick-thrown when the active weapon is a one-handed or one-and-a-half-handed melee weapon, or a bow.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -457,7 +457,7 @@ T:40:0:99  # Amulet
 N:84:Alchemy
 I:4:4:5
 D:Understanding the hidden properties of things as did the scholars of the Noldor in Tirion, who studied the nature of every herb and mineral beneath the light of Laurelin. Such knowledge reveals the purpose of elixirs and powders at a glance, and attunes the mind to the resonance of enchanted crystals.
-E:Auto-identify herbs, potions, staves, and horns. +50% range for Gems of Revelation, Foes, and Treasures.
+E:Auto-identify herbs, potions, staves, and horns. Potions with thrown effects can be quick-thrown, splashing the impact square and every adjacent square. +50% range for Gems of Revelation, Foes, and Treasures.
 T:32:0:99  # Helm
 T:45:0:99  # Ring
 

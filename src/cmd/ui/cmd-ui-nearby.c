@@ -1027,7 +1027,7 @@ static void unified_sidebar_clear_row(int row, int width)
 static int unified_sidebar_compact_build_entries(
     const unified_look_state* state,
     unified_sidebar_compact_entry* entries,
-    int max_entries)
+    int max_entries, bool preserve_full_names)
 {
     int entry_count = 0;
     int entity_index = 0;
@@ -1037,6 +1037,10 @@ static int unified_sidebar_compact_build_entries(
     if (!state || !entries || max_entries <= 0)
         return 0;
 
+    /* The portrait SDL overlay measures its panel directly in pixels.  Do not
+     * pre-shorten those labels to the much narrower terminal column count. */
+    if (preserve_full_names)
+        text_width = (int)sizeof(entries[0].text) - 1;
     if (text_width < 8)
         text_width = 8;
 
@@ -1279,7 +1283,7 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
     max_entries = MAX(1, mon_max + o_max);
     entries = mem_alloc_array(max_entries, unified_sidebar_compact_entry);
     entry_count = unified_sidebar_compact_build_entries(state, entries,
-        max_entries);
+        max_entries, false);
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
 
@@ -1406,7 +1410,7 @@ static bool show_unified_sidebar_pixel(unified_look_state* state)
     max_entries = MAX(1, mon_max + o_max);
     entries = mem_alloc_array(max_entries, unified_sidebar_compact_entry);
     entry_count = unified_sidebar_compact_build_entries(state, entries,
-        max_entries);
+        max_entries, sdl_mobile_portrait_layout_active());
 
     has_sidebar_selection = (state->selected_entity >= 0)
         && (state->in_sidebar_mode || (state->look_mode == 0));

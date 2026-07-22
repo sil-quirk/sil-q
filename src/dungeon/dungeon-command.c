@@ -86,6 +86,30 @@ static bool verify_debug_mode(void)
 #endif /* ALLOW_DEBUG */
 
 /*
+ * Restore the gameplay map after commands that use cursor-style selection.
+ *
+ * The shared aiming UI stores an empty-grid choice as a location target so
+ * direction 5 can deliver it to the command.  Unlike a monster target, that
+ * location never invalidates on its own.  Keeping it after the command makes
+ * normal input place the cursor on that grid indefinitely.  Also flush both
+ * terminal cursor layers here: inkey() can restore the hidden logical state
+ * without repainting the cell where its visible cursor was last drawn, and a
+ * menu can use the separate extra cursor without moving the real one.
+ */
+static void finish_command_cursor_state(void)
+{
+    if (p_ptr->target_set && (p_ptr->target_who == 0))
+    {
+        target_set_monster(0);
+        health_track(0);
+    }
+
+    (void)Term_set_extra_cursor(false, 0, 0, false);
+    (void)Term_set_cursor(false);
+    Term_fresh();
+}
+
+/*
  * Parse and execute the current command
  * Give "Warning" on illegal commands.
  */
@@ -120,6 +144,7 @@ void process_command(void)
         sdl_mouse_path_cancel();
         p_ptr->energy_use = 0;
         p_ptr->command_cmd = 0;
+        finish_command_cursor_state();
         return;
     }
 
@@ -675,4 +700,6 @@ void process_command(void)
         break;
     }
     }
+
+    finish_command_cursor_state();
 }

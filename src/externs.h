@@ -1249,6 +1249,7 @@ extern bool player_can_treat_as_throwing(const object_type* o_ptr);
 extern bool player_can_treat_as_throwing_flags(const object_type* o_ptr, u32b f3);
 extern bool weapon_is_impale_eligible(const object_type* o_ptr);
 extern int get_paired_artefact(int art_idx);
+extern bool potion_has_thrown_effect(const object_type* o_ptr);
 
 /* object/object-*.c */
 extern void excise_object_idx(int o_idx);
@@ -1655,8 +1656,8 @@ extern void sdl_halls_screen_begin(cptr subtitle, cptr page_status,
     bool detailed, int outside_choice);
 extern int sdl_halls_screen_page_capacity(bool detailed);
 extern void sdl_halls_screen_add_entry(int choice, cptr rank, cptr name,
-    cptr score, cptr outcome, cptr details, cptr honors, byte attr,
-    bool selected);
+    cptr score, cptr outcome, cptr details, cptr honors,
+    cptr score_increases, cptr score_decreases, byte attr, bool selected);
 extern void sdl_halls_screen_set_empty(cptr text);
 extern void sdl_halls_screen_add_action(int choice, cptr label, byte attr,
     bool enabled);
@@ -2026,6 +2027,7 @@ extern bool weapon_glows(const object_type* o_ptr);
 extern byte object_display_color(const object_type* o_ptr, byte base_color);
 extern void calc_torch(void);
 extern int song_effective_skill(int song);
+extern int ability_current_skill_bonus(int skilltype, int abilitynum);
 extern int ability_bonus(int skilltype, int abilitynum);
 extern int affinity_level(int skilltype);
 extern int minstrel_level(void);

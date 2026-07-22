@@ -280,13 +280,15 @@ cptr item_use_action_name(const object_type* o_ptr, int item)
     case TV_AMULET:
     case TV_RING:
     case TV_ARROW:
-        return (item >= INVEN_WIELD) ? "Take Off" : "Wield";
+        return (item >= INVEN_WIELD && item < INVEN_TOTAL) ? "Take Off"
+                                                           : "Wield";
     case TV_FLASK:
         return "Use";
     case TV_NOTE:
         return "Read";
     case TV_STAFF:
-        return "Activate";
+        return (item >= INVEN_WIELD && item < INVEN_TOTAL) ? "Activate"
+                                                           : "Wield";
     case TV_HORN:
         return "Play";
     case TV_POTION:
@@ -1001,17 +1003,13 @@ void do_cmd_use_item_by_index(int item)
     }
     case TV_STAFF:
     {
-        extern char current_menu_command;
-        /* If wielding ('w' command), equip the staff directly */
-        if (current_menu_command == 'w')
-        {
-            do_cmd_wield(o_ptr, item);
-        }
-        else
-        {
-            /* Otherwise, activate it (for 'u' command) */
+        /* A staff has to be equipped before the unified Use action activates
+         * it.  Packed and floor staves therefore use the same Equip path as
+         * other wearable items. */
+        if (item >= INVEN_WIELD && item < INVEN_TOTAL)
             do_cmd_activate_staff(o_ptr, item);
-        }
+        else
+            do_cmd_wield(o_ptr, item);
         break;
     }
     case TV_GEM:

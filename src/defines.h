@@ -2933,6 +2933,7 @@
 #define MONSTER_TILE_FACING_NONE  0
 #define MONSTER_TILE_FACING_LEFT  1
 #define MONSTER_TILE_FACING_RIGHT 2
+#define MONSTER_TILE_FACING_RANDOM 3
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindalë) */

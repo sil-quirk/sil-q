@@ -777,6 +777,23 @@ s16b player_place(int y, int x)
 /*
  * Place a copy of a monster in the dungeon XXX XXX
  */
+static byte monster_initial_random_tile_facing(int m_idx, int r_idx)
+{
+    u32b hash = (u32b)m_idx;
+
+    /*
+     * Keep cosmetic facing independent of the gameplay RNG stream and the
+     * monster's position, so it remains unchanged after movement or reload.
+     */
+    hash ^= (u32b)r_idx * 0x9e3779b9U;
+    hash ^= hash >> 16;
+    hash *= 0x7feb352dU;
+    hash ^= hash >> 15;
+
+    return (hash & 1U) ? MONSTER_TILE_FACING_LEFT
+                       : MONSTER_TILE_FACING_RIGHT;
+}
+
 s16b monster_place(int y, int x, monster_type* n_ptr)
 {
     s16b m_idx;
@@ -806,6 +823,10 @@ s16b monster_place(int y, int x, monster_type* n_ptr)
         /* Location */
         m_ptr->fy = y;
         m_ptr->fx = x;
+
+        /* Set once at placement so random-facing races never flicker. */
+        m_ptr->visual_random_facing = monster_initial_random_tile_facing(
+            m_idx, m_ptr->r_idx);
 
         /* Update the monster */
         update_mon(m_idx, true);

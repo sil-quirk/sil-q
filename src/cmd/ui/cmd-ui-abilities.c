@@ -357,6 +357,26 @@ static int ability_menu_current_song_score(void)
     return MAX(0, p_ptr->skill_use[S_SNG]);
 }
 
+static bool ability_menu_weapon_skill_bonus_text(int skilltype,
+    int abilitynum, char* bonus_text, size_t text_size)
+{
+    cptr target_skill = NULL;
+
+    if (!bonus_text || text_size == 0)
+        return false;
+
+    if (skilltype == S_MEL && abilitynum == MEL_WARDEN)
+        target_skill = "Archery";
+    else if (skilltype == S_ARC && abilitynum == ARC_VERSATILITY)
+        target_skill = "Melee";
+    else
+        return false;
+
+    strnfmt(bonus_text, text_size, "Current bonus: +%d %s.",
+        ability_current_skill_bonus(skilltype, abilitynum), target_skill);
+    return true;
+}
+
 static int ability_menu_minor_song_score(int song_skill)
 {
     if (song_skill <= 0)
@@ -598,6 +618,20 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
         ability_menu_append_song_cost(bonus_text, sizeof(bonus_text), b_ptr);
         text_out_to_screen(TERM_L_GREEN, bonus_text);
     }
+}
+
+static void ability_menu_render_weapon_skill_bonus(int skilltype,
+    int abilitynum)
+{
+    char bonus_text[160];
+    char rendered_text[180];
+
+    if (!ability_menu_weapon_skill_bonus_text(skilltype, abilitynum,
+            bonus_text, sizeof(bonus_text)))
+        return;
+
+    strnfmt(rendered_text, sizeof(rendered_text), "\n\n%s", bonus_text);
+    text_out_to_screen(TERM_L_GREEN, rendered_text);
 }
 
 /* ------------------------------------------------------------------
@@ -3698,6 +3732,18 @@ static void ability_browser_add_current_blocks(
         }
     }
 
+    if ((skilltype == S_MEL && b_ptr->abilitynum == MEL_WARDEN)
+        || (skilltype == S_ARC && b_ptr->abilitynum == ARC_VERSATILITY))
+    {
+        if (ability_menu_weapon_skill_bonus_text(skilltype, b_ptr->abilitynum,
+                buf, sizeof(buf)))
+        {
+            ability_desc_add_blank(lines, line_count);
+            ability_desc_add_wrapped(lines, line_count, TERM_L_GREEN, buf,
+                width);
+        }
+    }
+
     if (skilltype == S_SPC && b_ptr->abilitynum == SPC_NIENA_MERCY
         && p_ptr->have_ability[S_SPC][SPC_NIENA_MERCY])
     {
@@ -5142,6 +5188,15 @@ int abilities_menu2(int skilltype, int* highlight)
 
                     if (skilltype == S_SNG && !song_bonus_rendered)
                         ability_menu_render_song_bonus_block(b_ptr);
+
+                    if ((skilltype == S_MEL
+                            && b_ptr->abilitynum == MEL_WARDEN)
+                        || (skilltype == S_ARC
+                            && b_ptr->abilitynum == ARC_VERSATILITY))
+                    {
+                        ability_menu_render_weapon_skill_bonus(skilltype,
+                            b_ptr->abilitynum);
+                    }
 
                     /* For Nienna's Gift of Mercy, show current bonus */
                     if (skilltype == S_SPC && b_ptr->abilitynum == SPC_NIENA_MERCY &&

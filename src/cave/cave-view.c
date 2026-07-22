@@ -1061,6 +1061,13 @@ void update_view(void)
             obj_light += o_ptr->pval;
         }
 
+        // A floor weapon glowing in response to nearby enemies lights its
+        // own square and the surrounding squares.
+        if (!o_ptr->held_m_idx && weapon_glows(o_ptr))
+        {
+            obj_light += 1;
+        }
+
         obj_rad = ABS(obj_light);
 
         // Do darkness or light for this object

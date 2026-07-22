@@ -1549,28 +1549,28 @@ static bool describe_potion_throw(const object_type* o_ptr)
     switch (o_ptr->sval)
     {
     case SV_POTION_SLOWNESS:
-        good[gc++] = "bursts into a slowing vapour that hinders a nearby foe";
+        good[gc++] = "bursts into a slowing vapour across the impact square and every adjacent square";
         break;
     case SV_POTION_CONFUSION:
-        good[gc++] = "bursts into a bewildering haze that confuses a nearby foe";
+        good[gc++] = "bursts into a bewildering haze across the impact square and every adjacent square";
         break;
     case SV_POTION_POISON:
-        good[gc++] = "bursts into a cloud of poison that harms a nearby foe";
+        good[gc++] = "bursts into a cloud of poison across the impact square and every adjacent square";
         break;
     case SV_POTION_ORCISH_LIQUOR:
-        good[gc++] = "bursts into flame, scorching a nearby foe";
+        good[gc++] = "bursts into flame across the impact square and every adjacent square";
         break;
     case SV_POTION_BLINDNESS:
-        good[gc++] = "bursts into a blinding spray, making a nearby foe lose your trail";
+        good[gc++] = "bursts into a blinding spray across the impact square and every adjacent square";
         break;
     case SV_POTION_DEC_DEX:
-        good[gc++] = "bursts into a slick haze that throws a nearby foe off balance";
+        good[gc++] = "bursts into a slick haze across the impact square and every adjacent square";
         break;
     case SV_POTION_DEC_GRA:
-        good[gc++] = "bursts into a spirit-severing mist that leaves a nearby foe reeling and witless";
+        good[gc++] = "bursts into a spirit-severing mist across the impact square and every adjacent square";
         break;
     case SV_POTION_true_SIGHT:
-        good[gc++] = "bursts into a clarifying mist that reveals a nearby unseen foe";
+        good[gc++] = "bursts into a clarifying mist across the impact square and every adjacent square";
         break;
     default:
         good[gc++] = "shatters without any lasting effect";
@@ -2901,7 +2901,6 @@ char object_info_screen_multi_with_actions(const object_type** objects,
 
     return result;
 }
-
 
 
 

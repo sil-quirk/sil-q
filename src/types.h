@@ -739,6 +739,7 @@ struct monster_type
     byte previous_action[ACTION_MAX]; /* What the monster did on its previous
                                          turns */
     byte visual_facing_dir; /* Cosmetic tile facing direction (not saved) */
+    byte visual_random_facing; /* Stable random tile facing (not saved) */
 
     /* Thrall quest system */
     byte thrall_quest_item;      /* Item the thrall wants: see THRALL_QUEST_* */

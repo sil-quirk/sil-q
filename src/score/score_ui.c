@@ -657,10 +657,109 @@ static void score_ui_halls_date(const high_score* entry, char* out,
     SDL_strlcpy(out, when, out_len);
 }
 
+static void score_ui_append_points_factor(char* out, size_t out_len,
+    bool* have_factor, cptr label, int points)
+{
+    char factor[96];
+
+    if (!out || out_len == 0 || !have_factor || !label || points <= 0)
+        return;
+    strnfmt(factor, sizeof(factor), "%s%s +%d pts",
+        *have_factor ? "  |  " : "", label, points);
+    SDL_strlcat(out, factor, out_len);
+    *have_factor = true;
+}
+
+static void score_ui_append_percent_factor(char* out, size_t out_len,
+    bool* have_factor, cptr label, int delta_bp)
+{
+    char factor[96];
+    int magnitude;
+
+    if (!out || out_len == 0 || !have_factor || !label || delta_bp == 0)
+        return;
+    magnitude = ABS(delta_bp);
+    strnfmt(factor, sizeof(factor), "%s%s %c%d.%d%%",
+        *have_factor ? "  |  " : "", label, delta_bp > 0 ? '+' : '-',
+        magnitude / 10, magnitude % 10);
+    SDL_strlcat(out, factor, out_len);
+    *have_factor = true;
+}
+
+static void score_ui_build_score_factors(const score_breakdown* breakdown,
+    char* increases, size_t increases_len, char* decreases,
+    size_t decreases_len)
+{
+    bool have_increase = false;
+    bool have_decrease = false;
+    char label[64];
+    char formula[96];
+
+    if (!breakdown || !increases || increases_len == 0 || !decreases
+        || decreases_len == 0)
+    {
+        return;
+    }
+
+    SDL_strlcpy(increases, "Score increases: ", increases_len);
+    score_ui_append_points_factor(increases, increases_len, &have_increase,
+        "descent", breakdown->descent_points);
+    score_ui_append_points_factor(increases, increases_len, &have_increase,
+        "unique kills", breakdown->unique_points);
+    score_ui_append_points_factor(increases, increases_len, &have_increase,
+        "ascent", breakdown->ascent_points);
+    score_ui_append_points_factor(increases, increases_len, &have_increase,
+        "Silmarils", breakdown->silmaril_points);
+    score_ui_append_points_factor(increases, increases_len, &have_increase,
+        "Morgoth", breakdown->morgoth_points);
+    score_ui_append_points_factor(increases, increases_len, &have_increase,
+        breakdown->morgoth_slain && !breakdown->escaped
+            ? "victory" : "escape",
+        breakdown->escape_points);
+    if (breakdown->character_mult_bp > 0)
+        score_ui_append_percent_factor(increases, increases_len,
+            &have_increase, "character challenge",
+            breakdown->character_mult_bp);
+    if (breakdown->curse_mult_bp > 0)
+    {
+        strnfmt(label, sizeof(label), "%d net curse%s", breakdown->curses,
+            breakdown->curses == 1 ? "" : "s");
+        score_ui_append_percent_factor(increases, increases_len,
+            &have_increase, label, breakdown->curse_mult_bp);
+    }
+    if (!have_increase)
+        SDL_strlcat(increases, "none", increases_len);
+
+    SDL_strlcpy(decreases, "Score decreases: ", decreases_len);
+    if (breakdown->character_mult_bp < 0)
+        score_ui_append_percent_factor(decreases, decreases_len,
+            &have_decrease, "character power",
+            breakdown->character_mult_bp);
+    if (breakdown->curse_mult_bp < 0)
+    {
+        int blessings = -breakdown->curses;
+
+        strnfmt(label, sizeof(label), "%d net blessing%s", blessings,
+            blessings == 1 ? "" : "s");
+        score_ui_append_percent_factor(decreases, decreases_len,
+            &have_decrease, label, breakdown->curse_mult_bp);
+    }
+    if (!have_decrease)
+        SDL_strlcat(decreases, "none", decreases_len);
+
+    strnfmt(formula, sizeof(formula),
+        "  |  Formula: %d base x %d.%03d = %d pts",
+        breakdown->base_score, breakdown->mult_bp / 1000,
+        breakdown->mult_bp % 1000, breakdown->total_score);
+    SDL_strlcat(decreases, formula, decreases_len);
+}
+
 static void score_ui_build_halls_card(const high_score* entry, int place,
     char* rank, size_t rank_len, char* name, size_t name_len,
     char* score, size_t score_len, char* outcome, size_t outcome_len,
-    char* details, size_t details_len, char* honors, size_t honors_len)
+    char* details, size_t details_len, char* honors, size_t honors_len,
+    char* increases, size_t increases_len, char* decreases,
+    size_t decreases_len)
 {
     char score_commas[24];
     char turn_commas[24];
@@ -677,6 +776,7 @@ static void score_ui_build_halls_card(const high_score* entry, int place,
     bool escaped = entry && entry->escaped[0] == 't';
     bool alive = entry && streq(entry->how, "(alive and well)");
     cptr hero = (entry && entry->who[0]) ? entry->who : "Unknown hero";
+    score_breakdown breakdown = score_calculate_breakdown(entry);
 
     strnfmt(rank, rank_len, "#%d", place);
     if (entry && z_info && c_info && c_name
@@ -688,7 +788,7 @@ static void score_ui_build_halls_card(const high_score* entry, int place,
     else
         SDL_strlcpy(name, hero, name_len);
 
-    comma_number(score_commas, entry ? score_points(entry) : 0);
+    comma_number(score_commas, breakdown.total_score);
     strnfmt(score, score_len, "%s pts", score_commas);
     comma_number(turn_commas, turns);
     comma_number(depth_commas, depth);
@@ -742,6 +842,9 @@ static void score_ui_build_halls_card(const high_score* entry, int place,
         SDL_strlcpy(honors, "Escaped", honors_len);
     else if (alive && !honors[0])
         SDL_strlcpy(honors, "Living", honors_len);
+
+    score_ui_build_score_factors(&breakdown, increases, increases_len,
+        decreases, decreases_len);
 }
 
 static char score_ui_finish_halls(char response)
@@ -876,13 +979,16 @@ static char display_scores_pages(const high_score* entries, int count,
             char outcome[256];
             char details[256];
             char honors[96];
+            char increases[256];
+            char decreases[256];
 
             score_ui_build_halls_card(&entries[idx], idx + 1, rank,
                 sizeof(rank), name, sizeof(name), score, sizeof(score),
                 outcome, sizeof(outcome), details, sizeof(details), honors,
-                sizeof(honors));
+                sizeof(honors), increases, sizeof(increases), decreases,
+                sizeof(decreases));
             sdl_halls_screen_add_entry(idx, rank, name, score, outcome,
-                details, honors, attr, is_highlight);
+                details, honors, increases, decreases, attr, is_highlight);
         }
 
         sdl_halls_screen_add_action(SCORE_CLICK_EXIT, "Back", TERM_L_WHITE,
@@ -1721,6 +1827,8 @@ void do_cmd_run_history(void)
         char back_label[16] = "";
         char sort_label[16] = "";
         int page_label_row = 1;
+        int list_header_row = 3;
+        int first_entry_row = 4;
 
         Term_clear();
         ui_menu_click_begin();
@@ -1741,7 +1849,7 @@ void do_cmd_run_history(void)
         footer_row = term_hgt - 1;
         if (footer_row < 5)
             footer_row = 5;
-        rows = footer_row - 3;
+        rows = footer_row - first_entry_row;
         if (rows < 4)
             rows = 4;
         total_pages = (count + rows - 1) / rows;
@@ -1793,15 +1901,16 @@ void do_cmd_run_history(void)
                     page_label_row, 2, term_wid);
             }
             ui_menu_click_add_full_row(RUN_HISTORY_CLICK_SORT, page_label_row);
-            c_prt(TERM_L_UMBER, "Date", 2, 2);
-            c_prt(TERM_L_UMBER, "S", 2, col_status);
-            c_prt(TERM_L_UMBER, "Depth", 2, col_depth);
-            c_prt(TERM_L_UMBER, "Score", 2, col_score);
+            c_prt(TERM_WHITE, "", list_header_row - 1, 0);
+            c_prt(TERM_L_UMBER, "Date", list_header_row, 2);
+            c_prt(TERM_L_UMBER, "S", list_header_row, col_status);
+            c_prt(TERM_L_UMBER, "Depth", list_header_row, col_depth);
+            c_prt(TERM_L_UMBER, "Score", list_header_row, col_score);
             if (show_sils)
-                c_prt(TERM_L_UMBER, "Sil", 2, col_sils);
+                c_prt(TERM_L_UMBER, "Sil", list_header_row, col_sils);
             if (summary_width > 0)
-                score_ui_put_fit(TERM_L_UMBER, "Player / Fate", 2, col_player,
-                    term_wid);
+                score_ui_put_fit(TERM_L_UMBER, "Player / Fate",
+                    list_header_row, col_player, term_wid);
         } else {
             const int date_width = 10;
             const int status_width = 7;
@@ -1856,15 +1965,16 @@ void do_cmd_run_history(void)
                     page_label_row, 2, term_wid);
             }
             ui_menu_click_add_full_row(RUN_HISTORY_CLICK_SORT, page_label_row);
-            c_prt(TERM_L_UMBER, "Date", 2, col_date);
-            c_prt(TERM_L_UMBER, "Status", 2, col_status);
-            c_prt(TERM_L_UMBER, "Depth", 2, col_depth);
-            c_prt(TERM_L_UMBER, "Score", 2, col_score);
-            c_prt(TERM_L_UMBER, "Sils", 2, col_sils);
+            c_prt(TERM_WHITE, "", list_header_row - 1, 0);
+            c_prt(TERM_L_UMBER, "Date", list_header_row, col_date);
+            c_prt(TERM_L_UMBER, "Status", list_header_row, col_status);
+            c_prt(TERM_L_UMBER, "Depth", list_header_row, col_depth);
+            c_prt(TERM_L_UMBER, "Score", list_header_row, col_score);
+            c_prt(TERM_L_UMBER, "Sils", list_header_row, col_sils);
             if (player_width > 0)
-                c_prt(TERM_L_UMBER, "Player", 2, col_player);
+                c_prt(TERM_L_UMBER, "Player", list_header_row, col_player);
             if (fate_width > 0)
-                c_prt(TERM_L_UMBER, "Fate", 2, col_fate);
+                c_prt(TERM_L_UMBER, "Fate", list_header_row, col_fate);
         }
 
         for (int i = 0; i < rows; i++) {
@@ -1873,7 +1983,7 @@ void do_cmd_run_history(void)
                 break;
 
             const score_record_v1* rec = &entries[idx].record;
-            int row_y = 3 + i;
+            int row_y = first_entry_row + i;
 
             char date[16];
             run_history_format_timestamp(rec->completed_utc, false, date, sizeof(date));
@@ -2001,7 +2111,8 @@ void do_cmd_run_history(void)
                 footer_row, footer, "N/P");
         }
 
-        ui_scroll_area_begin(3, footer_row - 1, SDL_TOUCH_MENU_CATEGORY_OTHER);
+        ui_scroll_area_begin(first_entry_row, footer_row - 1,
+            SDL_TOUCH_MENU_CATEGORY_OTHER);
         ui_scroll_area_set_keys('8', '2', 'n', 'p');
 
         (void)Term_set_cursor(false);

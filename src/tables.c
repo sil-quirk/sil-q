@@ -511,7 +511,7 @@ cptr option_desc[OPT_MAX] = {
     "Use handcrafted right-facing player tiles", /* OPT_handcrafted_player_tile_facing */
     "Render object description overlays with the story font", /* OPT_story_object_desc */
     "Hide the action wheel's secondary ring until its sector is hovered", /* OPT_hide_secondary_action_ring */
-    "Mirror monster tiles to face horizontal movement", /* OPT_mirror_monster_tile_facing */
+    "Apply directional or per-race random monster tile facing", /* OPT_mirror_monster_tile_facing */
     "Render the left-panel player health meter as a styled bar", /* OPT_styled_player_health_bar */
     "Render styled monster health bars in panes and overlays", /* OPT_styled_monster_health_bars */
     "Monster tile health bars (show/only damaged/off)", /* OPT_styled_monster_tile_health_bars */
@@ -772,7 +772,7 @@ const bool option_norm[OPT_MAX] = {
     true, /* OPT_handcrafted_player_tile_facing */
     false, /* OPT_story_object_desc */
     true, /* OPT_hide_secondary_action_ring */
-    false, /* OPT_mirror_monster_tile_facing */
+    true, /* OPT_mirror_monster_tile_facing */
     true, /* OPT_styled_player_health_bar */
     true, /* OPT_styled_monster_health_bars */
     true, /* OPT_styled_monster_tile_health_bars */

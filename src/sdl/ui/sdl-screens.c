@@ -3843,6 +3843,7 @@ void sdl_char_sheet_draw_birth_skill_table_row(TTF_Font* font,
     char buf[32];
     char desc[384];
     cptr hint;
+    int increase_cost;
     bool focused;
     SDL_FRect row_rect;
 
@@ -3901,20 +3902,22 @@ void sdl_char_sheet_draw_birth_skill_table_row(TTF_Font* font,
         hint = "Skill total and starting base value.";
     if (allocation)
     {
+        /* The table shows the cumulative cost of the gains selected so far.
+         * The popup should instead preview the cost of the next point. */
+        increase_cost = (g_sdl_character_sheet_screen.skill_old_base[skill]
+            + g_sdl_character_sheet_screen.skill_gain[skill] + 1) * 100;
 #if SIL_SDL_MOBILE_BUILD
         if (sdl_touch_only_device_active())
         {
             strnfmt(desc, sizeof(desc),
                 "%s: %s Cost to raise now: %d. Tap to select; tap the selected row to increase, long tap the selected row to decrease.",
-                skill_names_full[skill], hint,
-                g_sdl_character_sheet_screen.skill_costs[skill]);
+                skill_names_full[skill], hint, increase_cost);
         }
         else
 #endif
         strnfmt(desc, sizeof(desc),
             "%s: %s Cost to raise now: %d. Click/tap to select; click/tap the selected row to increase, right-click to decrease.",
-            skill_names_full[skill], hint,
-            g_sdl_character_sheet_screen.skill_costs[skill]);
+            skill_names_full[skill], hint, increase_cost);
         sdl_char_sheet_add_hit(row_rect, skill, desc,
             ability_skill_color(skill));
     }

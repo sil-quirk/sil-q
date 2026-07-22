@@ -197,6 +197,8 @@ errr parse_r_info(char* buf, header* head)
             r_ptr->tile_facing = MONSTER_TILE_FACING_LEFT;
         else if (streq(s, "FACING_RIGHT") || streq(s, "RIGHT"))
             r_ptr->tile_facing = MONSTER_TILE_FACING_RIGHT;
+        else if (streq(s, "FACING_RANDOM") || streq(s, "RANDOM"))
+            r_ptr->tile_facing = MONSTER_TILE_FACING_RANDOM;
         else if (streq(s, "FACING_NONE") || streq(s, "NONE"))
             r_ptr->tile_facing = MONSTER_TILE_FACING_NONE;
         else

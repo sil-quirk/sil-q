@@ -269,17 +269,18 @@ static bool object_allows_quick_throw(const object_type* o_ptr)
     return true;
 }
 
-static bool player_has_quick_throw_weapon_equipped(void)
+static bool player_active_weapon_allows_quick_throw(void)
 {
-    object_type* main_hand = &inventory[INVEN_WIELD];
-    object_type* off_hand = &inventory[INVEN_ARM];
+    const object_type* active_weapon;
 
-    if (!object_allows_quick_throw(main_hand))
-        return false;
-    if (off_hand->k_idx && off_hand->tval != TV_SHIELD)
-        return false;
+    if (player_active_weapon_is_ranged())
+    {
+        active_weapon = &inventory[INVEN_BOW];
+        return active_weapon->k_idx && active_weapon->tval == TV_BOW;
+    }
 
-    return true;
+    active_weapon = &inventory[INVEN_WIELD];
+    return object_allows_quick_throw(active_weapon);
 }
 
 static bool object_is_dagger(const object_type* o_ptr)
@@ -384,7 +385,7 @@ bool player_can_quick_throw_from_quiver(int slot)
         return false;
     if (!p_ptr->active_ability[S_MEL][MEL_THROWING])
         return false;
-    if (!player_has_quick_throw_weapon_equipped())
+    if (!player_active_weapon_allows_quick_throw())
         return false;
 
     o_ptr = &inventory[slot];
@@ -409,7 +410,7 @@ bool player_can_throw_potions(void)
     return p_ptr->active_ability[S_PER][PER_ALCHEMY] != 0;
 }
 
-/* True if Alchemy is known and at least one potion is carried in the pack. */
+/* True if Alchemy is known and a potion with a thrown effect is carried. */
 bool player_has_throwable_potion(void)
 {
     int i;
@@ -417,11 +418,20 @@ bool player_has_throwable_potion(void)
     if (!player_can_throw_potions())
         return false;
 
+    for (i = 0; i < supplies_entry_count(); i++)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+
+        if (potion_has_thrown_effect(o_ptr))
+            return true;
+    }
+
+    /* Keep compatibility with saves that have not ingested pack supplies. */
     for (i = 0; i < INVEN_PACK; i++)
     {
         object_type* o_ptr = &inventory[i];
 
-        if (o_ptr->k_idx && o_ptr->tval == TV_POTION)
+        if (potion_has_thrown_effect(o_ptr))
             return true;
     }
 
@@ -436,7 +446,6 @@ bool player_has_throwable_potion(void)
 bool player_quick_throw_available(void)
 {
     return player_quick_throw_quiver_slot() != 0
-        || player_power_throw_quiver_slot() != 0
         || player_has_throwable_potion();
 }
 

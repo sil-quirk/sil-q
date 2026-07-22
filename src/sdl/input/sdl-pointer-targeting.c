@@ -1361,6 +1361,7 @@ static void sdl_pointer_aim_select_clear_mouse_press(void)
 
 void sdl_pointer_aim_select_begin(int range, bool allow_vertical)
 {
+    sdl_touch_target_layout_begin();
     sdl_pointer_aim_begin(range, allow_vertical);
     g_pointer_aim.select_mode = true;
     g_pointer_aim.select_manual = false;
@@ -1391,6 +1392,7 @@ void sdl_pointer_aim_select_end(void)
     sdl_pointer_aim_select_clear_mouse_press();
     sdl_pointer_aim_select_clear_event();
     sdl_pointer_aim_end();
+    sdl_touch_target_layout_end();
 }
 
 void sdl_pointer_aim_select_set_choices(const int* ys, const int* xs,

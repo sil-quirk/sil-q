@@ -1623,6 +1623,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         else if (ev->button.button == SDL_BUTTON_RIGHT) {
             if (ev->button.which == SDL_TOUCH_MOUSEID)
                 return;
+            if (sdl_main_menu_button_handle_secondary_pointer(
+                    (float)ev->button.x, (float)ev->button.y))
+            {
+                return;
+            }
             if (sdl_welcome_screen_cycle_intro(1))
                 return;
             if (g_player_action_menu.active) {
@@ -1912,7 +1917,8 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         }
         if (sdl_pointer_aim_handle_touch_down(x, y, ev->tfinger.fingerID))
             return;
-        if (sdl_main_menu_pane_handle_pointer(x, y))
+        if (sdl_main_menu_button_handle_long_press_down(x, y,
+                ev->tfinger.fingerID))
             return;
         if (sdl_depth_menu_pane_handle_pointer(x, y))
             return;
@@ -2086,6 +2092,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_main_menu_button_handle_long_press_motion(x, y,
+                ev->tfinger.fingerID))
+        {
+            return;
+        }
         if (sdl_log_pane_menu_handle_long_press_motion(x, y,
             ev->tfinger.fingerID))
         {
@@ -2237,6 +2248,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_main_menu_button_handle_long_press_up(x, y,
+                ev->tfinger.fingerID))
+        {
+            return;
+        }
         if (sdl_menu_scroll_handle_pointer_up(ev->tfinger.fingerID))
             return;
         if (sdl_log_pane_menu_handle_long_press_up(x, y,
@@ -2379,6 +2395,7 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             g_description_overlay_release_finger_id = 0;
             return;
         }
+        sdl_main_menu_button_cancel_long_press(ev->tfinger.fingerID);
         if (g_touch_swipe.active && g_touch_swipe.finger_id == ev->tfinger.fingerID)
             sdl_touch_swipe_cancel();
         if (g_welcome_touch_press.active

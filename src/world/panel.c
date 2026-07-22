@@ -221,11 +221,12 @@ static bool map_zone_cache_build(int screen_h, int screen_w, int clearance,
     return true;
 }
 
-/* Select the visible zone nearest the player's present screen position, then
- * use the cell nearest that zone's area centroid as the recenter target. */
+/* Select the visible zone nearest the player's present screen position.  A
+ * boundary-triggered recenter can move the target behind the direction of
+ * travel, leaving more of the zone visible ahead of the player. */
 static void map_safe_center(int* center_y, int* center_x,
     const struct map_pane_span* spans, int span_count, int anchor_y,
-    int anchor_x)
+    int anchor_x, int travel_y, int travel_x)
 {
     int screen_h = SCREEN_HGT;
     int screen_w = SCREEN_WID;
@@ -303,10 +304,12 @@ static void map_safe_center(int* center_y, int* center_x,
             if (map_zone_labels[y * screen_w + x] != zone_label)
                 continue;
 
-            /* Compare to the exact rational centroid without rounding it into
-             * an overlay or another disconnected zone. */
-            dy = (long long)y * zone_cells - sum_y;
-            dx = (long long)x * zone_cells - sum_x;
+            /* Compare to the exact rational lead target without rounding it
+             * into an overlay or another disconnected zone. */
+            dy = (long long)y * zone_cells - sum_y
+                + (long long)travel_y * clearance * zone_cells;
+            dx = (long long)x * zone_cells - sum_x
+                + (long long)travel_x * clearance * zone_cells;
             distance = dy * dy + dx * dx;
             if (!have_zone_center || distance < center_distance)
             {
@@ -342,6 +345,88 @@ static bool map_cell_near_hidden(int y, int x,
     return !map_center_clear(y, x, spans, span_count, clearance);
 }
 
+static bool map_travel_points_toward_hidden(int y, int x, int travel_y,
+    int travel_x, const struct map_pane_span* spans, int span_count)
+{
+    int clearance = map_center_clearance();
+
+    if ((travel_x < 0 && x < clearance)
+        || (travel_x > 0 && x >= SCREEN_WID - clearance)
+        || (travel_y < 0 && y < clearance)
+        || (travel_y > 0 && y >= SCREEN_HGT - clearance))
+    {
+        return true;
+    }
+
+    for (int i = 0; i < span_count; i++)
+    {
+        const struct map_pane_span* s = &spans[i];
+
+        if (!map_pane_span_contains(s, y, x, clearance))
+            continue;
+
+        if ((x < s->x1 && travel_x > 0)
+            || (x >= s->x2 && travel_x < 0)
+            || (y < s->y1 && travel_y > 0)
+            || (y >= s->y2 && travel_y < 0))
+        {
+            return true;
+        }
+
+        /* This can happen briefly when an overlay appears over the player. */
+        if (x >= s->x1 && x < s->x2 && y >= s->y1 && y < s->y2
+            && (travel_y != 0 || travel_x != 0))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/* Infer travel from actual player displacement rather than the last requested
+ * command, which may have failed or may no longer describe forced movement. */
+static void map_player_travel_direction(int py, int px, int* travel_y,
+    int* travel_x)
+{
+    static bool have_previous = false;
+    static int previous_y = 0;
+    static int previous_x = 0;
+    static int previous_depth = 0;
+    static int previous_map_hgt = 0;
+    static int previous_map_wid = 0;
+    int delta_y = 0;
+    int delta_x = 0;
+
+    if (have_previous && p_ptr->depth == previous_depth
+        && p_ptr->cur_map_hgt == previous_map_hgt
+        && p_ptr->cur_map_wid == previous_map_wid)
+    {
+        delta_y = py - previous_y;
+        delta_x = px - previous_x;
+
+        /* Normal movement and leaps are local.  Do not turn teleports or a
+         * newly generated level into a directional camera lead. */
+        if (ABS(delta_y) > 2 || ABS(delta_x) > 2)
+        {
+            delta_y = 0;
+            delta_x = 0;
+        }
+    }
+
+    previous_y = py;
+    previous_x = px;
+    previous_depth = p_ptr->depth;
+    previous_map_hgt = p_ptr->cur_map_hgt;
+    previous_map_wid = p_ptr->cur_map_wid;
+    have_previous = true;
+
+    if (travel_y)
+        *travel_y = SGN(delta_y);
+    if (travel_x)
+        *travel_x = SGN(delta_x);
+}
+
 /*
  * Modify the current panel to the given coordinates, adjusting only to
  * keep the viewport within the useful off-map scroll range, and return true
@@ -366,7 +451,7 @@ bool modify_panel(int wy, int wx)
     int max_wx;
 
     map_safe_center(&center_y, &center_x, spans, span_count,
-        p_ptr->py - wy, p_ptr->px - wx);
+        p_ptr->py - wy, p_ptr->px - wx, 0, 0);
 
     min_wy = -center_y;
     min_wx = -center_x;
@@ -455,7 +540,8 @@ bool change_panel(int dir)
  * Verify the current panel (relative to the player location).
  *
  * By default, when the player comes within the configured clearance of hidden
- * space (the screen edge or an overlay), center the map on the player.
+ * space (the screen edge or an overlay), move the player behind the center of
+ * the visible zone to leave more map visible in the direction of travel.
  *
  * The "center_player" option allows the current panel to always be centered
  * around the player, which is very expensive, and also has some interesting
@@ -467,21 +553,32 @@ void verify_panel(void)
     int px = p_ptr->px;
     int center_y = SCREEN_HGT / 2;
     int center_x = SCREEN_WID / 2;
+    int travel_y = 0;
+    int travel_x = 0;
     struct map_pane_span spans[MAP_OVERLAY_SPAN_MAX];
     int span_count = map_overlay_spans(spans, MAP_OVERLAY_SPAN_MAX);
 
     int wy = p_ptr->wy;
     int wx = p_ptr->wx;
-
-    map_safe_center(&center_y, &center_x, spans, span_count,
-        py - wy, px - wx);
-
     bool do_center = center_player && (!p_ptr->running || !run_avoid_center);
+    bool near_hidden = map_cell_near_hidden(
+        py - wy, px - wx, spans, span_count);
+    bool lead_recenter;
+
+    map_player_travel_direction(py, px, &travel_y, &travel_x);
+    lead_recenter = near_hidden && !do_center
+        && map_travel_points_toward_hidden(py - wy, px - wx,
+            travel_y, travel_x, spans, span_count);
+
+    /* Always-center mode retains its stable meaning.  Normal boundary
+     * recentering instead leads in the actual travel direction. */
+    map_safe_center(&center_y, &center_x, spans, span_count,
+        py - wy, px - wx, lead_recenter ? travel_y : 0,
+        lead_recenter ? travel_x : 0);
 
     /* One rule for every camera boundary: once the player is within the
-     * configured distance of a screen edge or live overlay, center both axes. */
-    if (do_center
-        || map_cell_near_hidden(py - wy, px - wx, spans, span_count))
+     * configured distance of a screen edge or live overlay, shift both axes. */
+    if (do_center || near_hidden)
     {
         wy = py - center_y;
         wx = px - center_x;

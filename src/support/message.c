@@ -183,10 +183,271 @@ static byte message_type_color(u16b type)
     return (color);
 }
 
+typedef enum message_log_match_kind
+{
+    MESSAGE_LOG_MATCH_PREFIX,
+    MESSAGE_LOG_MATCH_CONTAINS
+} message_log_match_kind;
+
+typedef struct message_log_color_rule
+{
+    cptr phrase;
+    byte color;
+    message_log_match_kind match;
+} message_log_color_rule;
+
 /*
- * Recall the "color" of a saved message
+ * Most old call sites still record gameplay prose as MSG_GENERIC, so message
+ * type alone cannot distinguish an incoming blow from a successful disarm.
+ * Keep the immediate message line unchanged, but give recalled/logged prose a
+ * restrained semantic palette.  More specific outcomes deliberately precede
+ * broader warning words (for example, "no longer stunned" before "stunned").
  */
-byte message_color(s16b age) { return message_type_color(message_type(age)); }
+static const message_log_color_rule message_log_color_rules[] = {
+    /* Avoided harm and recovered conditions. */
+    { " misses you", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+    { " just misses you", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+    { " barely misses you", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+    { "no longer stunned", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+    { "no longer confused", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+    { "no longer afraid", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+    { "no longer entranced", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+    { "no longer poisoned", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+    { "you resist", TERM_L_GREEN, MESSAGE_LOG_MATCH_PREFIX },
+    { "you are unafraid", TERM_L_GREEN, MESSAGE_LOG_MATCH_PREFIX },
+    { "you stare back unafraid", TERM_L_GREEN, MESSAGE_LOG_MATCH_PREFIX },
+
+    /* Immediate danger, harm, and hostile actions. */
+    { "you die", TERM_L_RED, MESSAGE_LOG_MATCH_PREFIX },
+    { "low hitpoint", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "set off the trap", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "set off its trap", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "springs a hidden trap", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "hits you", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "batters you", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "touches you", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "claws you", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "bites you", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "pecks you", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "stings you", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "crushes you", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "engulfs you", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "crawls on you", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "tears at you", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "whips you", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "charges you", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "attacks you", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { " at you", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "your mind reels", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "memories fade", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "pricked you", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "burst of flame", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "noxious vapour", TERM_L_RED, MESSAGE_LOG_MATCH_CONTAINS },
+    { "you reel in pain", TERM_L_RED, MESSAGE_LOG_MATCH_PREFIX },
+
+    /* Failed or blocked actions and deteriorating resources. */
+    { "you fail", TERM_ORANGE, MESSAGE_LOG_MATCH_PREFIX },
+    { "you failed", TERM_ORANGE, MESSAGE_LOG_MATCH_PREFIX },
+    { "cannot ", TERM_ORANGE, MESSAGE_LOG_MATCH_CONTAINS },
+    { "could not ", TERM_ORANGE, MESSAGE_LOG_MATCH_CONTAINS },
+    { "nothing there", TERM_ORANGE, MESSAGE_LOG_MATCH_CONTAINS },
+    { "nothing nearby", TERM_ORANGE, MESSAGE_LOG_MATCH_CONTAINS },
+    { "in the way", TERM_ORANGE, MESSAGE_LOG_MATCH_CONTAINS },
+    { "holds firm", TERM_ORANGE, MESSAGE_LOG_MATCH_CONTAINS },
+    { "interrupted", TERM_ORANGE, MESSAGE_LOG_MATCH_CONTAINS },
+    { "warning", TERM_ORANGE, MESSAGE_LOG_MATCH_CONTAINS },
+    { "growing faint", TERM_ORANGE, MESSAGE_LOG_MATCH_CONTAINS },
+    { "has gone out", TERM_ORANGE, MESSAGE_LOG_MATCH_CONTAINS },
+    { "not carrying", TERM_ORANGE, MESSAGE_LOG_MATCH_CONTAINS },
+    { "not supported", TERM_ORANGE, MESSAGE_LOG_MATCH_CONTAINS },
+    { "not available", TERM_ORANGE, MESSAGE_LOG_MATCH_CONTAINS },
+    { "you are stunned", TERM_ORANGE, MESSAGE_LOG_MATCH_PREFIX },
+    { "you are confused", TERM_ORANGE, MESSAGE_LOG_MATCH_PREFIX },
+    { "you are afraid", TERM_ORANGE, MESSAGE_LOG_MATCH_PREFIX },
+    { "you are entranced", TERM_ORANGE, MESSAGE_LOG_MATCH_PREFIX },
+    { "you are poisoned", TERM_ORANGE, MESSAGE_LOG_MATCH_PREFIX },
+
+    /* Player attacks and misses. */
+    { "you miss ", TERM_SLATE, MESSAGE_LOG_MATCH_PREFIX },
+    { "you hit ", TERM_L_BLUE, MESSAGE_LOG_MATCH_PREFIX },
+    { "you strike ", TERM_L_BLUE, MESSAGE_LOG_MATCH_PREFIX },
+    { "you shoot ", TERM_L_BLUE, MESSAGE_LOG_MATCH_PREFIX },
+    { "your shot ", TERM_L_BLUE, MESSAGE_LOG_MATCH_PREFIX },
+
+    /* Successes, discoveries, and recovery. */
+    { "you have killed", TERM_L_GREEN, MESSAGE_LOG_MATCH_PREFIX },
+    { " dies.", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+    { " is slain", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+    { " is destroyed", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+    { " flees", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+    { " cowers", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+    { "picked the lock", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+    { "have disarmed", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+    { "you break free", TERM_L_GREEN, MESSAGE_LOG_MATCH_PREFIX },
+    { "you cut yourself free", TERM_L_GREEN, MESSAGE_LOG_MATCH_PREFIX },
+    { "you climb out", TERM_L_GREEN, MESSAGE_LOG_MATCH_PREFIX },
+    { "you recover", TERM_L_GREEN, MESSAGE_LOG_MATCH_PREFIX },
+    { "you find ", TERM_L_GREEN, MESSAGE_LOG_MATCH_PREFIX },
+    { "you discover", TERM_L_GREEN, MESSAGE_LOG_MATCH_PREFIX },
+    { "you gather", TERM_L_GREEN, MESSAGE_LOG_MATCH_PREFIX },
+    { "you add ", TERM_L_GREEN, MESSAGE_LOG_MATCH_PREFIX },
+    { "successful", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+    { "wounds close", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+    { "body heal", TERM_L_GREEN, MESSAGE_LOG_MATCH_CONTAINS },
+
+    /* Inventory and physical object handling. */
+    { "you wield ", TERM_L_UMBER, MESSAGE_LOG_MATCH_PREFIX },
+    { "you are wielding ", TERM_L_UMBER, MESSAGE_LOG_MATCH_PREFIX },
+    { "you equip ", TERM_L_UMBER, MESSAGE_LOG_MATCH_PREFIX },
+    { "you take off ", TERM_L_UMBER, MESSAGE_LOG_MATCH_PREFIX },
+    { "you drop ", TERM_L_UMBER, MESSAGE_LOG_MATCH_PREFIX },
+    { "you pick up ", TERM_L_UMBER, MESSAGE_LOG_MATCH_PREFIX },
+
+    /* Songs and overtly magical actions. */
+    { "you begin a song", TERM_VIOLET, MESSAGE_LOG_MATCH_PREFIX },
+    { "you add a minor theme", TERM_VIOLET, MESSAGE_LOG_MATCH_PREFIX },
+    { "you change your minor theme", TERM_VIOLET, MESSAGE_LOG_MATCH_PREFIX },
+    { "you end your song", TERM_VIOLET, MESSAGE_LOG_MATCH_PREFIX },
+    { "you activate ", TERM_VIOLET, MESSAGE_LOG_MATCH_PREFIX },
+    { "you quaff ", TERM_VIOLET, MESSAGE_LOG_MATCH_PREFIX },
+    { "you drink ", TERM_VIOLET, MESSAGE_LOG_MATCH_PREFIX },
+
+    /* Travel and level transitions. */
+    { "you enter ", TERM_L_BLUE, MESSAGE_LOG_MATCH_PREFIX },
+    { "you emerge ", TERM_L_BLUE, MESSAGE_LOG_MATCH_PREFIX },
+    { "you rise up ", TERM_L_BLUE, MESSAGE_LOG_MATCH_PREFIX },
+    { "you sink through ", TERM_L_BLUE, MESSAGE_LOG_MATCH_PREFIX },
+};
+
+static bool message_log_rule_matches(cptr text,
+    const message_log_color_rule* rule)
+{
+    size_t phrase_len;
+
+    if (!text || !rule || !rule->phrase)
+        return false;
+
+    phrase_len = strlen(rule->phrase);
+    if (rule->match == MESSAGE_LOG_MATCH_PREFIX)
+        return SDL_strncasecmp(text, rule->phrase, phrase_len) == 0;
+
+    return SDL_strcasestr(text, rule->phrase) != NULL;
+}
+
+static int message_log_text_color(cptr text)
+{
+    for (int i = 0; i < (int)N_ELEMENTS(message_log_color_rules); i++)
+    {
+        if (message_log_rule_matches(text, &message_log_color_rules[i]))
+            return message_log_color_rules[i].color;
+    }
+
+    return -1;
+}
+
+static byte message_log_type_color(u16b type)
+{
+    switch (type)
+    {
+    case MSG_HIT:
+    case MSG_SHOOT:
+    case MSG_WEAPON_SLASH_LIGHT:
+    case MSG_WEAPON_SLASH_HEAVY:
+    case MSG_WEAPON_THRUST:
+    case MSG_WEAPON_BLUNT:
+    case MSG_WEAPON_UNARMED:
+    case MSG_WEAPON_SLASH_MEDIUM:
+        return TERM_L_BLUE;
+
+    case MSG_MISS:
+    case MSG_ARMOR:
+        return TERM_SLATE;
+
+    case MSG_FLEE:
+    case MSG_KILL:
+        return TERM_L_GREEN;
+
+    case MSG_DEATH:
+    case MSG_HITPOINT_WARN:
+    case MSG_MONSTER_ATTACK:
+    case MSG_MONSTER_ATTACK_RANGED:
+    case MSG_MONSTER_ATTACK_BREATH:
+    case MSG_TRAP_GAS:
+    case MSG_TRAP_NEEDLE:
+    case MSG_TRAP_FIRE:
+        return TERM_L_RED;
+
+    case MSG_BELL:
+    case MSG_HITWALL:
+    case MSG_NOTHING_TO_OPEN:
+    case MSG_LOCKPICK_FAIL:
+    case MSG_BASHDOOR_FAIL:
+        return TERM_ORANGE;
+
+    case MSG_LEVEL:
+    case MSG_TELEPORT:
+    case MSG_WALK:
+    case MSG_TPOTHER:
+    case MSG_TPLEVEL:
+    case MSG_STAIRS:
+        return TERM_L_BLUE;
+
+    case MSG_QUAFF:
+    case MSG_ZAP:
+    case MSG_EAT:
+    case MSG_USE_GEM:
+    case MSG_ACTIVATE:
+        return TERM_VIOLET;
+
+    case MSG_DROP:
+    case MSG_DIG:
+    case MSG_OPENDOOR:
+    case MSG_SHUTDOOR:
+    case MSG_BASHDOOR:
+    case MSG_PICK:
+    case MSG_EQUIP_SWORD:
+    case MSG_EQUIP_BOW:
+    case MSG_EQUIP_WEAPON:
+    case MSG_EQUIP_MAIL:
+    case MSG_EQUIP_LEATHER:
+    case MSG_EQUIP_ARMOR:
+    case MSG_EQUIP_JEWELRY:
+    case MSG_UNEQUIP_SWORD:
+    case MSG_UNEQUIP_BOW:
+    case MSG_UNEQUIP_WEAPON:
+    case MSG_UNEQUIP_MAIL:
+    case MSG_UNEQUIP_LEATHER:
+    case MSG_UNEQUIP_ARMOR:
+    case MSG_UNEQUIP_JEWELRY:
+    case MSG_DROP_GLASS:
+    case MSG_DROP_SMALL_METAL:
+    case MSG_DROP_CLOTH:
+    case MSG_DROP_LEATHER:
+    case MSG_DROP_BIG_METAL:
+    case MSG_DROP_METAL_MEDIUM:
+    case MSG_DROP_WOOD:
+    case MSG_DROP_GENERIC:
+    case MSG_CHEST_OPEN:
+    case MSG_TORCH_LIGHT:
+        return TERM_L_UMBER;
+
+    default:
+        return message_type_color(type);
+    }
+}
+
+/*
+ * Recall the contextual color of a saved message for log/recall surfaces.
+ */
+byte message_color(s16b age)
+{
+    int text_color = message_log_text_color(message_str(age));
+
+    if (text_color >= 0)
+        return (byte)text_color;
+
+    return message_log_type_color(message_type(age));
+}
 
 void log_history_note_sequence(u32b sequence)
 {

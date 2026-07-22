@@ -464,6 +464,9 @@ void handle_partition_entry(bool force_message, int narrative_mode)
     level_partition_kind kind = level_partition_kind_for_point(p_ptr->py, p_ptr->px);
     int sidx = styles_decode_color_style(cave_color[p_ptr->py][p_ptr->px]);
 
+    if ((pi >= 0) && (pi != last_partition_pi) && !p_ptr->restoring)
+        msg_print("You have entered a new partition.");
+
     /*
      * Greater vaults have their own first-entry narrative.  Their cells carry
      * vault-specific styles, so the generic partition-style banner would be

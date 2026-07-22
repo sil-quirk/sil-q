@@ -304,6 +304,19 @@ static int sanctity_check_burden(const object_type* o_ptr,
     return burden;
 }
 
+static void sanctity_mark_curse_sensed(object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx || !cursed_p(o_ptr))
+        return;
+
+    if (o_ptr->discount >= INSCRIP_NULL)
+        o_ptr->discount = 0;
+    if (o_ptr->discount == 0)
+        o_ptr->discount = INSCRIP_CURSED;
+
+    o_ptr->ident |= IDENT_SENSE;
+}
+
 bool use_sanctity_gem_on(object_type* target_o_ptr, bool* ident)
 {
     bool can_remove_light = false;
@@ -333,6 +346,7 @@ bool use_sanctity_gem_on(object_type* target_o_ptr, bool* ident)
 
         if (skill_check(PLAYER, score, difficulty, NULL) <= 0)
         {
+            sanctity_mark_curse_sensed(target_o_ptr);
             msg_format("%^s resists the sanctity.", target_name);
             return true;
         }
@@ -340,7 +354,10 @@ bool use_sanctity_gem_on(object_type* target_o_ptr, bool* ident)
     else
     {
         if (cursed_p(target_o_ptr))
+        {
+            sanctity_mark_curse_sensed(target_o_ptr);
             msg_format("%^s resists the sanctity.", target_name);
+        }
         else
         {
             msg_format("Nothing happens to %s.", target_name);

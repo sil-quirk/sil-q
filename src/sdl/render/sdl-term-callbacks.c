@@ -48,6 +48,8 @@ errr callback_sdl_xtra(int n, int v)
             int zone_touch_timeout_ms = sdl_touch_zone_pending_timeout_ms(now_ns);
             int top_panel_touch_timeout_ms =
                 sdl_touch_top_panel_pending_timeout_ms(now_ns);
+            int main_menu_button_timeout_ms =
+                sdl_main_menu_button_pending_timeout_ms(now_ns);
             int log_pane_menu_timeout_ms =
                 sdl_log_pane_menu_pending_timeout_ms(now_ns);
             int side_pane_menu_timeout_ms =
@@ -104,6 +106,11 @@ errr callback_sdl_xtra(int n, int v)
                     && top_panel_touch_timeout_ms < timeout_ms))
             {
                 timeout_ms = top_panel_touch_timeout_ms;
+            }
+            if (timeout_ms < 0 || (main_menu_button_timeout_ms >= 0
+                    && main_menu_button_timeout_ms < timeout_ms))
+            {
+                timeout_ms = main_menu_button_timeout_ms;
             }
             if (timeout_ms < 0 || (log_pane_menu_timeout_ms >= 0
                     && log_pane_menu_timeout_ms < timeout_ms))
@@ -194,6 +201,7 @@ errr callback_sdl_xtra(int n, int v)
             sdl_popup_notification_flush_expired(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
             sdl_touch_top_panel_flush_pending_press(flush_ns);
+            sdl_main_menu_button_flush_pending_press(flush_ns);
             sdl_touch_thumb_flush_pending_press(flush_ns);
             sdl_log_pane_menu_flush_pending_press(flush_ns);
             sdl_side_pane_menu_flush_pending_press(flush_ns);
@@ -227,6 +235,7 @@ errr callback_sdl_xtra(int n, int v)
             sdl_popup_notification_flush_expired(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
             sdl_touch_top_panel_flush_pending_press(flush_ns);
+            sdl_main_menu_button_flush_pending_press(flush_ns);
             sdl_touch_thumb_flush_pending_press(flush_ns);
             sdl_log_pane_menu_flush_pending_press(flush_ns);
             sdl_side_pane_menu_flush_pending_press(flush_ns);
@@ -945,6 +954,9 @@ static bool sdl_monster_tile_should_flip(int y, int x, byte a, char c)
     {
         return false;
     }
+
+    if (r_ptr->tile_facing == MONSTER_TILE_FACING_RANDOM)
+        return m_ptr->visual_random_facing == MONSTER_TILE_FACING_RIGHT;
 
     current_facing = sdl_horizontal_facing_from_dir(m_ptr->visual_facing_dir);
     if (current_facing == MONSTER_TILE_FACING_NONE)

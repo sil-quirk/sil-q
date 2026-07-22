@@ -759,7 +759,7 @@ static cptr option_menu_label(int opt)
         case OPT_mirror_player_tile_facing:
             return narrow ? "Direction anim" : "Directional character animation";
         case OPT_mirror_monster_tile_facing:
-            return narrow ? "Monster facing" : "Directional monster animation";
+            return narrow ? "Monster facing" : "Monster tile facing";
         case OPT_look_nearby_filter_default: return narrow ? "Look near def" : "Look nearby default";
         case OPT_birth_discon_stair: return narrow ? "Disc. stairs" : "Disconnected stairs";
         case OPT_birth_ironman: return narrow ? "Straight down" : "Straight down";
@@ -4468,7 +4468,9 @@ static cptr iface_pane_row_description(const struct iface_pane_row* row)
     {
         return "Recenter the player within the relevant visible map zone "
             "when they come within this many cells of a screen edge or any "
-            "visible overlay. The default is 5 on desktop and 3 on mobile.";
+            "visible overlay. The same distance shifts the player behind "
+            "their travel direction to show more map ahead. The default is "
+            "5 on desktop and 3 on mobile.";
     }
 
     if (row->field == IFACE_PANE_FIELD_PLACEMENT)

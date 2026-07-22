@@ -13,7 +13,7 @@
 # W: depth : rarity
 # G: symbol : color
 # T: tile row : tile column
-# O: source tile orientation (FACING_LEFT, FACING_RIGHT, or FACING_NONE)
+# O: tile facing (FACING_LEFT, FACING_RIGHT, FACING_RANDOM, or FACING_NONE)
 # I: speed : health : mana : light radius
 # A: sleepiness : perception : stealth : will
 # P: [evasion bonus, protection dice]
@@ -46,10 +46,11 @@
 #     Values are decimal 0-63. Used for graphical mode display.
 #     If omitted, graphics mode uses the G: line ASCII character/color.
 #
-# 'O' is for visual-only source tile orientation. FACING_LEFT and
-#     FACING_RIGHT let optional directional monster animation mirror the
-#     tile when a monster moves the opposite horizontal direction.
-#     Omit it, or use FACING_NONE, for front-facing/symmetric/unclear tiles.
+# 'O' is for visual-only tile facing. FACING_LEFT and FACING_RIGHT let
+#     optional directional monster animation mirror the tile when a monster
+#     moves the opposite horizontal direction. FACING_RANDOM gives each
+#     monster instance a stable random left/right presentation. Omit it, or
+#     use FACING_NONE, for front-facing/symmetric/unclear tiles.
 #
 # 'I' is for information - speed, health, light radius in squares.
 #
@@ -378,6 +379,7 @@ D: orcish packs. Its yellow eyes gleam with feral cunning.
 
 
 N:12:Tanglethorn
+O:FACING_RANDOM
 Q:7b4df3bcb689c212
 W:1:1
 G:&:s
@@ -393,6 +395,7 @@ D: thorns, some hooked barbs that rent like knives.'
 
 # Can't move from idx 13 for dungeon generation reasons
 N:13:Dejected human thrall
+O:FACING_RANDOM
 Q:cbb819a9cb63bbba
 W:1:0
 G:@:g
@@ -406,6 +409,7 @@ D: is about his neck, and a long chain leads from it to the wall.
 
 # Can't move from idx 14 for dungeon generation reasons
 N:14:Dejected elven thrall
+O:FACING_RANDOM
 Q:9829bd03cfda98e7
 W:1:0
 G:@:g
@@ -419,6 +423,7 @@ D: and eyes vacant. His back and arms bear the marks of a whip.
 
 # Can't move from idx 15 for dungeon generation reasons
 N:15:Orc thrallmaster
+O:FACING_LEFT
 Q:05f49e29acf49a93
 W:1:0
 G:o:g
@@ -438,6 +443,7 @@ D: cruelty, and takes pleasure in the suffering of his charges.
 
 # Can't move from idx 16 for dungeon generation reasons
 N:16:Alert human thrall
+O:FACING_RANDOM
 Q:e3686753f2daff39
 W:1:0
 G:@:G
@@ -451,6 +457,7 @@ D: His head is raised and he takes in his surroundings alertly.
 
 # Can't move from idx 17 for dungeon generation reasons
 N:17:Alert elven thrall
+O:FACING_RANDOM
 Q:d69f1ff7b5fb7cba
 W:1:0
 G:@:G
@@ -464,6 +471,7 @@ D: Dried blood encrusts a noble face. His eyes are fixed on you.
 
 # Can't move from idx 18 for dungeon generation reasons
 N:18:Tulkas Unclad
+O:FACING_RANDOM
 Q:69835ccc69aa243a
 W:30:200
 G:V:v
@@ -479,6 +487,7 @@ D: until dust falls from the unseen roof.
 
 # Can't move from idx 19 for quest logic (Aulë forge quest giver)
 N:19:Aulë the Smith
+O:FACING_RANDOM
 Q:d27e36edf5c2f432
 W:30:200
 G:V:u
@@ -509,6 +518,7 @@ D: and in his eyes is the memory of every doom that has been spoken.
 ##### 2 #####
 
 N:21:Orc skirmisher
+O:FACING_LEFT
 Q:aebc036dc91edf62
 W:2:1
 G:o:u
@@ -543,6 +553,7 @@ D: and its keen eyes miss little that moves in the deep places below.
 
 
 N:23:Mewlip
+O:FACING_RANDOM
 Q:315d21268dcdd817
 W:2:1
 G:H:u
@@ -563,6 +574,7 @@ D: bones of unwary travelers. Their eyes gleam with hunger in the darkness.
 ##### 3 #####
 
 N:31:Orc scout
+O:FACING_LEFT
 Q:3db7e18811837249
 W:3:1
 G:o:D
@@ -584,6 +596,7 @@ D: away into the shadows.
 
 # Can't move from idx 32, used by monster ability HATCH_SPIDER
 N:32:Spider hatchling
+O:FACING_RANDOM
 Q:ddbfaed0110335da
 W:3:2
 G:m:U
@@ -620,6 +633,7 @@ D: frost forms where its coils have rested on the stone.
 ##### 4 #####
 
 N:41:Orc soldier
+O:FACING_LEFT
 Q:b7a6509ba8b8b7e9
 W:4:1
 G:o:s
@@ -638,6 +652,7 @@ D: shield: a soldier in the dark hosts of Bauglir.
 
 
 N:42:Madthorn
+O:FACING_RANDOM
 Q:21ab339e3dd1af9d
 W:4:1
 G:&:y
@@ -670,6 +685,7 @@ D: flesh, gouging at the face and eyes with cruel beak.
 
 
 N:44:Brood spider
+O:FACING_RIGHT
 Q:940b46dbe98fba40
 W:4:3
 G:M:U
@@ -689,6 +705,7 @@ D: Its hairy mandibles are wet with a dark fluid.
 
 
 N:51:Orc archer
+O:FACING_LEFT
 Q:12288708ac66ebf8
 W:5:3
 G:o:U
@@ -745,6 +762,7 @@ D: the stone beneath its belly is scorched dark where it has lain.
 
 
 N:54:Gorgol, the Butcher
+O:FACING_LEFT
 Q:333546bf2a893575
 W:5:10
 G:o:G
@@ -767,6 +785,7 @@ D: His pack follows him out of fear rather than loyalty.
 
 
 N:61:Orc warrior
+O:FACING_LEFT
 Q:ef3c140d0bce7a2b
 W:6:1
 G:o:W
@@ -785,6 +804,7 @@ D: into battle with a heavy axe, his snarl baring iron-capped teeth.
 
 
 N:62:Sword spider
+O:FACING_RIGHT
 Q:48b96d75487ee896
 W:6:2
 G:M:s
@@ -818,6 +838,7 @@ D: keen eyes miss nothing that moves in the shadows below.
 
 
 N:64:Phantom
+O:FACING_RANDOM
 Q:dc3a9fec7f8b557a
 W:6:3
 G:w:s
@@ -841,6 +862,7 @@ D: are seized by a terror from which reason cannot free them.
 
 
 N:71:Attercop
+O:FACING_LEFT
 Q:8087b3f084f094c2
 W:7:1
 G:m:D
@@ -858,6 +880,7 @@ D: a hunger that is almost knowing.
 
 
 N:72:Nightthorn
+O:FACING_RANDOM
 Q:7783062d13500802
 W:7:1
 G:&:D
@@ -893,6 +916,7 @@ D: and the very air it breathes turns sickly and poisonous.
 
 
 N:74:Mountain troll
+O:FACING_LEFT
 Q:949bb8a5ee1ce58f
 W:7:1
 G:T:W
@@ -911,6 +935,7 @@ D: it came.
 
 
 N:75:Tattered wight
+O:FACING_LEFT
 Q:8632cc4215700e14
 W:7:2
 G:W:D1
@@ -933,6 +958,7 @@ D: that drain the nimbleness from flesh and bone.
 
 
 N:76:Boldog, the Merciless
+O:FACING_LEFT
 Q:d41e3b6bfafb596f
 W:7:20
 G:o:y
@@ -962,6 +988,7 @@ D: merciless slaughter of any who fall into his hands.
 # need to leave Orc champion at location 81
 
 N:81:Orc champion
+O:FACING_LEFT
 Q:88ef7547642967b2
 W:8:2
 G:o:b
@@ -982,6 +1009,7 @@ D: as any foe.
 
 
 N:82:Easterling warrior
+O:FACING_LEFT
 Q:0e401610ae33a21f
 W:8:2
 G:@:W
@@ -1016,6 +1044,7 @@ D: and despair.
 
 
 N:84:Balcmeg, the Relentless
+O:FACING_LEFT
 Q:bf68d49c92c9d98c
 W:8:20
 G:o:o
@@ -1034,6 +1063,7 @@ D: reached safety. His warband follows him out of dread.
 
 
 N:85:Lug, the Grotesque
+O:FACING_RIGHT
 Q:f30bbaa9d32572af
 W:8:20
 G:o:v
@@ -1057,6 +1087,7 @@ D: deeply, and few survive his attentions long.
 # need to leave Orc captain at location 91
 
 N:91:Orc captain
+O:FACING_LEFT
 Q:2c739cdb1be99f2c
 W:9:3
 G:o:r
@@ -1092,6 +1123,7 @@ D: keen intelligence makes them dangerous hunters.
 
 
 N:93:Grave wight
+O:FACING_LEFT
 Q:0b47bc4372b11e08
 W:9:2
 G:W:U
@@ -1131,6 +1163,7 @@ D: and its breath carries a chill that chokes the spirit.
 
 
 N:95:Orcobal, Champion of the Orcs
+O:FACING_LEFT
 Q:8a1995b8587aa0a2
 W:9:15
 G:o:B
@@ -1156,6 +1189,7 @@ D: for he has slain many of their kin beneath the shadows of Thangorodrim.
 
 
 N:101:Whispering shadow
+O:FACING_RIGHT
 Q:ccff426ff2ef0318
 W:10:1
 G:w:D
@@ -1174,6 +1208,7 @@ D: consumed, calling others to join them in the cold.
 
 
 N:102:Distended spider
+O:FACING_RIGHT
 Q:3e116a9ee6cfa9d7
 W:10:1
 G:M:u
@@ -1226,6 +1261,7 @@ D: with a speed that belies its broken form.
 
 
 N:105:Othrod, the Orc Lord
+O:FACING_LEFT
 Q:78d6c2d78e85ea3d
 W:10:10
 G:o:R
@@ -1253,6 +1289,7 @@ D: earned him a feared name among the hosts of Angband.
 
 
 N:111:Snow troll
+O:FACING_LEFT
 Q:cb874b1cadd2c23b
 W:11:1
 G:T:w
@@ -1274,6 +1311,7 @@ D: cold that would slay lesser creatures only makes it stronger.
 # need to leave Barrow wight at location 112
 
 N:112:Barrow wight
+O:FACING_LEFT
 Q:c92f7e02e189e1bd
 W:11:100
 G:W:W
@@ -1295,6 +1333,7 @@ D: cold of the soul, not merely of the flesh.
 
 
 N:113:Lurking horror
+O:FACING_RANDOM
 Q:d2d2f0b7edcf4cf6
 W:11:5
 G:H:D
@@ -1313,6 +1352,7 @@ D: that pours from it can break the will of even the bravest.
 
 
 N:114:Giant
+O:FACING_LEFT
 Q:a6ab3acc59fc624a
 W:11:1
 G:G:U
@@ -1332,6 +1372,7 @@ D: hurl great boulders at their foes from afar.
 
 
 N:115:Uldor, the Accursed
+O:FACING_LEFT
 Q:e7c39145ef0dc35d
 W:11:10
 G:@:U1
@@ -1355,6 +1396,7 @@ D: yet the curse upon his name endures: Uldor the Accursed.
 # need to leave Brodda at location 117
 
 N:117:Brodda, the Easterling Lord
+O:FACING_LEFT
 Q:ed37fc4fce32643f
 W:11:100
 G:W:R
@@ -1382,6 +1424,7 @@ D: has been altered. The dark power binds his spirit here still.
 # need to leave Easterling spy at location 121
 
 N:121:Easterling spy
+O:FACING_LEFT
 Q:4acd2c9fcc5cd6e5
 W:12:3
 G:@:D
@@ -1402,6 +1445,7 @@ D: to a dark perfection.
 
 
 N:122:Shadow bat
+O:FACING_LEFT
 Q:49c20a164b23e753
 W:12:4
 G:b:D1
@@ -1418,6 +1462,7 @@ D: finds its prey with uncanny ease.
 
 
 N:123:Sulrauko
+O:FACING_RANDOM
 Q:1c6330b77b8028c2
 W:12:2
 G:R:W
@@ -1435,6 +1480,7 @@ D: swift, battering all who stand against its fell master.
 
 
 N:124:Fire-drake hatchling
+O:FACING_RANDOM
 Q:d633995ddac90132
 W:12:6
 G:d:R
@@ -1456,6 +1502,7 @@ D: to sear flesh from bone.
 
 
 N:125:Ulfang the Black
+O:FACING_LEFT
 Q:66eda88da3bb69b9
 W:12:10
 G:@:s
@@ -1480,6 +1527,7 @@ D: or slavery. He is cunning and ruthless, and strikes at every opening.
 # (Duruin = red flame of the night)
 
 N:126:Duruin, Least of the Balrogs
+O:FACING_LEFT
 Q:9c44dec3f9d6d14c
 W:12:30
 G:R:o
@@ -1524,6 +1572,7 @@ D: and their venom brings a slow and painful death.
 
 
 N:132:Shadow spider
+O:FACING_RIGHT
 Q:d5e4892102e9b48a
 W:13:1
 G:M:D
@@ -1540,6 +1589,7 @@ D: from your very eyes.
 
 
 N:133:Shadow
+O:FACING_RIGHT
 Q:6c92b6a7a9e4a63e
 W:13:3
 G:W:d
@@ -1579,6 +1629,7 @@ D: still and cold, as though winter itself had come to these dark halls.
 
 
 N:135:Gilim, the Giant of Eruman
+O:FACING_LEFT
 Q:57efe839cfc78085
 W:13:10
 G:G:w
@@ -1625,6 +1676,7 @@ D: radiates from its coils, and the stone beneath it cracks and warps.
 
 
 N:142:Creeping horror
+O:FACING_RANDOM
 Q:54981cf971e538fc
 W:14:4
 G:H:g
@@ -1643,6 +1695,7 @@ D: long before it ever reaches you.
 
 
 N:143:Ringrauko
+O:FACING_RIGHT
 Q:0d9a80e3fa33a2f2
 W:14:1
 G:R:B
@@ -1662,6 +1715,7 @@ D: its hand drinks the warmth from all it touches.
 # (Delthaur = abominable horror)
 
 N:145:Delthaur, Balrog of Terror
+O:FACING_LEFT
 Q:04a01f92e1cf1e4c
 W:14:20
 G:R:g
@@ -1688,6 +1742,7 @@ D: him by a darker title: the Bane of Durin.
 
 
 N:146:Nan, the Giant
+O:FACING_LEFT
 Q:3de81cfd79cf3740
 W:14:30
 G:G:G
@@ -1712,6 +1767,7 @@ D: to Melkor when the world was young, and both have served him ever since.
 ##### 15 #####
 
 N:151:Cave troll
+O:FACING_LEFT
 Q:53efd5c081c139df
 W:15:1
 G:T:u
@@ -1752,6 +1808,7 @@ D: ever strike.
 
 # Can't move from idx 153, used by monster Song of Oaths
 N:153:Oathwraith
+O:FACING_LEFT
 Q:f119b039c564429b
 W:15:6
 G:W:D
@@ -1775,6 +1832,7 @@ D: who have sworn vows, seeking to drag them down into its own damnation.
 # need to leave Cat warrior at location 154
 
 N:154:Cat warrior
+O:FACING_LEFT
 Q:3c10b33361f6f136
 W:15:1
 G:f:U
@@ -1816,6 +1874,7 @@ D: follows close behind.
 
 
 N:162:Kemenrauko
+O:FACING_RIGHT
 Q:6d237eb553034a0a
 W:16:2
 G:R:s
@@ -1833,6 +1892,7 @@ D: blows can shatter steel. The very foundations of Angband answer to its will.
 
 
 N:163:Grotesque
+O:FACING_RANDOM
 Q:41cd00dfc66f5220
 W:16:5
 G:H:W
@@ -1857,6 +1917,7 @@ D: in fitful glares that leaped and died.'
 # need to leave Young cold-drake at location 164
 
 N:164:Young cold-drake
+O:FACING_RANDOM
 Q:2f6ec4ab45007365
 W:16:6
 G:d:w
@@ -1902,6 +1963,7 @@ D: in the slow torment of those who think themselves clever enough to slip by.
 # (Belegwath = mighty shadow)
 
 N:166:Belegwath, Balrog of Shadow
+O:FACING_LEFT
 Q:bba0d000d9578563
 W:16:20
 G:R:v
@@ -1924,6 +1986,7 @@ D: Shadow has been the last thing they ever beheld.
 
 
 N:167:Spectre
+O:FACING_LEFT
 Q:689e64a1f84df282
 W:16:6
 G:w:w
@@ -1948,6 +2011,7 @@ D: through walls as though they were not there.
 
 
 N:171:Spider of Gorgoroth
+O:FACING_RANDOM
 Q:bb6a0afb90bf789d
 W:17:1
 G:M:r
@@ -2003,6 +2067,7 @@ D: things can match its terrible versatility.
 
 
 N:174:Lesser vampire
+O:FACING_LEFT
 Q:41d90b9e0df3798c
 W:17:1
 G:v:s
@@ -2023,6 +2088,7 @@ D: its victims, leaving them cold and hollow.
 # need to leave Cat assassin at location 175
 
 N:175:Cat assassin
+O:FACING_RIGHT
 Q:9a6fbc6e7b46f502
 W:17:3
 G:f:D
@@ -2067,6 +2133,7 @@ D: One day he may crawl forth from Angband to trouble the world above.
 # only ever appears in the escort of Tevildo
 
 N:177:Oikeroi, Guard of Tevildo
+O:FACING_LEFT
 Q:dd75751a350323a0
 W:17:15
 G:f:o
@@ -2114,6 +2181,7 @@ D: his bones were ashes in the hot mire.
 
 
 N:182:Darting horror
+O:FACING_RANDOM
 Q:2d4cdde8b5b64d56
 W:18:5
 G:H:r
@@ -2133,6 +2201,7 @@ D: reason itself crumbles.
 
 
 N:183:Wraith
+O:FACING_LEFT
 Q:6607c32f97be3bc2
 W:18:4
 G:W:s
@@ -2155,6 +2224,7 @@ D: its will can hold a victim helpless as the grave.
 
 
 N:184:Ururauko
+O:FACING_RANDOM
 Q:0a03a1d09883f949
 W:18:1
 G:R:R
@@ -2173,6 +2243,7 @@ D: World was young, and now its fire serves only to destroy.
 
 
 N:185:Tevildo, Prince of Cats
+O:FACING_LEFT
 Q:fad36da2cdb9a6ef
 W:18:10
 G:f:u
@@ -2195,6 +2266,7 @@ D: and while he wears it, none may defeat him.
 # (Turkano = powerful commander)
 
 N:186:Turkano, Balrog of the Hosts
+O:FACING_LEFT
 Q:5dbb205e018a3e6a
 W:18:20
 G:R:b
@@ -2244,6 +2316,7 @@ D: Its breath can freeze a warrior where he stands, armour and all.
 # need to leave Troll guard at location 192
 
 N:192:Troll guard
+O:FACING_LEFT
 Q:b39a82dfdc1c5ef9
 W:19:1
 G:T:s
@@ -2264,6 +2337,7 @@ D: of death itself can stop them.
 
 
 N:193:Vampire
+O:FACING_LEFT
 Q:a6dd7747bfd8b38d
 W:19:1
 G:v:W
@@ -2281,6 +2355,7 @@ D: halls, and its bite drains both strength and vitality from its victims.
 
 
 N:194:Nameless thing
+O:FACING_RIGHT
 Q:ac318c9b872cf01b
 W:19:1
 G:N:s
@@ -2322,6 +2397,7 @@ D: truly terrible, but even now he is a deadly foe.
 
 
 N:196:Maeglin, Betrayer of Gondolin
+O:FACING_LEFT
 Q:707ee98ab7f93af6
 W:19:100
 G:@:D1
@@ -2391,6 +2467,7 @@ D: cunning beyond mortal understanding over long centuries of darkness.
 # need to leave Silent watcher at location 203
 
 N:203:Silent watcher
+O:FACING_RANDOM
 Q:c790972955718680
 W:20:10
 G:H:s
@@ -2415,6 +2492,7 @@ D: or his escape.
 
 
 N:204:Gwathrauko
+O:FACING_LEFT
 Q:7aea95599424e3b6
 W:20:4
 G:R:D
@@ -2455,6 +2533,7 @@ D: in the service of the Dark Lord, and now he stalks these halls once more.
 # (Vallach = Powerful leaping flame)
 
 N:206:Vallach, Balrog of Sudden Flame
+O:FACING_LEFT
 Q:f960b4324c03fa54
 W:20:20
 G:R:y
@@ -2481,6 +2560,7 @@ D: as though it will one day bear him and a golden lord to a common doom.
 
 
 N:211:Ancient spider
+O:FACING_LEFT
 Q:ccaa5a00f768feca
 W:21:3
 G:M:g
@@ -2518,6 +2598,7 @@ D: near it can bring sickness and death.
 
 
 N:213:Vampire lord
+O:FACING_LEFT
 Q:356607a1d590333b
 W:21:2
 G:v:v1
@@ -2537,6 +2618,7 @@ D: essence of life.
 
 
 N:214:Dagorhir, the Elfbane
+O:FACING_LEFT
 Q:5ebdcd9da7ef3d73
 W:21:15
 G:T:r
@@ -2558,6 +2640,7 @@ D: the deep halls, and the sound of his tread brings dread to all who hear.
 
 
 N:215:Gostir, the Dread Glance
+O:FACING_LEFT
 Q:85e8d31f214e8586
 W:21:30
 G:D:B
@@ -2643,6 +2726,7 @@ D: visions of such horror that their minds shatter like glass.
 
 
 N:224:Shelob, Spider of Darkness
+O:FACING_LEFT
 Q:5fb5b208d8946775
 W:22:30
 G:M:D1
@@ -2664,6 +2748,7 @@ D: of Angband, and all lesser spiders pay her fearful homage.
 # The master of the guard in Angband
 
 N:225:Lungorthin, Lord of Balrogs
+O:FACING_LEFT
 Q:dd9a5db3ba5bb028
 W:22:20
 G:R:w
@@ -2711,6 +2796,7 @@ D: poison, and shadow in turn. It is said to be as old as Angband itself.
 
 
 N:232:Unrelenting horror
+O:FACING_RANDOM
 Q:5244d72f7ce563a7
 W:23:2
 G:H:G1
@@ -2730,6 +2816,7 @@ D: clear how one could ever slay such a thing.
 
 
 N:233:Ancalagon the Black
+O:FACING_RIGHT
 Q:4da7998251196a35
 W:24:6
 G:d:D
@@ -2753,6 +2840,7 @@ D: with great thunder, and lightning, and a tempest of fire.
 
 
 N:234:Thuringwethil, the Vampire Messenger
+O:FACING_LEFT
 Q:de682ee6b4e6d275
 W:23:3
 G:v:r
@@ -2779,6 +2867,7 @@ D: claws have torn the throats of many who trusted her charming guise.
 # need to leave Gothmog at location 241
 
 N:241:Gothmog, High Captain of Balrogs
+O:FACING_LEFT
 Q:0e0f11695f8a443d
 W:24:3
 G:R:r
@@ -2804,6 +2893,7 @@ D: master, when Morgoth's cry rang through the trembling North.
 # need to leave Ungoliant at location 242
 
 N:242:Ungoliant, the Gloomweaver
+O:FACING_LEFT
 Q:c2485b83ba33934d
 W:24:3
 G:M:D
@@ -2858,6 +2948,7 @@ D: matched only by his cunning, and his hoard is vast beyond measure.
 # Also known as Sauron and Thu
 
 N:244:Gorthaur, Servant of Morgoth
+O:FACING_LEFT
 Q:7b038638b2981d20
 W:24:3
 G:C:u
@@ -2884,6 +2975,7 @@ D: save only Draugluin. His eyes burn with malice older than the Sun.
 
 
 N:245:Flying cold-drake
+O:FACING_RIGHT
 Q:7a94fd98505d6076
 W:24:6
 G:d:W
@@ -2904,6 +2996,7 @@ D: gale spills from its throat, freezing stone and flesh beneath its shadow.
 
 
 N:246:Flying fire-drake
+O:FACING_LEFT
 Q:49c954b30d9f0406
 W:24:6
 G:d:r

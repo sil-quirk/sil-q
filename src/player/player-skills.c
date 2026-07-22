@@ -179,6 +179,43 @@ static int stepped_song_bonus(int skill, int first_threshold, int next_gap)
     return bonus;
 }
 
+/* Return the current weapon-dependent skill addition supplied by Warden or
+ * Versatility.  Keep this calculation shared by the bonus pass and the
+ * ability browser so the displayed value follows the actual combat value. */
+int ability_current_skill_bonus(int skilltype, int abilitynum)
+{
+    if (skilltype == S_MEL && abilitynum == MEL_WARDEN)
+    {
+        if (!p_ptr->active_ability[S_MEL][MEL_WARDEN]
+            || !player_active_weapon_is_ranged())
+            return 0;
+
+        if (p_ptr->active_ability[S_ARC][ARC_VERSATILITY])
+            return p_ptr->skill_base[S_MEL] / 2;
+
+        if (p_ptr->skill_base[S_MEL] > p_ptr->skill_base[S_ARC])
+        {
+            return (p_ptr->skill_base[S_MEL] - p_ptr->skill_base[S_ARC]) / 2;
+        }
+    }
+    else if (skilltype == S_ARC && abilitynum == ARC_VERSATILITY)
+    {
+        if (!p_ptr->active_ability[S_ARC][ARC_VERSATILITY]
+            || !player_active_weapon_is_melee())
+            return 0;
+
+        if (p_ptr->active_ability[S_MEL][MEL_WARDEN])
+            return p_ptr->skill_base[S_ARC] / 2;
+
+        if (p_ptr->skill_base[S_ARC] > p_ptr->skill_base[S_MEL])
+        {
+            return (p_ptr->skill_base[S_ARC] - p_ptr->skill_base[S_MEL]) / 2;
+        }
+    }
+
+    return 0;
+}
+
 int ability_bonus(int skilltype, int abilitynum)
 {
     int bonus = 0;

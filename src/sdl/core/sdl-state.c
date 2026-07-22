@@ -221,16 +221,6 @@ static void sdl_capture_pane_profile(struct sdl_pane_profile* profile)
         &profile->pane_count, pane_config, pane_config_count);
 }
 
-static bool sdl_pane_type_enabled_in_active_config(enum pane_type pane)
-{
-    for (int i = 0; i < pane_config_count; i++) {
-        if (pane_config[i].pane == pane && pane_config[i].enabled)
-            return true;
-    }
-
-    return false;
-}
-
 void sdl_store_active_pane_profile(int mode)
 {
     int profile_index = sdl_pane_profile_index_for_mode(mode);
@@ -302,12 +292,6 @@ void sdl_apply_stored_pane_profile(int mode)
         || config.touch_top_panel_default_open;
     sdl_copy_pane_configs(pane_config, &pane_config_count,
         profile->pane_configs, profile->pane_count);
-    if (!sdl_pane_type_enabled_in_active_config(PANE_OVERLAY_MENU)
-        && !config.show_main_menu_button)
-    {
-        config.show_main_menu_button = true;
-        log_info("Enabled fixed Menu button because Quick Access is disabled in the active layout");
-    }
 }
 
 void sdl_seed_all_pane_profiles_from_active(void)

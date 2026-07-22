@@ -13,20 +13,6 @@
 /* Internal helpers                                                      */
 /* --------------------------------------------------------------------- */
 
-typedef struct score_breakdown {
-    int base_score;
-    int mult_bp;
-    int silmarils;
-    int max_depth;
-    int cur_depth;
-    int depth_up;
-    int curses;
-    int character_power;
-    int uniques_killed;
-    bool escaped;
-    bool morgoth_slain;
-} score_breakdown;
-
 static int clampi(int value, int minimum, int maximum)
 {
     if (value < minimum)
@@ -36,9 +22,14 @@ static int clampi(int value, int minimum, int maximum)
     return value;
 }
 
-static score_breakdown calculate_score_breakdown(const high_score* score)
+static int score_points_from_breakdown(const score_breakdown* breakdown);
+
+score_breakdown score_calculate_breakdown(const high_score* score)
 {
     score_breakdown result = {0};
+
+    if (!score)
+        return result;
 
     int raw_max_depth = parse_score_int(score->max_dun, sizeof(score->max_dun), 0);
     int raw_cur_depth = parse_score_int(score->cur_dun, sizeof(score->cur_dun), 0);
@@ -79,24 +70,30 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
     if (morgoth)
         depth_up = MORGOTH_DEPTH;
 
-    int base = 10 * depth_down;
-    base += 3 * uniques_killed;
+    result.descent_points = 10 * depth_down;
+    result.unique_points = 3 * uniques_killed;
+    int base = result.descent_points + result.unique_points;
 
     if (silmarils > 0) {
-        base += 5 * depth_up;
-        base += 100;
+        result.ascent_points = 5 * depth_up;
+        result.silmaril_points = 100;
         if (silmarils > 1)
-            base += 50;
+            result.silmaril_points += 50;
         if (silmarils > 2)
-            base += 50;
+            result.silmaril_points += 50;
+        base += result.ascent_points + result.silmaril_points;
     }
 
-    if (morgoth)
-        base += 300;
+    if (morgoth) {
+        result.morgoth_points = 300;
+        base += result.morgoth_points;
+    }
 
     /* Morgoth victory should include the escape bonus as well. */
-    if (escaped || morgoth)
-        base += 100;
+    if (escaped || morgoth) {
+        result.escape_points = 100;
+        base += result.escape_points;
+    }
 
     int character_index = parse_score_int(score->p_h, sizeof(score->p_h), -1);
     int character_power = 3;
@@ -124,18 +121,18 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
         character_power--;
     }
 
-    int mult_bp = 1000;
     int character_diff = 3 - character_power;
     if (character_diff >= 0)
-        mult_bp += character_diff * 220;
+        result.character_mult_bp = character_diff * 220;
     else
-        mult_bp += character_diff * 100;
+        result.character_mult_bp = character_diff * 100;
 
     if (curses >= 0)
-        mult_bp += curses * 55;
+        result.curse_mult_bp = curses * 55;
     else
-        mult_bp += curses * 20;
+        result.curse_mult_bp = curses * 20;
 
+    int mult_bp = 1000 + result.character_mult_bp + result.curse_mult_bp;
     if (mult_bp < 0)
         mult_bp = 0;
 
@@ -150,6 +147,7 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
     result.uniques_killed = uniques_killed;
     result.escaped = escaped;
     result.morgoth_slain = morgoth;
+    result.total_score = score_points_from_breakdown(&result);
 
     return result;
 }
@@ -245,8 +243,8 @@ int score_points(const high_score* score)
     if (!score)
         return 0;
 
-    score_breakdown breakdown = calculate_score_breakdown(score);
-    int total = score_points_from_breakdown(&breakdown);
+    score_breakdown breakdown = score_calculate_breakdown(score);
+    int total = breakdown.total_score;
 
     const char* who = (score->who[0] != '\0') ? score->who : "<unknown>";
     log_debug(
@@ -264,11 +262,11 @@ int score_compare(const high_score* a, const high_score* b)
     if (!a || !b)
         return 0;
 
-    score_breakdown breakdown_a = calculate_score_breakdown(a);
-    score_breakdown breakdown_b = calculate_score_breakdown(b);
+    score_breakdown breakdown_a = score_calculate_breakdown(a);
+    score_breakdown breakdown_b = score_calculate_breakdown(b);
 
-    int score_a = score_points_from_breakdown(&breakdown_a);
-    int score_b = score_points_from_breakdown(&breakdown_b);
+    int score_a = breakdown_a.total_score;
+    int score_b = breakdown_b.total_score;
 
     if (score_a > score_b)
         return -1;

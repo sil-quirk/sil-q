@@ -2154,6 +2154,16 @@ bool sdl_popup_notification_flush_expired(Uint64 now_ns);
 bool sdl_main_menu_pane_hit(float x, float y, SDL_FRect* out_rect);
 bool sdl_main_menu_pane_handle_hover_pointer(float x, float y);
 bool sdl_main_menu_pane_handle_pointer(float x, float y);
+bool sdl_main_menu_button_handle_secondary_pointer(float x, float y);
+bool sdl_main_menu_button_handle_long_press_down(float x, float y,
+    SDL_FingerID finger_id);
+bool sdl_main_menu_button_handle_long_press_motion(float x, float y,
+    SDL_FingerID finger_id);
+bool sdl_main_menu_button_handle_long_press_up(float x, float y,
+    SDL_FingerID finger_id);
+void sdl_main_menu_button_cancel_long_press(SDL_FingerID finger_id);
+int sdl_main_menu_button_pending_timeout_ms(Uint64 now_ns);
+bool sdl_main_menu_button_flush_pending_press(Uint64 now_ns);
 int sdl_main_menu_overlay_choice_at(float x, float y, bool* in_panel);
 bool sdl_main_menu_overlay_handle_pointer_motion(float x, float y);
 bool sdl_main_menu_overlay_handle_pointer_down(float x, float y);
@@ -2827,6 +2837,8 @@ float sdl_touch_round_radius_px(void);
 bool sdl_touch_round_compute_clip_rect(SDL_Rect* out_clip);
 bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
     float* out_radius, float* out_inner_radius, SDL_Rect* out_clip);
+void sdl_touch_target_layout_begin(void);
+void sdl_touch_target_layout_end(void);
 int sdl_touch_round_dir_for_delta(float dx, float dy);
 void sdl_touch_round_send_dir(int dir, bool ctrl, bool run);
 void sdl_touch_round_cancel_press(void);

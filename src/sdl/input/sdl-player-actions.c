@@ -111,12 +111,7 @@ static cptr sdl_player_action_menu_description_for_kind(int kind)
     case SDL_PLAYER_ACTION_SHOOT:
         return "Ready: switch between melee and ranged weapons.";
     case SDL_PLAYER_ACTION_QUICK_THROW:
-        if (player_power_throw_quiver_slot() != 0
-            && player_quick_throw_quiver_slot() == 0)
-        {
-            return "Power Throw: hurl a readied quiver weapon at an adjacent foe and strike in melee.";
-        }
-        return "Throw: hurl a quick-throw dagger, use a readied Power Throw, or throw a potion with Alchemy.";
+        return "Quick Throw: hurl an eligible dagger or an Alchemy potion whose effect splashes the impact square and every adjacent square.";
     case SDL_PLAYER_ACTION_REST:
         return "Rest: rest until disturbed or fully recovered.";
     case SDL_PLAYER_ACTION_SWAP_QUIVERS:
@@ -147,8 +142,7 @@ cptr sdl_player_action_menu_fallback_for_kind(int kind)
     case SDL_PLAYER_ACTION_HORN: return "Horn";
     case SDL_PLAYER_ACTION_SHOOT: return "Tab";
     case SDL_PLAYER_ACTION_QUICK_THROW:
-        return (player_power_throw_quiver_slot() != 0
-            && player_quick_throw_quiver_slot() == 0) ? "Power" : "Throw";
+        return "Throw";
     case SDL_PLAYER_ACTION_REST: return "Rest";
     case SDL_PLAYER_ACTION_SWAP_QUIVERS: return "Swap";
     case SDL_PLAYER_ACTION_CHANGE_STAFF: return "Swap";
@@ -198,20 +192,27 @@ void sdl_player_action_menu_tile_for_kind(int kind, byte* out_attr,
     case SDL_PLAYER_ACTION_QUICK_THROW:
     {
         int slot = player_quick_throw_quiver_slot();
-        if (!slot)
-            slot = player_power_throw_quiver_slot();
         object_type* icon_obj = slot ? &inventory[slot] : NULL;
 
-        /* Prefer a quick-throw dagger; otherwise show a carried potion. */
+        /* Prefer a quick-throw dagger; otherwise show an effective potion. */
         if ((!icon_obj || !icon_obj->k_idx) && player_has_throwable_potion())
         {
-            for (int i = 0; i < INVEN_PACK; i++)
+            for (int i = 0; i < supplies_entry_count(); i++)
             {
-                if (inventory[i].k_idx && inventory[i].tval == TV_POTION)
+                object_type* o_ptr = supplies_entry_at(i);
+
+                if (potion_has_thrown_effect(o_ptr))
                 {
-                    icon_obj = &inventory[i];
+                    icon_obj = o_ptr;
                     break;
                 }
+            }
+
+            for (int i = 0; (!icon_obj || !icon_obj->k_idx)
+                    && i < INVEN_PACK; i++)
+            {
+                if (potion_has_thrown_effect(&inventory[i]))
+                    icon_obj = &inventory[i];
             }
         }
 
@@ -387,9 +388,7 @@ int sdl_player_action_menu_collect(player_action_menu_entry* entries)
     }
     if (player_quick_throw_available()) {
         sdl_player_action_menu_add_entry(entries, &count,
-            SDL_PLAYER_ACTION_QUICK_THROW, 't',
-            (player_power_throw_quiver_slot() != 0
-                && player_quick_throw_quiver_slot() == 0) ? "Power" : "Throw");
+            SDL_PLAYER_ACTION_QUICK_THROW, 't', "Throw");
     }
     sdl_player_action_menu_add_entry(entries, &count,
         SDL_PLAYER_ACTION_STEALTH, 'S', "Stealth");
