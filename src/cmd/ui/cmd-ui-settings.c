@@ -5452,12 +5452,17 @@ static bool iface_pane_row_reset_to_default(const struct iface_pane_row* row)
         }
         break;
     case IFACE_PANE_FIELD_MAIN_MENU_BUTTON:
-        if (get_sdl_show_main_menu_button() != def.show_main_menu_button)
+    {
+        bool default_visible = get_sdl_mobile_portrait_mode()
+            ? false : def.show_main_menu_button;
+
+        if (get_sdl_show_main_menu_button() != default_visible)
         {
-            set_sdl_show_main_menu_button(def.show_main_menu_button);
+            set_sdl_show_main_menu_button(default_visible);
             changed = true;
         }
         break;
+    }
     case IFACE_PANE_FIELD_POPUP_NOTIFICATION:
         if (get_sdl_popup_notification_ms() != def.popup_notification_ms)
         {

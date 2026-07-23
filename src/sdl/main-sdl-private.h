@@ -1131,6 +1131,7 @@ enum {
     SDL_UI_SYMBOL_LORE = 22,
     SDL_UI_SYMBOL_USE = 23,
     SDL_UI_SYMBOL_SING = 24,
+    SDL_UI_SYMBOL_MAP = 25,
 };
 
 typedef struct player_action_menu_entry {
@@ -3435,6 +3436,7 @@ int get_sdl_touch_top_panel_default_rows(void);
 int get_sdl_touch_top_panel_binding(int index, bool long_press);
 void set_sdl_touch_top_panel_binding(int index, bool long_press, int binding);
 int get_sdl_touch_top_panel_default_binding(int index, bool long_press);
+bool sdl_ensure_main_menu_access(void);
 bool get_sdl_touch_swipe_enabled(void);
 void set_sdl_touch_swipe_enabled(bool value);
 int get_sdl_touch_swipe_binding(int dir);
@@ -4152,6 +4154,9 @@ void sdl_reset_config_to_resolution_defaults(int screen_width,
     int screen_height);
 bool sdl_prompt_reset_sdl_defaults(const char* issue_summary,
     int screen_width, int screen_height);
+#if SIL_SDL_MOBILE_BUILD
+bool sdl_prompt_mobile_startup_portrait_mode(void);
+#endif
 #if SIL_SDL_DESKTOP_HANDHELD_BUILD
 bool sdl_is_desktop_handheld_resolution(int width, int height);
 sdl_startup_device_class sdl_prompt_desktop_startup_input_device(

@@ -848,7 +848,7 @@ bool sdl_pane_default_enabled_on_migration(enum pane_type pane)
 {
     return pane == PANE_SUPPLY || pane == PANE_LEFT_PANEL || pane == PANE_STATUS
         || pane == PANE_DEPTH || pane == PANE_COMBAT || pane == PANE_ROLLS
-        || pane == PANE_LOG || pane == PANE_DESCRIPTION
+        || pane == PANE_STATUS_DEPTH || pane == PANE_LOG || pane == PANE_DESCRIPTION
         || pane == PANE_OVERLAY_MENU;
 }
 
@@ -3119,8 +3119,6 @@ void sdl_apply_startup_input_defaults_to_config(
         target->touch_movement_mode = SDL_TOUCH_MOVEMENT_ON;
         target->touch_round_movement_enabled = true;
         target->touch_zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_OFF;
-        target->touch_top_panel_cell_count =
-            SDL_TOUCH_TOP_PANEL_CELL_COUNT_DEFAULT;
         target->touch_top_panel_rows = SDL_TOUCH_TOP_PANEL_ROWS_DEFAULT;
         target->touch_top_panel_arrows_visible = false;
         target->touch_top_panel_default_open = true;
@@ -3129,6 +3127,7 @@ void sdl_apply_startup_input_defaults_to_config(
             : (float)target->main_view_scale;
         target->touch_swipe_enabled = true;
     }
+
 }
 
 void sdl_set_touch_pane_config_enabled(bool enabled)
@@ -5435,6 +5434,58 @@ bool sdl_prompt_reset_sdl_defaults(const char* issue_summary,
         config_file_path);
     return true;
 }
+
+#if SIL_SDL_MOBILE_BUILD
+bool sdl_prompt_mobile_startup_portrait_mode(void)
+{
+    enum {
+        SDL_STARTUP_ORIENTATION_LANDSCAPE = 0,
+        SDL_STARTUP_ORIENTATION_PORTRAIT = 1,
+    };
+    SDL_MessageBoxButtonData buttons[2] = {
+        {
+            SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT
+                | SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT,
+            SDL_STARTUP_ORIENTATION_LANDSCAPE,
+            "Landscape",
+        },
+        {
+            0,
+            SDL_STARTUP_ORIENTATION_PORTRAIT,
+            "Portrait (Experimental)",
+        },
+    };
+    SDL_MessageBoxData messagebox = {
+        .flags = SDL_MESSAGEBOX_INFORMATION
+            | SDL_MESSAGEBOX_BUTTONS_LEFT_TO_RIGHT,
+        .window = g_state.window,
+        .title = "Choose Orientation",
+        .message =
+            "Choose how Sil-More should use your screen.\n\n"
+            "Landscape is recommended. Portrait mode is experimental.\n\n"
+            "You can change this later in Options > Pane Settings > "
+            "Portrait Mode.",
+        .numbuttons = (int)(sizeof(buttons) / sizeof(buttons[0])),
+        .buttons = buttons,
+        .colorScheme = NULL,
+    };
+    int button_id = SDL_STARTUP_ORIENTATION_LANDSCAPE;
+
+    if (!SDL_ShowMessageBox(&messagebox, &button_id)) {
+        log_warn("SDL_ShowMessageBox failed during mobile orientation "
+                 "selection: %s", SDL_GetError());
+        return false;
+    }
+
+    if (button_id == SDL_STARTUP_ORIENTATION_PORTRAIT) {
+        log_info("First-start mobile orientation: portrait (experimental)");
+        return true;
+    }
+
+    log_info("First-start mobile orientation: landscape");
+    return false;
+}
+#endif
 
 #if SIL_SDL_DESKTOP_HANDHELD_BUILD
 bool sdl_resolution_matches_pair(int width, int height, int native_w,

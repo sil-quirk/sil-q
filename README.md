@@ -224,7 +224,7 @@ These instructions are for personal builds and sideloading. For normal play, pre
 3. Install Android Studio plus the Android SDK, NDK, and CMake components from SDK Manager.
 4. Open the `android/` folder in Android Studio.
 5. Let Gradle sync complete.
-6. Build or run the `app` configuration. Use the `sideloadDebug` variant for personal adb installs that should coexist with the Play/internal-testing app. The Gradle project packages the game data from `lib/` into the APK and targets `arm64-v8a`.
+6. Build or run the `app` configuration. Use the `sideloadDebug` variant for personal adb installs. Debug builds use a separate package from both the Play/internal-testing app and the release sideload APK, so all copies can coexist. The Gradle project packages the game data from `lib/` into the APK and targets `arm64-v8a`.
 
 ### Personal APK build from PowerShell
 From the repo root, build a debug APK:
@@ -233,7 +233,7 @@ From the repo root, build a debug APK:
 .\build-android-apk.ps1 -Config Debug
 ```
 
-The APK helpers default to the sideload delivery flavor, so local adb installs use package ID `com.silmore.myapp.sideload` and launcher label `Sil-More APK`. This lets the sideloaded copy coexist with the Google Play/internal-testing app, which keeps package ID `com.silmore.myapp`. Debug is the simplest choice for personal sideloading because Android signs it with the local debug key automatically. The APK is written to:
+The APK helpers default to the sideload delivery flavor. Release APKs use package ID `com.silmore.myapp.sideload`; debug APKs use `com.silmore.myapp.sideload.debug`, so the debug app is a separate install from the release APK and the Google Play/internal-testing app. Debug is the simplest choice for personal sideloading because Android signs it with the local debug key automatically. The APK is written to:
 
 ```text
 android\app\build\outputs\apk\sideload\debug\app-sideload-debug.apk
@@ -245,6 +245,12 @@ To install it on a connected device, enable Developer options and USB debugging,
 .\install-android-apk.ps1 -Config Debug
 ```
 
+For a one-step debug build and deployment, use the dedicated helper:
+
+```powershell
+.\deploy-android-debug.ps1 -LaunchApp
+```
+
 To build, install, and launch a release-signed APK in one step:
 
 ```powershell
@@ -253,7 +259,7 @@ To build, install, and launch a release-signed APK in one step:
 
 `deploy-android.ps1` defaults to `Release` when `-Config` is omitted and to `Sideload` when `-Delivery` is omitted. Release APK builds and release deploys use the same upload keystore settings as the Play Store app bundle path. By default, the scripts load `%USERPROFILE%\.sil-more\play-upload-keystore.env.ps1`, then look for `%USERPROFILE%\.sil-more\play-upload-keystore.jks` with alias `upload`; the `SIL_MORE_RELEASE_*` environment variables or script parameters can override that.
 
-For a debug-signed local build, pass `-Config Debug`. Pass `-Delivery Play` only if you intentionally want an APK with the Play package ID.
+For a debug-signed local build, pass `-Config Debug`. Pass `-Delivery Play` only if you intentionally want an APK with the Play package ID; that debug variant is also suffixed with `.debug`.
 
 If Android reports a signature mismatch with an older installed copy, uninstall the existing app first or reinstall with the same signing key. If the device has a newer local build installed, `.\install-android-apk.ps1 -Config Debug -AllowDowngrade` can be used for personal testing.
 

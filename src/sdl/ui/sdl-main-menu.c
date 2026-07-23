@@ -1310,148 +1310,163 @@ bool sdl_main_menu_button_flush_pending_press(Uint64 now_ns)
     return true;
 }
 
-static int sdl_main_menu_quick_access_pane_index(void)
-{
-    for (int i = 0; i < get_pane_config_count(); i++) {
-        if (get_sdl_pane_type(i) == PANE_OVERLAY_MENU)
-            return i;
-    }
-
-    return -1;
-}
-
-static bool sdl_main_menu_quick_access_has_shortcut(void)
+static bool sdl_quick_access_has_binding(int binding)
 {
     int count = get_sdl_touch_top_panel_cell_count();
 
     for (int i = 0; i < count; i++) {
-        if (get_sdl_touch_top_panel_binding(i, false) == 'm')
+        if (get_sdl_touch_top_panel_binding(i, false) == binding
+            || get_sdl_touch_top_panel_binding(i, true) == binding)
+        {
             return true;
+        }
     }
 
     return false;
 }
 
-static int sdl_main_menu_quick_access_add_slot(bool* replaces_assignment)
+static bool sdl_quick_access_profile_insert_binding(
+    struct sdl_pane_profile* profile, int binding)
 {
-    int count = get_sdl_touch_top_panel_cell_count();
+    int count;
+    int insert_at;
 
-    if (replaces_assignment)
-        *replaces_assignment = false;
+    if (!profile)
+        return false;
+    count = profile->touch_top_panel_cell_count;
+    if (count < 0)
+        count = 0;
+    if (count > SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
+        count = SDL_TOUCH_TOP_PANEL_BUTTON_COUNT;
+
     for (int i = 0; i < count; i++) {
-        if (get_sdl_touch_top_panel_binding(i, false) == GAMEPAD_BIND_NONE)
-            return i;
+        if (profile->touch_top_panel_bindings[i] == binding
+            || profile->touch_top_panel_long_bindings[i] == binding)
+        {
+            return true;
+        }
     }
+    for (int i = 0; i < count; i++) {
+        if (profile->touch_top_panel_bindings[i] == GAMEPAD_BIND_NONE
+            && profile->touch_top_panel_long_bindings[i] == GAMEPAD_BIND_NONE)
+        {
+            profile->touch_top_panel_bindings[i] = binding;
+            return true;
+        }
+    }
+    if (count >= SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
+        return false;
+
+    /* Keep the portrait Main Menu entry last when a newly unlocked skill is
+     * accepted later in the run. */
+    insert_at = count;
+    for (int i = 0; i < count; i++) {
+        if (profile->touch_top_panel_bindings[i] == 'm'
+            || profile->touch_top_panel_long_bindings[i] == 'm')
+        {
+            insert_at = i;
+            break;
+        }
+    }
+    for (int i = count; i > insert_at; i--) {
+        profile->touch_top_panel_bindings[i] =
+            profile->touch_top_panel_bindings[i - 1];
+        profile->touch_top_panel_long_bindings[i] =
+            profile->touch_top_panel_long_bindings[i - 1];
+    }
+    profile->touch_top_panel_bindings[insert_at] = binding;
+    profile->touch_top_panel_long_bindings[insert_at] = GAMEPAD_BIND_NONE;
+    profile->touch_top_panel_cell_count = count + 1;
+    return true;
+}
+
+void sdl_quick_access_suggest_skill_shortcut(int skill)
+{
+    ui_question_option options[2];
+    const char* skill_name;
+    const char* action_name;
+    int binding;
+    int count;
+    bool has_room = false;
+    char desc[320];
+    int choice;
+
+    if (!g_state.window || death_spectator_active())
+        return;
+    if (skill == S_SNG) {
+        skill_name = "Song";
+        action_name = "Sing";
+        binding = 's';
+    } else if (skill == S_SMT) {
+        skill_name = "Smithing";
+        action_name = "Smithing";
+        binding = '0';
+    } else {
+        return;
+    }
+    if (sdl_quick_access_has_binding(binding))
+        return;
+
+    count = get_sdl_touch_top_panel_cell_count();
     if (count < SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
-        return count;
-    if (replaces_assignment)
-        *replaces_assignment = true;
-    return count - 1;
+        has_room = true;
+    for (int i = 0; !has_room && i < count; i++) {
+        has_room = get_sdl_touch_top_panel_binding(i, false)
+                == GAMEPAD_BIND_NONE
+            && get_sdl_touch_top_panel_binding(i, true) == GAMEPAD_BIND_NONE;
+    }
+    if (!has_room)
+        return;
+
+    strnfmt(desc, sizeof(desc),
+        "You acquired %s for the first time. Add %s to Quick Access?",
+        skill_name, action_name);
+    options[0] = (ui_question_option){ 'y', "Add to Quick Access",
+        TERM_L_GREEN };
+    options[1] = (ui_question_option){ 'n', "Not now", TERM_SLATE };
+    choice = ui_question_ask("New Quick Access action", desc, options, 2,
+        UI_QUESTION_GLOBAL, UI_QUESTION_GLOBAL, 1);
+    if (choice != 0)
+        return;
+
+    /* Apply the accepted shortcut to each saved layout.  Otherwise the
+     * one-time skill transition could add it only to the orientation that
+     * happened to be active when the player trained. */
+    sdl_store_active_pane_profile(config.min_terminal_mode);
+    for (int i = 0; i < SDL_PANE_PROFILE_COUNT; i++)
+        (void)sdl_quick_access_profile_insert_binding(&g_pane_profiles[i],
+            binding);
+    sdl_apply_stored_pane_profile(config.min_terminal_mode);
+    sdl_apply_config();
+    (void)save_pane_config_to_json();
+    log_info("Added %s to Quick Access after first skill purchase",
+        action_name);
 }
 
 static bool sdl_main_menu_button_run_pending_disable_prompt(void)
 {
-    ui_question_option options[3];
-    char desc[768];
-    char recovery_label[96];
-    int quick_access_index;
-    int add_slot = -1;
-    int option_count = 2;
-    int cancel_option = 1;
+    ui_question_option options[2];
+    const char* desc =
+        "Turn off the fixed Main Menu button? Main Menu will be added to "
+        "Quick Access, and Quick Access will be enabled if needed.";
     int choice;
-    bool touch_only;
-    bool quick_access_enabled = false;
-    bool has_shortcut = false;
-    bool replace_assignment = false;
-    bool recovery_needed = false;
 
     if (!g_main_menu_button_disable_prompt_pending)
         return false;
     g_main_menu_button_disable_prompt_pending = false;
 
-    quick_access_index = sdl_main_menu_quick_access_pane_index();
-    touch_only = sdl_touch_only_device_active();
-    if (quick_access_index >= 0) {
-        quick_access_enabled = get_sdl_pane_enabled(quick_access_index);
-        has_shortcut = sdl_main_menu_quick_access_has_shortcut();
-    }
-    recovery_needed = touch_only && quick_access_index >= 0
-        && (!quick_access_enabled || !has_shortcut);
-    if (recovery_needed && !has_shortcut) {
-        add_slot = sdl_main_menu_quick_access_add_slot(&replace_assignment);
-    }
-
-    strnfmt(desc, sizeof(desc),
-        "Turn off the fixed Main Menu button? You can turn it back on in "
-        "Interface settings.");
-
-    if (recovery_needed) {
-        if (!quick_access_enabled && !has_shortcut) {
-            SDL_strlcat(desc, replace_assignment
-                ? " Quick Access is off and full, with no Main Menu shortcut. "
-                  "Do you want to enable it and replace its last assignment "
-                  "with Main Menu before turning the button off?"
-                : " Quick Access is off and has no Main Menu shortcut. Do you "
-                  "want to enable it and add one before turning the button off?",
-                sizeof(desc));
-            SDL_strlcpy(recovery_label, replace_assignment
-                ? "Turn off, enable, and replace"
-                : "Turn off, enable, and add", sizeof(recovery_label));
-        } else if (!quick_access_enabled) {
-            SDL_strlcat(desc,
-                " Quick Access already has a Main Menu shortcut, but the panel "
-                "is off. Do you want to enable it before turning the button off?",
-                sizeof(desc));
-            SDL_strlcpy(recovery_label, "Turn off and enable",
-                sizeof(recovery_label));
-        } else {
-            SDL_strlcat(desc, replace_assignment
-                ? " Quick Access is full and has no Main Menu shortcut. Do you "
-                  "want to replace its last assignment with Main Menu before "
-                  "turning the button off?"
-                : " Quick Access has no Main Menu shortcut. Do you want to add "
-                  "one before turning the button off?",
-                sizeof(desc));
-            SDL_strlcpy(recovery_label, replace_assignment
-                ? "Turn off and replace assignment"
-                : "Turn off and add shortcut", sizeof(recovery_label));
-        }
-
-        options[0] = (ui_question_option){ 'y', recovery_label, TERM_L_GREEN };
-        options[1] = (ui_question_option){ 'n', "Turn off only", TERM_ORANGE };
-        options[2] = (ui_question_option){ 'c', "Cancel", TERM_SLATE };
-        option_count = 3;
-        cancel_option = 2;
-    } else {
-        options[0] = (ui_question_option){ 'y', "Turn off button", TERM_ORANGE };
-        options[1] = (ui_question_option){ 'c', "Cancel", TERM_SLATE };
-    }
+    options[0] = (ui_question_option){ 'y', "Turn off button", TERM_ORANGE };
+    options[1] = (ui_question_option){ 'c', "Cancel", TERM_SLATE };
 
     choice = ui_question_ask("Turn off Main Menu button", desc, options,
-        option_count, UI_QUESTION_GLOBAL, UI_QUESTION_GLOBAL, cancel_option);
-    if (choice < 0 || choice == cancel_option)
+        2, UI_QUESTION_GLOBAL, UI_QUESTION_GLOBAL, 1);
+    if (choice != 0)
         return true;
-
-    if (recovery_needed && choice == 0) {
-        if (!quick_access_enabled) {
-            set_sdl_pane_enabled(quick_access_index, true);
-            sdl_touch_top_panel_set_open(true);
-        }
-        if (!has_shortcut && add_slot >= 0) {
-            int count = get_sdl_touch_top_panel_cell_count();
-
-            if (add_slot >= count)
-                set_sdl_touch_top_panel_cell_count(add_slot + 1);
-            set_sdl_touch_top_panel_binding(add_slot, false, 'm');
-        }
-    }
 
     set_sdl_show_main_menu_button(false);
     sdl_apply_config();
     (void)save_pane_config_to_json();
-    log_info("Fixed Main Menu button disabled%s",
-        recovery_needed && choice == 0
-            ? " with Quick Access recovery configured" : "");
+    log_info("Fixed Main Menu button disabled with Quick Access recovery configured");
     return true;
 }
 

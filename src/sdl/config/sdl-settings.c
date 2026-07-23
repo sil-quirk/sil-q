@@ -490,6 +490,8 @@ bool get_sdl_show_main_menu_button(void)
 void set_sdl_show_main_menu_button(bool value)
 {
     config.show_main_menu_button = value;
+    if (!value)
+        (void)sdl_ensure_main_menu_access();
 }
 
 int get_sdl_margin(void)
@@ -974,6 +976,13 @@ int get_sdl_pane_default_rows(int index)
     int di = sdl_pane_default_config_index(index);
     if (di < 0)
         return 0;
+#if SIL_SDL_MOBILE_BUILD
+    if (config.mobile_portrait_mode
+        && pane_config[index].pane == PANE_ROLLS)
+    {
+        return SDL_PORTRAIT_OVERLAY_LOG_PANE_DEFAULT_ROWS;
+    }
+#endif
     return default_pane_config[di].rect.rows;
 }
 
@@ -2186,8 +2195,15 @@ void sdl_touch_apply_profile(int profile)
     for (int i = 0; i < SDL_TOUCH_MENU_CATEGORY_COUNT; i++)
         config.touch_menu_command_enabled[i] = true;
     config.touch_pane_default_open = pane_default_open;
+    /* Applying a whole touch profile is one atomic layout reset, not a user
+     * deleting Quick Access cells.  Assign the profile count first, then let
+     * the accessibility guard restore Main Menu inside Quick Access when the
+     * fixed button is disabled.  Calling the public count setter here would
+     * observe the temporary eight-cell state and re-enable the fixed button
+     * before the portrait shortcut can be restored. */
     config.touch_top_panel_cell_count =
         sdl_touch_top_panel_cell_count_normalized(top_panel_cell_count);
+    (void)sdl_ensure_main_menu_access();
     config.touch_top_panel_rows = SDL_TOUCH_TOP_PANEL_ROWS_DEFAULT;
     config.touch_top_panel_default_open = top_panel_default_open;
     config.touch_movement_mode = sdl_touch_movement_normalized_mode(movement_mode);
@@ -2405,6 +2421,10 @@ void set_sdl_touch_top_panel_size(float size)
 float get_sdl_touch_top_panel_default_size(void)
 {
     sdl_touch_pane_load_default_bindings();
+#if SIL_SDL_MOBILE_BUILD
+    if (config.mobile_portrait_mode)
+        return SDL_TOUCH_TOP_PANEL_SIZE_STRETCH;
+#endif
     return sdl_touch_top_panel_size_normalized(g_default_touch_top_panel_size);
 }
 
@@ -2426,10 +2446,10 @@ void set_sdl_touch_top_panel_columns(int columns)
 
 int get_sdl_touch_top_panel_default_columns(void)
 {
-    sdl_touch_pane_load_default_bindings();
-    return (g_default_touch_top_panel_cell_count
-        + g_default_touch_top_panel_rows - 1)
-        / g_default_touch_top_panel_rows;
+    int count = get_sdl_touch_top_panel_default_cell_count();
+    int rows = get_sdl_touch_top_panel_default_rows();
+
+    return (count + rows - 1) / rows;
 }
 
 int get_sdl_touch_top_panel_cell_count(void)
@@ -2456,15 +2476,38 @@ void set_sdl_touch_top_panel_cell_count(int count)
     }
 
     config.touch_top_panel_cell_count = count;
+    if (!config.show_main_menu_button) {
+        bool has_main_menu = false;
+
+        for (int i = 0; i < count; i++) {
+            if (config.touch_top_panel_bindings[i] == 'm'
+                || config.touch_top_panel_long_bindings[i] == 'm')
+            {
+                has_main_menu = true;
+                break;
+            }
+        }
+        if (!has_main_menu)
+            config.show_main_menu_button = true;
+    }
     sdl_touch_top_panel_cancel_press();
     g_state.need_present = true;
 }
 
 int get_sdl_touch_top_panel_default_cell_count(void)
 {
+    int count;
+
     sdl_touch_pane_load_default_bindings();
-    return sdl_touch_top_panel_cell_count_normalized(
-        g_default_touch_top_panel_cell_count);
+    count = g_default_touch_top_panel_cell_count;
+#if SIL_SDL_MOBILE_BUILD
+    if (config.mobile_portrait_mode
+        && count < SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
+    {
+        count++;
+    }
+#endif
+    return sdl_touch_top_panel_cell_count_normalized(count);
 }
 
 int get_sdl_touch_top_panel_rows(void)
@@ -2499,6 +2542,8 @@ int get_sdl_touch_top_panel_binding(int index, bool long_press)
 
 void set_sdl_touch_top_panel_binding(int index, bool long_press, int binding)
 {
+    bool has_main_menu = false;
+
     if (index < 0 || index >= SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
         return;
 
@@ -2506,7 +2551,86 @@ void set_sdl_touch_top_panel_binding(int index, bool long_press, int binding)
         config.touch_top_panel_long_bindings[index] = binding;
     else
         config.touch_top_panel_bindings[index] = binding;
+    if (!config.show_main_menu_button) {
+        int count = get_sdl_touch_top_panel_cell_count();
+
+        for (int i = 0; i < count; i++) {
+            if (config.touch_top_panel_bindings[i] == 'm'
+                || config.touch_top_panel_long_bindings[i] == 'm')
+            {
+                has_main_menu = true;
+                break;
+            }
+        }
+        if (!has_main_menu)
+            config.show_main_menu_button = true;
+    }
     g_state.need_present = true;
+}
+
+/* Keep at least one visible route to Main Menu.  Returns true when live state
+ * had to be repaired so callers applying a saved profile can persist it. */
+bool sdl_ensure_main_menu_access(void)
+{
+    int quick_access_index = -1;
+    int count;
+    int slot = -1;
+    bool changed = false;
+
+    if (config.show_main_menu_button)
+        return false;
+
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane == PANE_OVERLAY_MENU) {
+            quick_access_index = i;
+            break;
+        }
+    }
+
+    /* A malformed configuration without Quick Access cannot safely hide the
+     * fixed button. */
+    if (quick_access_index < 0) {
+        config.show_main_menu_button = true;
+        log_warn("Kept fixed Main Menu button enabled: Quick Access pane missing");
+        return true;
+    }
+
+    if (!pane_config[quick_access_index].enabled) {
+        pane_config[quick_access_index].enabled = true;
+        changed = true;
+    }
+
+    count = get_sdl_touch_top_panel_cell_count();
+    for (int i = 0; i < count; i++) {
+        if (config.touch_top_panel_bindings[i] == 'm'
+            || config.touch_top_panel_long_bindings[i] == 'm')
+        {
+            slot = i;
+            break;
+        }
+    }
+
+    if (slot < 0) {
+        /* Appending keeps Main Menu last.  At maximum capacity, replacing the
+         * last cell is preferable to leaving Main Menu unreachable. */
+        if (count < SDL_TOUCH_TOP_PANEL_BUTTON_COUNT) {
+            slot = count;
+            config.touch_top_panel_cell_count = count + 1;
+        } else {
+            slot = count - 1;
+        }
+        config.touch_top_panel_bindings[slot] = 'm';
+        config.touch_top_panel_long_bindings[slot] = GAMEPAD_BIND_NONE;
+        changed = true;
+        log_info("Added Main Menu to Quick Access while hiding fixed button");
+    }
+
+    sdl_touch_top_panel_set_open(true);
+    if (changed) {
+        sdl_touch_top_panel_cancel_press();
+        g_state.need_present = true;
+    }
+    return changed;
 }
 
 int get_sdl_touch_top_panel_default_binding(int index, bool long_press)
@@ -2514,6 +2638,13 @@ int get_sdl_touch_top_panel_default_binding(int index, bool long_press)
     if (index < 0 || index >= SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
         return GAMEPAD_BIND_NONE;
     sdl_touch_pane_load_default_bindings();
+#if SIL_SDL_MOBILE_BUILD
+    if (config.mobile_portrait_mode && !long_press
+        && index == g_default_touch_top_panel_cell_count)
+    {
+        return 'm';
+    }
+#endif
     return long_press ? g_default_touch_top_panel_long_bindings[index]
                       : g_default_touch_top_panel_bindings[index];
 }

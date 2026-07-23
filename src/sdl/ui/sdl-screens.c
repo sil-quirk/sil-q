@@ -3934,19 +3934,10 @@ void sdl_char_sheet_draw_birth_skill_table_row(TTF_Font* font,
 void sdl_char_sheet_draw_birth_status_row(TTF_Font* font, float x,
     float y, float w, float h, float line_h, int row, cptr status)
 {
+#if !SIL_SDL_MOBILE_BUILD
     SDL_FRect hit;
     bool confirm_focused;
     bool back_focused;
-#if SIL_SDL_MOBILE_BUILD
-    bool touch = sdl_touch_only_device_active();
-    cptr confirm_text = touch ? "Confirm" : "[Confirm]";
-    cptr back_text = touch ? "Back" : "[Esc]";
-    int status_span = touch ? 18 : 20;
-    int confirm_col = touch ? 19 : 23;
-    int confirm_span = touch ? 10 : 9;
-    int back_col = touch ? 30 : 33;
-    int back_span = touch ? 8 : 5;
-#else
     cptr confirm_text = "[Confirm]";
     cptr back_text = "[Esc]";
     int status_span = 20;
@@ -3959,6 +3950,13 @@ void sdl_char_sheet_draw_birth_status_row(TTF_Font* font, float x,
     if (!sdl_char_sheet_alloc_row_visible(y, h, line_h, row))
         return;
 
+#if SIL_SDL_MOBILE_BUILD
+    /* Mobile already provides persistent Back and Confirm controls below the
+     * screen.  Keep this row available for status text, but do not duplicate
+     * those controls or register overlapping in-screen hit targets. */
+    sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 0, 38,
+        TERM_L_BLUE, status, false);
+#else
     sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 0, status_span,
         TERM_L_BLUE, status, false);
 
@@ -3980,6 +3978,7 @@ void sdl_char_sheet_draw_birth_status_row(TTF_Font* font, float x,
     sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, back_col,
         back_span, TERM_SLATE, back_text, back_focused);
     sdl_char_sheet_add_prompt_hit(hit, -1);
+#endif
 }
 
 static void sdl_char_sheet_draw_birth_points_row(TTF_Font* font, float x,
@@ -11387,10 +11386,12 @@ void sdl_char_sheet_draw_page_frame(float px, float py, float pw,
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
     if (g_sdl_narrative_portrait_rendering
+        && g_sdl_character_sheet_screen.context
+            == SDL_CHARACTER_SHEET_NARRATIVE
         && !sdl_char_sheet_portrait_chronicle())
     {
-        /* A portrait leaf needs a real visual surface.  The former border-only
-         * frame read as ordinary text floating on the black screen. */
+        /* Narrative leaves use a filled surface.  Character-selection books
+         * retain the frame while allowing the black canvas to show through. */
         r = (SDL_FRect){ px, py, pw, ph };
         SDL_SetRenderDrawColor(g_state.renderer, 27, 23, 17, 250);
         SDL_RenderFillRect(g_state.renderer, &r);

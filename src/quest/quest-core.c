@@ -276,6 +276,8 @@ void apply_quest_rewards(int quest_idx)
 
     /* Apply skill bonus */
     if (q_ptr->skill_bonus > 0 && q_ptr->skill_type < S_MAX) {
+        int old_skill = p_ptr->skill_base[q_ptr->skill_type];
+
         p_ptr->skill_base[q_ptr->skill_type] += q_ptr->skill_bonus;
 
         switch (q_ptr->skill_type) {
@@ -307,6 +309,13 @@ void apply_quest_rewards(int quest_idx)
                 log_trace("Applied skill bonus: skill=%d bonus=+%d",
                           q_ptr->skill_type, q_ptr->skill_bonus);
                 break;
+        }
+
+        if (old_skill == 0 && p_ptr->skill_base[q_ptr->skill_type] > 0
+            && (q_ptr->skill_type == S_SNG
+                || q_ptr->skill_type == S_SMT))
+        {
+            sdl_quick_access_suggest_skill_shortcut(q_ptr->skill_type);
         }
     }
 

@@ -107,6 +107,9 @@ android {
 
     buildTypes {
         debug {
+            // Keep local debug installs separate from both the Play app and
+            // the release sideload APK so they can coexist on one device.
+            applicationIdSuffix '.debug'
         }
         release {
             minifyEnabled false

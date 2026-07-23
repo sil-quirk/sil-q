@@ -4902,9 +4902,11 @@ static bool sdl_touch_top_panel_tile_for_binding(int binding, byte* out_attr,
         row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_SMITHING; fallback = "Sm";
         break;
     case 'l':
-    case 'M':
     case 'L':
         row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_VIEW; fallback = "V";
+        break;
+    case 'M':
+        row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_MAP; fallback = "Map";
         break;
     case TOUCH_BIND_MAIN_MENU_KNOWLEDGE:
         row = SDL_UI_SYMBOL_ROW; col = SDL_UI_SYMBOL_LORE; fallback = "Lore";

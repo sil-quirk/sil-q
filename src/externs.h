@@ -836,27 +836,29 @@ extern void do_cmd_smithing_screen(void);
 extern void create_smithing_item(void);
 #define MAIN_MENU_CHARACTER 1
 #define MAIN_MENU_INVENTORY 2
-#define MAIN_MENU_KNOWLEDGE 3
-#define MAIN_MENU_HINTS_QUESTS 4
-#define MAIN_MENU_HALLS_OF_MANDOS 5
-#define MAIN_MENU_MAP 6
-#define MAIN_MENU_LOG_HISTORY 7
-#define MAIN_MENU_STORY 8
-#define MAIN_MENU_STORY_STATS 9
-#define MAIN_MENU_BLITZ 10
-#define MAIN_MENU_OPTIONS 11
-#define MAIN_MENU_HELP 12
-#define MAIN_MENU_ABOUT 13
-#define MAIN_MENU_SAVE 14
-#define MAIN_MENU_SAVE_QUIT 15
-#define MAIN_MENU_RETURN_GAME 16
-#define MAIN_MENU_MAX 16
+#define MAIN_MENU_SMITHING 3
+#define MAIN_MENU_KNOWLEDGE 4
+#define MAIN_MENU_HINTS_QUESTS 5
+#define MAIN_MENU_HALLS_OF_MANDOS 6
+#define MAIN_MENU_MAP 7
+#define MAIN_MENU_LOG_HISTORY 8
+#define MAIN_MENU_STORY 9
+#define MAIN_MENU_STORY_STATS 10
+#define MAIN_MENU_BLITZ 11
+#define MAIN_MENU_OPTIONS 12
+#define MAIN_MENU_HELP 13
+#define MAIN_MENU_ABOUT 14
+#define MAIN_MENU_SAVE 15
+#define MAIN_MENU_SAVE_QUIT 16
+#define MAIN_MENU_RETURN_GAME 17
+#define MAIN_MENU_MAX 17
 extern cptr main_menu_title(int choice);
 extern int main_menu_keyboard_key(int choice);
 extern void main_menu_shortcut_label(int choice, char* buf, size_t buflen);
 extern int main_menu_choice_from_key(int key);
 extern bool main_menu_choice_is_disabled(int choice);
 extern bool do_cmd_main_menu_execute_choice(int choice);
+extern void sdl_quick_access_suggest_skill_shortcut(int skill);
 extern void do_cmd_main_menu(void);
 extern void do_cmd_messages(void);
 extern void do_cmd_messages_with_filter(int initial_filter);

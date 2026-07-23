@@ -351,7 +351,7 @@ static void sdl_log_pane_switch_to(enum pane_type pane)
         if (!pane_placement_is_overlay(pane_config[index].where))
             pane_config[index].where = PLACE_TOP_RIGHT;
         if (pane_config[index].rect.rows <= 0)
-            pane_config[index].rect.rows = SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS;
+            pane_config[index].rect.rows = get_sdl_pane_default_rows(index);
         pane_config[index].rect.cols = 0;
     }
 
@@ -478,6 +478,10 @@ int sdl_log_pane_current_rows(enum pane_type pane)
         ? SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS : SDL_LOG_PANE_DEFAULT_ROWS;
     int rows;
 
+#if SIL_SDL_MOBILE_BUILD
+    if (pane == PANE_ROLLS && config.mobile_portrait_mode)
+        default_rows = SDL_PORTRAIT_OVERLAY_LOG_PANE_DEFAULT_ROWS;
+#endif
     if (index < 0)
         return default_rows;
 
@@ -1606,4 +1610,3 @@ void sdl_side_pane_menu_render(void)
             0.30f, 0.40f);
     }
 }
-

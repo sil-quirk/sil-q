@@ -78,7 +78,11 @@ Or use repo helper scripts from root:
 - `./install-android-apk.ps1 -Config Debug`
 - `./deploy-android.ps1 -LaunchApp`
 
-The APK helpers default to the `Sideload` delivery flavor, which uses package ID `com.silmore.myapp.sideload` and launcher label `Sil-More APK`. That package can coexist on the same phone with the Google Play/internal-testing app, which remains `com.silmore.myapp`. Pass `-Delivery Play` only when you intentionally want an APK with the Play package ID.
+The APK helpers default to the `Sideload` delivery flavor. Release APKs use package ID `com.silmore.myapp.sideload`; debug APKs use `com.silmore.myapp.sideload.debug`, so the debug app can coexist with both the release sideload APK and the Google Play/internal-testing app (`com.silmore.myapp`). Pass `-Delivery Play` only when you intentionally want an APK with the Play package ID.
+
+For a one-step debug build, install, and optional launch:
+
+`./deploy-android-debug.ps1 -LaunchApp`
 
 `deploy-android.ps1` defaults to `Release` when `-Config` is omitted, and to `Sideload` when `-Delivery` is omitted.
 

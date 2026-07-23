@@ -390,7 +390,46 @@ errr init_sdl(int argc, char **argv)
     }
 
     if (!config_exists) {
+#if SIL_SDL_MOBILE_BUILD
+        bool startup_portrait = sdl_prompt_mobile_startup_portrait_mode();
+
+        config.mobile_portrait_mode = startup_portrait;
+        if (startup_portrait) {
+            /* Finalize first-start portrait profiles at the point where the
+             * user selects that default.  Saved profiles never pass here. */
+            for (int mode = 0; mode < SDL_MIN_TERMINAL_MODE_COUNT; mode++) {
+                int profile_index = SDL_PANE_PROFILE_INDEX(
+                    SDL_PANE_ORIENTATION_PORTRAIT, mode);
+
+                sdl_pane_profile_apply_portrait_defaults(
+                    &g_pane_profiles[profile_index]);
+            }
+        }
+        sdl_apply_stored_pane_profile(config.min_terminal_mode);
+#endif
         sdl_apply_first_start_device_defaults(g_startup_device_class);
+#if SIL_SDL_MOBILE_BUILD
+        {
+            int quick_access_count = get_sdl_touch_top_panel_cell_count();
+            bool has_main_menu_shortcut = false;
+
+            for (int i = 0; i < quick_access_count; i++) {
+                if (get_sdl_touch_top_panel_binding(i, false) == 'm'
+                    || get_sdl_touch_top_panel_binding(i, true) == 'm')
+                {
+                    has_main_menu_shortcut = true;
+                    break;
+                }
+            }
+            log_info("First-start orientation defaults applied: portrait=%s "
+                     "fixed_menu=%s quick_access_cells=%d "
+                     "quick_access_menu=%s",
+                config.mobile_portrait_mode ? "yes" : "no",
+                config.show_main_menu_button ? "on" : "off",
+                quick_access_count,
+                has_main_menu_shortcut ? "yes" : "no");
+        }
+#endif
     }
 
     g_touch_pane_mobile_open = config.touch_pane_default_open;

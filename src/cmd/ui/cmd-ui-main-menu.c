@@ -40,6 +40,7 @@ cptr main_menu_title(int choice)
     {
     case MAIN_MENU_CHARACTER: return "Character sheet";
     case MAIN_MENU_INVENTORY: return "Inventory";
+    case MAIN_MENU_SMITHING: return "Smithing";
     case MAIN_MENU_KNOWLEDGE: return "Known lore";
     case MAIN_MENU_HINTS_QUESTS: return "Hints & Quests";
     case MAIN_MENU_HALLS_OF_MANDOS: return "Halls of Mandos";
@@ -65,6 +66,7 @@ int main_menu_keyboard_key(int choice)
     {
     case MAIN_MENU_CHARACTER: return 'c';
     case MAIN_MENU_INVENTORY: return 'i';
+    case MAIN_MENU_SMITHING: return 'f';
     case MAIN_MENU_KNOWLEDGE: return 'a';
     case MAIN_MENU_HINTS_QUESTS: return 't';
     case MAIN_MENU_HALLS_OF_MANDOS: return 'd';
@@ -260,6 +262,7 @@ int main_menu_choice_from_key(int key)
     {
     case 'c': return MAIN_MENU_CHARACTER;
     case 'i': return MAIN_MENU_INVENTORY;
+    case 'f': return MAIN_MENU_SMITHING;
     case 'a': return MAIN_MENU_KNOWLEDGE;
     case 't': return MAIN_MENU_HINTS_QUESTS;
     case 'd': return MAIN_MENU_HALLS_OF_MANDOS;
@@ -1502,6 +1505,11 @@ static bool do_cmd_main_menu_execute_choice_impl(int actiontype,
     case MAIN_MENU_INVENTORY: // Inventory (i)
     {
         do_cmd_inven_direct();
+        return true;
+    }
+    case MAIN_MENU_SMITHING: // Smithing (f)
+    {
+        do_cmd_smithing_screen();
         return true;
     }
     case MAIN_MENU_KNOWLEDGE: // Known lore (a)

@@ -34,14 +34,23 @@ if (-not (Test-Path $installScript)) {
 function Get-AndroidApplicationId {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$Delivery
+        [string]$Delivery,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Config
     )
 
     if ($Delivery -eq 'Play') {
-        return 'com.silmore.myapp'
+        $applicationId = 'com.silmore.myapp'
+    } else {
+        $applicationId = 'com.silmore.myapp.sideload'
     }
 
-    return 'com.silmore.myapp.sideload'
+    if ($Config -eq 'Debug') {
+        return "$applicationId.debug"
+    }
+
+    return $applicationId
 }
 
 $buildParams = @{
@@ -91,7 +100,7 @@ if ($LaunchApp) {
         throw "adb not found for launch step: $adb"
     }
 
-    $applicationId = Get-AndroidApplicationId -Delivery $Delivery
+    $applicationId = Get-AndroidApplicationId -Delivery $Delivery -Config $Config
     $launchArgs = @()
     if ($Serial) {
         $launchArgs += @('-s', $Serial)

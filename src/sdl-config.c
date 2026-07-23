@@ -2162,11 +2162,12 @@ static void sdl_config_migrate_touch_pane_binding(struct sdl_config* config,
 
 static void sdl_config_set_default_top_panel_bindings(struct sdl_config* config)
 {
-    /* Left to right: Quaff potions, Inventory, Abilities, Hints, Character
-     * sheet, ASCII/Tiles toggle, Smithing, Look. */
+    /* Left to right: Supplies, Inventory, Abilities, Character sheet,
+     * ASCII/Tiles toggle, Stealth, Look, Map.  Portrait profiles append Main
+     * Menu so the separate fixed button is unnecessary there. */
     static const int top_panel_defaults[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT] = {
-        'q', 'i', 'y', TOUCH_BIND_MAIN_MENU_HINTS_QUESTS,
-        'h', TOUCH_BIND_TOGGLE_TILES, '0', 'l',
+        'j', 'i', 'y', 'h',
+        TOUCH_BIND_TOGGLE_TILES, 'S', 'l', 'M',
         GAMEPAD_BIND_NONE, GAMEPAD_BIND_NONE, GAMEPAD_BIND_NONE,
         GAMEPAD_BIND_NONE, GAMEPAD_BIND_NONE, GAMEPAD_BIND_NONE,
         GAMEPAD_BIND_NONE, GAMEPAD_BIND_NONE,
@@ -2730,6 +2731,8 @@ static void sdl_pane_profile_apply_portrait_stack_migration(
 {
     int rolls_index;
     int depth_index;
+    int status_depth_index;
+    int quick_access_index;
 
     if (!profile)
         return;
@@ -2749,6 +2752,23 @@ static void sdl_pane_profile_apply_portrait_stack_migration(
             sizeof(profile->pane_configs[0]) * (rolls_index - depth_index));
         profile->pane_configs[depth_index] = rolls;
     }
+
+    status_depth_index = sdl_config_profile_find_pane(profile,
+        PANE_STATUS_DEPTH);
+    quick_access_index = sdl_config_profile_find_pane(profile,
+        PANE_OVERLAY_MENU);
+    if (status_depth_index >= 0 && quick_access_index >= 0
+        && status_depth_index > quick_access_index)
+    {
+        struct pane_config status_depth =
+            profile->pane_configs[status_depth_index];
+
+        memmove(&profile->pane_configs[quick_access_index + 1],
+            &profile->pane_configs[quick_access_index],
+            sizeof(profile->pane_configs[0])
+                * (status_depth_index - quick_access_index));
+        profile->pane_configs[quick_access_index] = status_depth;
+    }
 }
 
 void sdl_pane_config_apply_portrait_default(struct pane_config* pane)
@@ -2764,7 +2784,7 @@ void sdl_pane_config_apply_portrait_default(struct pane_config* pane)
     case PANE_ROLLS:
         pane->enabled = true;
         pane->where = PLACE_TOP_RIGHT;
-        pane->rect.rows = SDL_CONFIG_DEFAULT_LOG_PANE_ROWS;
+        pane->rect.rows = SDL_PORTRAIT_OVERLAY_LOG_PANE_DEFAULT_ROWS;
         pane->rect.cols = 0;
         break;
     case PANE_LEFT_PANEL:
@@ -2773,12 +2793,12 @@ void sdl_pane_config_apply_portrait_default(struct pane_config* pane)
         break;
     case PANE_STATUS:
     case PANE_DEPTH:
-        pane->enabled = true;
+        pane->enabled = false;
         pane->where = PLACE_TOP_RIGHT;
         break;
     case PANE_STATUS_DEPTH:
-        pane->enabled = false;
-        pane->where = PLACE_BOTTOM_RIGHT;
+        pane->enabled = true;
+        pane->where = PLACE_BOTTOM_CENTER;
         break;
     case PANE_COMBAT:
         pane->enabled = true;
@@ -2808,15 +2828,51 @@ void sdl_pane_profile_apply_portrait_defaults(
     profile->enable_right_panes = false;
     profile->enable_bottom_panes = false;
     profile->show_overlay_log_border = false;
+    profile->show_main_menu_button = false;
     profile->left_panel_expanded_on_launch = false;
+    profile->touch_top_panel_arrows_visible = false;
     profile->touch_top_panel_default_open = true;
     profile->touch_top_panel_size = SDL_TOUCH_TOP_PANEL_SIZE_STRETCH;
+
+    /* Portrait opens Main Menu from the final Quick Access cell instead of
+     * spending scarce vertical space on the separate fixed button. */
+    if (profile->touch_top_panel_cell_count < 0)
+        profile->touch_top_panel_cell_count = 0;
+    if (profile->touch_top_panel_cell_count > SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
+        profile->touch_top_panel_cell_count = SDL_TOUCH_TOP_PANEL_BUTTON_COUNT;
+    {
+        bool has_main_menu = false;
+
+        for (int i = 0; i < profile->touch_top_panel_cell_count; i++) {
+            if (profile->touch_top_panel_bindings[i] == 'm'
+                || profile->touch_top_panel_long_bindings[i] == 'm')
+            {
+                has_main_menu = true;
+                break;
+            }
+        }
+        if (!has_main_menu) {
+            int slot;
+
+            if (profile->touch_top_panel_cell_count
+                < SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
+            {
+                slot = profile->touch_top_panel_cell_count++;
+            } else {
+                /* The fixed button is disabled in portrait, so Main Menu must
+                 * win the final slot even in a full inherited layout. */
+                slot = profile->touch_top_panel_cell_count - 1;
+            }
+            profile->touch_top_panel_bindings[slot] = 'm';
+            profile->touch_top_panel_long_bindings[slot] = GAMEPAD_BIND_NONE;
+        }
+    }
 
     for (int i = 0; i < profile->pane_count && i < MAX_PANE_CONFIGS; i++)
         sdl_pane_config_apply_portrait_default(&profile->pane_configs[i]);
 
     /* Pane order is the stack order for panes sharing one overlay slot.  Keep
-     * the former portrait presentation: log, then depth, then status. */
+     * combined Status & Depth at Bottom Center 1 and Quick Access at 2. */
     sdl_pane_profile_apply_portrait_stack_migration(profile);
 }
 

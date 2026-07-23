@@ -39,13 +39,25 @@ const struct pane_config default_pane_config[] = {
     {.pane = PANE_COMBAT, .where = PLACE_BOTTOM_LEFT, .enabled = true,
         .rect.rows = PANE_COMBAT_OVERLAY_ROWS,
         .rect.cols = PANE_COMBAT_OVERLAY_COLS},
+#if SIL_SDL_MOBILE_BUILD
+    {.pane = PANE_DEPTH, .where = PLACE_BOTTOM_RIGHT, .enabled = false,
+#else
     {.pane = PANE_DEPTH, .where = PLACE_BOTTOM_RIGHT, .enabled = true,
+#endif
         .rect.rows = 4, .rect.cols = 12},
     {.pane = PANE_ROLLS, .where = PLACE_TOP_RIGHT, .enabled = true,
         .rect.rows = SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS},
+#if SIL_SDL_MOBILE_BUILD
+    {.pane = PANE_STATUS, .where = PLACE_TOP_CENTER, .enabled = false,
+#else
     {.pane = PANE_STATUS, .where = PLACE_TOP_CENTER, .enabled = true,
+#endif
         .rect.rows = 1, .rect.cols = 24},
+#if SIL_SDL_MOBILE_BUILD
+    {.pane = PANE_STATUS_DEPTH, .where = PLACE_BOTTOM_CENTER, .enabled = true,
+#else
     {.pane = PANE_STATUS_DEPTH, .where = PLACE_BOTTOM_RIGHT, .enabled = false,
+#endif
         .rect.rows = 1, .rect.cols = 24},
     {.pane = PANE_DESCRIPTION, .where = PLACE_BOTTOM_CENTER, .enabled = true,
         .rect.rows = 80, .rect.cols = 160},
@@ -292,6 +304,8 @@ void sdl_apply_stored_pane_profile(int mode)
         || config.touch_top_panel_default_open;
     sdl_copy_pane_configs(pane_config, &pane_config_count,
         profile->pane_configs, profile->pane_count);
+    if (sdl_ensure_main_menu_access())
+        sdl_capture_pane_profile(&g_pane_profiles[profile_index]);
 }
 
 void sdl_seed_all_pane_profiles_from_active(void)
