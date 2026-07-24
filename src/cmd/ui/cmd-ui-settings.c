@@ -1043,6 +1043,7 @@ static bool settings_pick_value_ex_buttons(cptr title, cptr desc,
         options[i].label = labels[i];
         options[i].attr = (choices[i].value == current_value)
             ? TERM_L_BLUE : TERM_WHITE;
+        options[i].disabled = false;
     }
 
     choice = ui_question_ask_overlay_buttons(title ? title : "Choose Value",
@@ -6679,13 +6680,16 @@ bool do_cmd_touch_top_widget_pick_button(int slot)
     while (true)
     {
         char row_label[16];
-        ui_question_button buttons[] = {
-            { SETTINGS_CLICK_QUICK_ACCESS_SIZE, 's', "Size", TERM_L_WHITE },
-            { SETTINGS_CLICK_QUICK_ACCESS_ADD_CELL, 'a', "Add Cell",
-                TERM_L_WHITE },
-            { SETTINGS_CLICK_QUICK_ACCESS_ROW, 'r', row_label, TERM_L_WHITE },
-        };
         int cell_count = get_sdl_touch_top_panel_cell_count();
+        ui_question_button buttons[] = {
+            { SETTINGS_CLICK_QUICK_ACCESS_SIZE, 's', "Size", TERM_L_WHITE,
+                false },
+            { SETTINGS_CLICK_QUICK_ACCESS_ADD_CELL, 'a', "Add Cell",
+                TERM_L_WHITE,
+                cell_count >= SDL_TOUCH_TOP_PANEL_CELL_COUNT_MAX },
+            { SETTINGS_CLICK_QUICK_ACCESS_ROW, 'r', row_label, TERM_L_WHITE,
+                false },
+        };
 
         if (slot < 0 || slot >= SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
             break;

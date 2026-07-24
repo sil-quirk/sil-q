@@ -4933,7 +4933,9 @@ static bool do_cmd_chest_minigame(int y, int x, s16b o_idx)
 #define CHEST_MENU_ADD(action_, key_, label_, attr_)                          \
     do                                                                        \
     {                                                                         \
-        options[count] = (ui_question_option){ (key_), (label_), (attr_) };    \
+        options[count] = (ui_question_option){                                \
+            (key_), (label_), (attr_), false                                  \
+        };                                                                    \
         actions[count] = (action_);                                            \
         count++;                                                              \
     } while (0)

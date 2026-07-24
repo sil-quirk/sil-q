@@ -1285,6 +1285,14 @@
 #define FEAT_FORGE_UNIQUE_HEAD 0x4C /*  */
 #define FEAT_FORGE_UNIQUE_TAIL 0x4F /*  */
 
+/* Tunneling thresholds shared by terrain interaction and forge sabotage. */
+#define TUNNEL_DIFFICULTY_RUBBLE 1
+#define TUNNEL_DIFFICULTY_QUARTZ 2
+#define TUNNEL_DIFFICULTY_GRANITE 3
+
+/* Reward for denying a normal or enchanted forge to Morgoth's army. */
+#define FORGE_DESTROY_EXP 75
+
 // Vaults
 #define MAX_GREATER_VAULTS 8
 

@@ -2637,7 +2637,7 @@ static int jewelry_preset_find_source_for_target(int preset_slot,
 
 static bool jewelry_preset_current_jewelry_can_move(
     const object_type* targets[JEWELRY_PRESET_SLOT_MAX],
-    const bool target_present[JEWELRY_PRESET_SLOT_MAX])
+    const bool target_present[JEWELRY_PRESET_SLOT_MAX], bool report)
 {
     int jewelry_slots[JEWELRY_PRESET_SLOT_MAX] = {
         INVEN_LEFT, INVEN_RIGHT, INVEN_NECK
@@ -2647,8 +2647,6 @@ static bool jewelry_preset_current_jewelry_can_move(
     {
         int item = jewelry_slots[i];
         object_type* o_ptr = &inventory[item];
-        char o_name[80];
-
         if (!o_ptr->k_idx)
             continue;
         if (jewelry_preset_current_slot_is_settled(item, targets,
@@ -2657,13 +2655,42 @@ static bool jewelry_preset_current_jewelry_can_move(
         if (!cursed_p(o_ptr))
             continue;
 
-        object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
-        msg_format("You cannot bear to give up the %s you are %s.", o_name,
-            describe_use(item));
+        if (report)
+        {
+            char o_name[80];
+
+            object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
+            msg_format("You cannot bear to give up the %s you are %s.",
+                o_name, describe_use(item));
+        }
         return false;
     }
 
     return true;
+}
+
+static bool jewelry_preset_can_apply_now(int preset)
+{
+    const object_type* targets[JEWELRY_PRESET_SLOT_MAX];
+    bool target_present[JEWELRY_PRESET_SLOT_MAX];
+
+    if (death_spectator_active() || preset < 0
+        || preset >= JEWELRY_PRESET_MAX || !jewelry_preset_is_set(preset))
+    {
+        return false;
+    }
+
+    for (int slot = 0; slot < JEWELRY_PRESET_SLOT_MAX; slot++)
+    {
+        targets[slot] = jewelry_preset_object(preset, slot);
+        target_present[slot] = targets[slot] && targets[slot]->k_idx;
+        if (!target_present[slot])
+            return false;
+    }
+
+    return jewelry_preset_targets_available(targets, target_present)
+        && jewelry_preset_current_jewelry_can_move(
+            targets, target_present, false);
 }
 
 bool do_cmd_jewelry_preset_apply(int preset)
@@ -2706,7 +2733,8 @@ bool do_cmd_jewelry_preset_apply(int preset)
         return false;
     }
 
-    if (!jewelry_preset_current_jewelry_can_move(targets, target_present))
+    if (!jewelry_preset_current_jewelry_can_move(
+            targets, target_present, true))
         return false;
 
     for (int slot = 0; slot < JEWELRY_PRESET_SLOT_MAX; slot++)
@@ -2802,15 +2830,19 @@ void do_cmd_jewelry_preset_shortcut(void)
 
     for (int i = 0; i < JEWELRY_PRESET_MAX; i++)
     {
+        bool available = jewelry_preset_can_apply_now(i);
+
         strnfmt(labels[i], sizeof(labels[i]), "Jewelry set %d%s", i + 1,
-            jewelry_preset_is_set(i) ? "" : " (empty)");
+            jewelry_preset_is_set(i)
+                ? (available ? "" : " (unavailable)") : " (empty)");
         options[i].key = (char)('1' + i);
         options[i].label = labels[i];
-        options[i].attr
-            = jewelry_preset_is_set(i) ? TERM_L_WHITE : TERM_SLATE;
+        options[i].attr = TERM_L_WHITE;
+        options[i].disabled = !available;
     }
 
-    choice = ui_question_ask("Wear which jewelry set?", NULL, options,
+    choice = ui_question_ask("Wear which jewelry set?",
+        "Grey choices cannot be worn right now.", options,
         JEWELRY_PRESET_MAX, UI_QUESTION_GLOBAL, UI_QUESTION_GLOBAL, 0);
     if (choice < 0)
         return;

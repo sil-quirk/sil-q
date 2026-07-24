@@ -1418,8 +1418,9 @@ static void sdl_quick_access_suggest_unlocked_shortcut(cptr unlock_name,
             unlock_name, action_name);
     }
     options[0] = (ui_question_option){ 'y', "Add to Quick Access",
-        TERM_L_GREEN };
-    options[1] = (ui_question_option){ 'n', "Not now", TERM_SLATE };
+        TERM_L_GREEN, false };
+    options[1]
+        = (ui_question_option){ 'n', "Not now", TERM_SLATE, false };
     choice = ui_question_ask("New Quick Access action", desc, options, 2,
         UI_QUESTION_GLOBAL, UI_QUESTION_GLOBAL, 1);
     if (choice != 0)
@@ -1489,8 +1490,10 @@ static bool sdl_main_menu_button_run_pending_disable_prompt(void)
         return false;
     g_main_menu_button_disable_prompt_pending = false;
 
-    options[0] = (ui_question_option){ 'y', "Turn off button", TERM_ORANGE };
-    options[1] = (ui_question_option){ 'c', "Cancel", TERM_SLATE };
+    options[0]
+        = (ui_question_option){ 'y', "Turn off button", TERM_ORANGE, false };
+    options[1]
+        = (ui_question_option){ 'c', "Cancel", TERM_SLATE, false };
 
     choice = ui_question_ask("Turn off Main Menu button", desc, options,
         2, UI_QUESTION_GLOBAL, UI_QUESTION_GLOBAL, 1);

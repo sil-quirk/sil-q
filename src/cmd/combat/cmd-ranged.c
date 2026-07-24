@@ -1678,6 +1678,7 @@ static bool select_throw_slot(int* item)
             options[i].key = (char)('a' + i);
             options[i].label = labels[i];
             options[i].attr = TERM_L_WHITE;
+            options[i].disabled = false;
         }
 
         choice = ui_question_ask("Quick throw", "Choose what to hurl.", options,

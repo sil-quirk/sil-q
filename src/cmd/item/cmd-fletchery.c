@@ -267,8 +267,10 @@ static bool choose_fletchery_supply_torch(int* out_sval)
     strnfmt(wooden_label, sizeof(wooden_label), "Wooden torches (%d)", wooden);
     strnfmt(mallorn_label, sizeof(mallorn_label), "Mallorn torches (%d)",
         mallorn);
-    options[0] = (ui_question_option){ 'w', wooden_label, TERM_L_WHITE };
-    options[1] = (ui_question_option){ 'm', mallorn_label, TERM_L_WHITE };
+    options[0]
+        = (ui_question_option){ 'w', wooden_label, TERM_L_WHITE, false };
+    options[1]
+        = (ui_question_option){ 'm', mallorn_label, TERM_L_WHITE, false };
 
     choice = ui_question_ask("Use which torches from supplies?", NULL,
         options, 2, UI_QUESTION_GLOBAL, UI_QUESTION_GLOBAL, 0);

@@ -62,9 +62,10 @@ static autoload_recovery_action autoload_prompt_unavailable_save(
 {
     char desc[768];
     ui_question_option options[] = {
-        { 'd', "Mark the character dead and continue", TERM_L_RED },
-        { 'q', "Keep everything unchanged and quit", TERM_WHITE },
-        { 'r', "Remove the character from scores and continue", TERM_ORANGE },
+        { 'd', "Mark the character dead and continue", TERM_L_RED, false },
+        { 'q', "Keep everything unchanged and quit", TERM_WHITE, false },
+        { 'r', "Remove the character from scores and continue", TERM_ORANGE,
+            false },
     };
 
     strnfmt(desc, sizeof(desc),
@@ -88,8 +89,8 @@ static autoload_recovery_action autoload_prompt_older_save(const char* who,
 {
     char desc[768];
     ui_question_option options[] = {
-        { 'd', "Mark the character dead", TERM_L_RED },
-        { 'p', "Proceed with the older save", TERM_ORANGE },
+        { 'd', "Mark the character dead", TERM_L_RED, false },
+        { 'p', "Proceed with the older save", TERM_ORANGE, false },
     };
 
     strnfmt(desc, sizeof(desc),
@@ -112,7 +113,7 @@ static void autoload_report_resolution_failure(const char* who)
 {
     char desc[512];
     ui_question_option options[] = {
-        { 'q', "Quit without making further changes", TERM_WHITE },
+        { 'q', "Quit without making further changes", TERM_WHITE, false },
     };
 
     strnfmt(desc, sizeof(desc),

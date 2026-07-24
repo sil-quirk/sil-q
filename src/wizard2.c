@@ -87,6 +87,7 @@ static int debug_overlay_choose_index(cptr title, cptr desc,
             options[option_count].key = entries[start + i].key;
             options[option_count].label = entries[start + i].label;
             options[option_count].attr = entries[start + i].attr;
+            options[option_count].disabled = false;
             option_to_entry[option_count] = start + i;
             option_count++;
         }
@@ -98,6 +99,7 @@ static int debug_overlay_choose_index(cptr title, cptr desc,
             options[option_count].key = '<';
             options[option_count].label = nav_labels[0];
             options[option_count].attr = TERM_SLATE;
+            options[option_count].disabled = false;
             option_to_entry[option_count] = -2;
             option_count++;
         }
@@ -109,6 +111,7 @@ static int debug_overlay_choose_index(cptr title, cptr desc,
             options[option_count].key = '>';
             options[option_count].label = nav_labels[1];
             options[option_count].attr = TERM_SLATE;
+            options[option_count].disabled = false;
             option_to_entry[option_count] = -3;
             option_count++;
         }

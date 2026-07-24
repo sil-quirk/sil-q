@@ -591,8 +591,10 @@ static int thrall_give_item_question(monster_type* m_ptr, cptr prompt_desc)
         "Give it for a reward, or refuse for now.");
     desc_to_use = (prompt_desc && prompt_desc[0]) ? prompt_desc : desc;
 
-    options[0] = (ui_question_option){ 'g', "Give it", TERM_L_WHITE };
-    options[1] = (ui_question_option){ 'n', "Not now", TERM_WHITE };
+    options[0]
+        = (ui_question_option){ 'g', "Give it", TERM_L_WHITE, false };
+    options[1]
+        = (ui_question_option){ 'n', "Not now", TERM_WHITE, false };
 
     return ui_question_ask(title, desc_to_use, options, 2, m_ptr->fy,
         m_ptr->fx, 0);
@@ -1902,8 +1904,7 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
     for (int i = 0; i < option_count; i++)
     {
         question_options[i] = (ui_question_option){ options[i].hotkey,
-            options[i].label,
-            options[i].enabled ? TERM_L_WHITE : TERM_L_DARK };
+            options[i].label, TERM_L_WHITE, !options[i].enabled };
         if (default_index < 0 && options[i].enabled)
             default_index = i;
     }
@@ -1925,21 +1926,12 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
                 : "Choose what gift the human thrall will grant you.");
     }
 
-    while (true)
     {
         int selected = ui_question_ask(title, desc, question_options,
             option_count, m_ptr->fy, m_ptr->fx, default_index);
 
-        if (selected < 0)
-            return THRALL_REWARD_LATER;
-
-        if (!options[selected].enabled)
-        {
-            bell("That reward is not available.");
-            continue;
-        }
-
-        return options[selected].reward;
+        return (selected < 0) ? THRALL_REWARD_LATER
+                              : options[selected].reward;
     }
 }
 

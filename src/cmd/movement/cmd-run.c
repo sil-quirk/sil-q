@@ -3,6 +3,7 @@
 #include "log/log.h"
 #include "player/killer.h"
 #include "metarun.h"
+#include "ui/question.h"
 #include <math.h>
 
 /*
@@ -38,6 +39,145 @@ static bool move_target_exits_gates(int y, int x)
 
     return (y == 0) || (x == 0) || (y == p_ptr->cur_map_hgt - 1)
         || (x == p_ptr->cur_map_wid - 1);
+}
+
+/*
+ * Return the strongest actual mattock in the main-hand slot or pack.
+ * Forge sabotage deliberately excludes shovels, while using the same
+ * tunneling value as quartz-vein destruction.
+ */
+static object_type* forge_sabotage_mattock(int* out_score)
+{
+    object_type* best = NULL;
+    int best_score = 0;
+
+    for (int i = -1; i < INVEN_PACK; i++)
+    {
+        object_type* o_ptr
+            = (i < 0) ? &inventory[INVEN_WIELD] : &inventory[i];
+        u32b f1, f2, f3;
+
+        if (!o_ptr->k_idx || (o_ptr->tval != TV_DIGGING)
+            || (o_ptr->sval != SV_MATTOCK))
+        {
+            continue;
+        }
+
+        object_flags(o_ptr, &f1, &f2, &f3);
+        if ((f1 & (TR1_TUNNEL)) && (o_ptr->pval > best_score))
+        {
+            best = o_ptr;
+            best_score = o_ptr->pval;
+        }
+    }
+
+    if (out_score)
+        *out_score = best_score;
+    return best;
+}
+
+/*
+ * Offer the forge mini-quest whenever the player steps onto a forge.
+ * Returns true only when the player chooses to open the smithing screen.
+ */
+static bool forge_entry_choice(int y, int x)
+{
+    ui_question_option options[2];
+    object_type* mattock;
+    int digging_score = 0;
+    int feat = cave_feat[y][x];
+    int choice;
+    bool can_destroy;
+    bool unique = (feat >= FEAT_FORGE_UNIQUE_HEAD);
+    char desc[640];
+    char destroy_label[64];
+    char tool_status[192];
+
+    if (unique)
+    {
+        SDL_strlcpy(desc,
+            "Here Morgoth's greatest weapons were wrought for his armies. "
+            "Orodruth is rooted in the Mountain's own fire and cannot be "
+            "destroyed.",
+            sizeof(desc));
+        options[0] = (ui_question_option){
+            'u', "Enter and use Orodruth", TERM_L_GREEN, false
+        };
+
+        choice = ui_question_ask("Orodruth, the Mountain's Anger", desc,
+            options, 1, y, x, 0);
+        return choice == 0;
+    }
+
+    mattock = forge_sabotage_mattock(&digging_score);
+    if (!mattock)
+    {
+        SDL_strlcpy(tool_status,
+            "You carry no mattock with which to break it apart.",
+            sizeof(tool_status));
+    }
+    else if (digging_score < TUNNEL_DIFFICULTY_QUARTZ)
+    {
+        char o_name[80];
+
+        object_desc(o_name, sizeof(o_name), mattock, false, -1);
+        strnfmt(tool_status, sizeof(tool_status),
+            "Your %s has tunneling %d; destroying the forge requires %d.",
+            o_name, digging_score, TUNNEL_DIFFICULTY_QUARTZ);
+    }
+    else if (p_ptr->stat_use[A_STR] < TUNNEL_DIFFICULTY_QUARTZ)
+    {
+        strnfmt(tool_status, sizeof(tool_status),
+            "Your mattock is suitable, but destroying the forge requires "
+            "Strength %d.",
+            TUNNEL_DIFFICULTY_QUARTZ);
+    }
+    else
+    {
+        SDL_strlcpy(tool_status,
+            "Your mattock and Strength are sufficient to destroy it.",
+            sizeof(tool_status));
+    }
+    can_destroy = mattock
+        && (digging_score >= TUNNEL_DIFFICULTY_QUARTZ)
+        && (p_ptr->stat_use[A_STR] >= TUNNEL_DIFFICULTY_QUARTZ);
+
+    strnfmt(desc, sizeof(desc),
+        "Forges such as this arm the hosts of Morgoth. You may preserve its "
+        "fires for your own craft, or smash it so that it can serve the "
+        "Enemy no more. Even an exhausted forge may be destroyed for %d "
+        "experience. %s",
+        FORGE_DESTROY_EXP, tool_status);
+
+    options[0]
+        = (ui_question_option){
+            'u', "Enter and use the forge", TERM_L_GREEN, false
+        };
+    strnfmt(destroy_label, sizeof(destroy_label),
+        "Destroy the forge (+%d experience)", FORGE_DESTROY_EXP);
+    options[1] = (ui_question_option){
+        'd', destroy_label, TERM_ORANGE, !can_destroy
+    };
+
+    choice = ui_question_ask(
+        (feat >= FEAT_FORGE_GOOD_HEAD) ? "An Enchanted Forge of the Enemy"
+                                       : "A Forge of the Enemy",
+        desc, options, 2, y, x, 0);
+
+    if (choice == 0)
+        return true;
+    if (choice != 1)
+        return false;
+
+    sound(MSG_DIG);
+    monster_perception(true, false, -10);
+    cave_set_feat(y, x, FEAT_RUBBLE);
+    gain_exp(FORGE_DESTROY_EXP);
+    msg_format("You smash the forge beyond use, denying it to Morgoth's "
+               "army, and gain %d experience.",
+        FORGE_DESTROY_EXP);
+    do_cmd_note("Destroyed one of Morgoth's forges", p_ptr->depth);
+    return false;
 }
 
 void move_player(int dir)
@@ -548,6 +688,9 @@ void move_player(int dir)
 
             cave_info[y][x] |= (CAVE_MARK);
             lite_spot(y, x);
+
+            if (forge_entry_choice(y, x))
+                do_cmd_smithing_screen();
         }
 
         /* Set off traps */

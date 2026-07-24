@@ -11,6 +11,7 @@ typedef struct ui_question_option {
     char key;
     cptr label;
     byte attr;
+    bool disabled;
 } ui_question_option;
 
 typedef struct ui_question_button {
@@ -18,6 +19,7 @@ typedef struct ui_question_button {
     char key;
     cptr label;
     byte attr;
+    bool disabled;
 } ui_question_button;
 
 /*
@@ -28,7 +30,9 @@ typedef struct ui_question_button {
  *
  * Blocks in an inkey loop: arrows scroll the highlighted answer,
  * Enter/Space/click/tap confirm, letter shortcuts pick directly, Escape
- * cancels.  Returns the chosen option index, or -1 on cancel.
+ * cancels.  Disabled choices are drawn in grey, skipped by arrow navigation,
+ * and cannot be confirmed by any input method.  Returns the chosen option
+ * index, or -1 on cancel.
  */
 #define UI_QUESTION_GLOBAL (-1)
 

@@ -24,36 +24,59 @@ static void ui_question_show(cptr title, cptr desc,
 
     for (int i = 0; i < count; i++)
     {
+        byte attr = options[i].disabled ? TERM_L_DARK : options[i].attr;
+
         if (options[i].key)
         {
             strnfmt(letter, sizeof(letter), "%c)", options[i].key);
             sdl_question_menu_add_entry(i, letter, options[i].label,
-                options[i].attr);
+                attr);
         }
         else
         {
             sdl_question_menu_add_entry(i, "", options[i].label,
-                options[i].attr);
+                attr);
         }
     }
     for (int i = 0; buttons && i < button_count; i++)
         sdl_question_menu_add_button(buttons[i].choice, buttons[i].label,
-            buttons[i].attr);
+            buttons[i].disabled ? TERM_L_DARK : buttons[i].attr);
 
     sdl_question_menu_set_highlight(highlight);
     sdl_question_menu_finish();
 }
 
-static bool ui_question_button_choice_present(
+static const ui_question_button* ui_question_find_button(
     const ui_question_button* buttons, int button_count, int choice)
 {
     for (int i = 0; buttons && i < button_count; i++)
     {
         if (buttons[i].choice == choice)
-            return true;
+            return &buttons[i];
     }
 
-    return false;
+    return NULL;
+}
+
+static int ui_question_next_enabled(const ui_question_option* options,
+    int count, int highlight, int direction)
+{
+    for (int offset = 1; offset <= count; offset++)
+    {
+        int candidate = (highlight + direction * offset) % count;
+
+        if (candidate < 0)
+            candidate += count;
+        if (!options[candidate].disabled)
+            return candidate;
+    }
+
+    return highlight;
+}
+
+static void ui_question_unavailable(void)
+{
+    bell("That choice is not available.");
 }
 
 static int ui_question_ask_aux(cptr title, cptr desc,
@@ -76,6 +99,8 @@ static int ui_question_ask_aux(cptr title, cptr desc,
     highlight = ((default_index >= 0) && (default_index < count))
         ? default_index
         : 0;
+    if (options[highlight].disabled)
+        highlight = ui_question_next_enabled(options, count, highlight, 1);
 
     if (repaint_background)
     {
@@ -119,17 +144,33 @@ static int ui_question_ask_aux(cptr title, cptr desc,
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
 
-                    result = clicked_choice;
-                    done = true;
-                }
-                else if (ui_question_button_choice_present(buttons,
-                             button_count, clicked_choice))
-                {
-                    if (click_action == UI_MENU_CLICK_HOVER)
+                    if (options[clicked_choice].disabled)
+                    {
+                        ui_question_unavailable();
                         continue;
+                    }
 
                     result = clicked_choice;
                     done = true;
+                }
+                else
+                {
+                    const ui_question_button* button = ui_question_find_button(
+                        buttons, button_count, clicked_choice);
+
+                    if (button)
+                    {
+                        if (click_action == UI_MENU_CLICK_HOVER)
+                            continue;
+                        if (button->disabled)
+                        {
+                            ui_question_unavailable();
+                            continue;
+                        }
+
+                        result = clicked_choice;
+                        done = true;
+                    }
                 }
                 continue;
             }
@@ -156,21 +197,26 @@ static int ui_question_ask_aux(cptr title, cptr desc,
         case ' ':
         case '6': /* right: select the highlighted answer */
         {
-            result = highlight;
-            done = true;
+            if (options[highlight].disabled)
+                ui_question_unavailable();
+            else
+            {
+                result = highlight;
+                done = true;
+            }
             break;
         }
 
         case '2': /* down: next answer */
         {
-            highlight = (highlight + 1) % count;
+            highlight = ui_question_next_enabled(options, count, highlight, 1);
             scroll_follow_highlight = true;
             break;
         }
 
         case '8': /* up: previous answer */
         {
-            highlight = (highlight + count - 1) % count;
+            highlight = ui_question_next_enabled(options, count, highlight, -1);
             scroll_follow_highlight = true;
             break;
         }
@@ -185,9 +231,15 @@ static int ui_question_ask_aux(cptr title, cptr desc,
                     && (tolower((unsigned char)which)
                         == tolower((unsigned char)options[i].key)))
                 {
-                    result = i;
-                    done = true;
                     matched = true;
+                    highlight = i;
+                    if (options[i].disabled)
+                        ui_question_unavailable();
+                    else
+                    {
+                        result = i;
+                        done = true;
+                    }
                     break;
                 }
             }
@@ -197,9 +249,14 @@ static int ui_question_ask_aux(cptr title, cptr desc,
                     && (tolower((unsigned char)which)
                         == tolower((unsigned char)buttons[i].key)))
                 {
-                    result = buttons[i].choice;
-                    done = true;
                     matched = true;
+                    if (buttons[i].disabled)
+                        ui_question_unavailable();
+                    else
+                    {
+                        result = buttons[i].choice;
+                        done = true;
+                    }
                     break;
                 }
             }

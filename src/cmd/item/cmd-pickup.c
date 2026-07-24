@@ -1451,6 +1451,7 @@ void do_cmd_pickup_from_pile(void)
             options[i].key = (i < 26) ? (char)('a' + i) : 0;
             options[i].label = names[i];
             options[i].attr = TERM_L_WHITE;
+            options[i].disabled = false;
         }
 
         item = ui_question_ask("Pick up which object?", NULL, options,

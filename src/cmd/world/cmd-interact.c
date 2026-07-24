@@ -624,9 +624,11 @@ static int door_minigame_question(int y, int x)
         SDL_strlcat(desc,
             "The lock is jammed. The door can only be bashed open.",
             sizeof(desc));
-        options[count] = (ui_question_option){ 'b', bash_label, TERM_ORANGE };
+        options[count]
+            = (ui_question_option){ 'b', bash_label, TERM_ORANGE, false };
         actions[count++] = DOOR_CHOICE_BASH;
-        options[count] = (ui_question_option){ 'l', "Leave", TERM_SLATE };
+        options[count]
+            = (ui_question_option){ 'l', "Leave", TERM_SLATE, false };
         actions[count++] = DOOR_CHOICE_LEAVE;
     }
     else
@@ -641,11 +643,15 @@ static int door_minigame_question(int y, int x)
             "The door is locked. Pick the lock or force it open. A failed "
             "lockpick may jam it.", sizeof(desc));
         options[count]
-            = (ui_question_option){ 'p', lockpick_label, TERM_L_GREEN };
+            = (ui_question_option){
+                'p', lockpick_label, TERM_L_GREEN, false
+            };
         actions[count++] = DOOR_CHOICE_LOCKPICK;
-        options[count] = (ui_question_option){ 'b', bash_label, TERM_ORANGE };
+        options[count]
+            = (ui_question_option){ 'b', bash_label, TERM_ORANGE, false };
         actions[count++] = DOOR_CHOICE_BASH;
-        options[count] = (ui_question_option){ 'l', "Leave", TERM_SLATE };
+        options[count]
+            = (ui_question_option){ 'l', "Leave", TERM_SLATE, false };
         actions[count++] = DOOR_CHOICE_LEAVE;
     }
 
@@ -1545,15 +1551,18 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
         return true;
     }
 
-#define GRID_Q_ADD(cmd_, key_, label_, attr_)                                 \
+#define GRID_Q_ADD_EX(cmd_, key_, label_, attr_, disabled_)                   \
     do                                                                        \
     {                                                                         \
         options[count].key = (key_);                                          \
         options[count].label = (label_);                                      \
         options[count].attr = (attr_);                                        \
+        options[count].disabled = (disabled_);                                \
         commands[count] = (cmd_);                                             \
         count++;                                                              \
     } while (0)
+#define GRID_Q_ADD(cmd_, key_, label_, attr_)                                 \
+    GRID_Q_ADD_EX((cmd_), (key_), (label_), (attr_), false)
 
     /* --- Alert thrall --- */
     if ((cave_m_idx[y][x] > 0) && mon_list[cave_m_idx[y][x]].ml
@@ -1730,7 +1739,7 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
         {
             if (feat == FEAT_RUBBLE)
             {
-                difficulty = 1;
+                difficulty = TUNNEL_DIFFICULTY_RUBBLE;
                 SDL_strlcpy(title, "Pile of rubble", sizeof(title));
                 SDL_strlcpy(desc,
                     "Broken rock blocks the way. It is the easiest of "
@@ -1749,7 +1758,7 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
                 bool star_ground
                     = (part_kind == LEVEL_PART_CHASM) && in_chasm_area;
 
-                difficulty = 2;
+                difficulty = TUNNEL_DIFFICULTY_QUARTZ;
                 SDL_strlcpy(title, "Quartz vein", sizeof(title));
                 SDL_strlcpy(desc,
                     "A vein of milky quartz seams the rock (digging "
@@ -1767,7 +1776,7 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
             else
             {
                 /* Granite (secret doors look the same; say nothing) */
-                difficulty = 3;
+                difficulty = TUNNEL_DIFFICULTY_GRANITE;
                 SDL_strlcpy(title, "Granite wall", sizeof(title));
                 SDL_strlcpy(desc,
                     "A wall of solid granite (digging difficulty 3).",
@@ -1777,10 +1786,11 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
             if (digger)
             {
                 char o_name[80];
+                bool can_tunnel = (digging_score >= difficulty)
+                    && (p_ptr->stat_use[A_STR] >= difficulty);
 
                 object_desc(o_name, sizeof(o_name), digger, false, -1);
-                if ((digging_score >= difficulty)
-                    && (p_ptr->stat_use[A_STR] >= difficulty))
+                if (can_tunnel)
                 {
                     strnfmt(line, sizeof(line),
                         "Your %s (digging %d) is up to the task, though the "
@@ -1801,12 +1811,16 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
                         digging_score);
                 }
                 grid_question_append(desc, sizeof(desc), line);
-                GRID_Q_ADD('T', 't', "Tunnel through", TERM_ORANGE);
+                GRID_Q_ADD_EX('T', 't', "Tunnel through", TERM_ORANGE,
+                    !can_tunnel);
+                if (!can_tunnel)
+                    GRID_Q_ADD(0, 0, "Never mind", TERM_SLATE);
             }
             else
             {
                 grid_question_append(desc, sizeof(desc),
                     "You carry no shovel or mattock to dig with.");
+                GRID_Q_ADD_EX('T', 't', "Tunnel through", TERM_ORANGE, true);
                 GRID_Q_ADD(0, 0, "Never mind", TERM_SLATE);
             }
         }
@@ -1877,6 +1891,7 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
     }
 
 #undef GRID_Q_ADD
+#undef GRID_Q_ADD_EX
 
     if (count == 0)
         return false;
@@ -2297,7 +2312,7 @@ static bool do_cmd_tunnel_aux(int y, int x)
     /* Granite */
     if (cave_feat[y][x] >= FEAT_WALL_EXTRA)
     {
-        difficulty = 3;
+        difficulty = TUNNEL_DIFFICULTY_GRANITE;
         SDL_strlcpy(success_message, "You break through the granite.",
             sizeof(success_message));
 
@@ -2315,7 +2330,7 @@ static bool do_cmd_tunnel_aux(int y, int x)
     /* Quartz */
     else if (cave_feat[y][x] >= FEAT_QUARTZ)
     {
-        difficulty = 2;
+        difficulty = TUNNEL_DIFFICULTY_QUARTZ;
         SDL_strlcpy(success_message, "You shatter the quartz.",
             sizeof(success_message));
 
@@ -2333,7 +2348,7 @@ static bool do_cmd_tunnel_aux(int y, int x)
     /* Rubble */
     else if (cave_feat[y][x] == FEAT_RUBBLE)
     {
-        difficulty = 1;
+        difficulty = TUNNEL_DIFFICULTY_RUBBLE;
         SDL_strlcpy(
             success_message, "You clear the rubble.", sizeof(success_message));
 
@@ -2351,7 +2366,7 @@ static bool do_cmd_tunnel_aux(int y, int x)
     /* Secret doors */
     else
     {
-        difficulty = 3;
+        difficulty = TUNNEL_DIFFICULTY_GRANITE;
         SDL_strlcpy(success_message, "You uncover a secret door.",
             sizeof(success_message));
 
