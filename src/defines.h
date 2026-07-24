@@ -60,7 +60,7 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 7
-#define VERSION_EXTRA 3   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 4   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.x saves */
 
@@ -998,7 +998,7 @@
 #define COL_TERRAIN 61 /* "Web" or "Pit" or "Sun" */
 
 #define ROW_PARTITION ROW_STATUS
-#define COL_PARTITION 66 /* "Room"/"Ruin"/"Cave"/"BigCa"/"Labir"/"Chasm" */
+#define COL_PARTITION 66 /* "Room"/"Ruin"/"Caves"/"BigCa"/"Labir"/"Chasm" */
 
 #define ROW_DEPTH ROW_STATUS
 #define COL_DEPTH 72 /* "Lev NNN" / "NNNN ft" */

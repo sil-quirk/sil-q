@@ -119,6 +119,7 @@ errr rd_dungeon(void)
         {
             cave_o_idx[y][x] = 0;
             cave_m_idx[y][x] = 0;
+            cave_natural[y][x] = 0;
         }
     }
 
@@ -351,6 +352,40 @@ errr rd_dungeon(void)
             }
         }
         log_trace("[load:%06u] === END CAVE_REWIRED RLE ===", (unsigned)load_byte_offset);
+    }
+
+    /* Optional extension: natural CA-cave footprint (0.9.7.4+). */
+    if (savefile_has_cave_natural)
+    {
+        const u16b CAVE_NATURAL_MAGIC = 0xC3F0;
+        u16b magic = 0;
+        rd_u16b(&magic);
+        if (magic != CAVE_NATURAL_MAGIC)
+        {
+            note(format("Invalid cave_natural marker 0x%04X", magic));
+            return (-1);
+        }
+
+        log_trace("[load:%06u] === BEGIN CAVE_NATURAL RLE ===", (unsigned)load_byte_offset);
+        for (x = y = 0; y < p_ptr->cur_map_hgt;)
+        {
+            maybe_show_startup_loading_overlay();
+            rd_byte(&count);
+            rd_byte(&tmp8u);
+
+            for (i = count; i > 0; i--)
+            {
+                cave_natural[y][x] = tmp8u ? 1 : 0;
+
+                if (++x >= p_ptr->cur_map_wid)
+                {
+                    x = 0;
+                    if (++y >= p_ptr->cur_map_hgt)
+                        break;
+                }
+            }
+        }
+        log_trace("[load:%06u] === END CAVE_NATURAL RLE ===", (unsigned)load_byte_offset);
     }
 
     /*** Player ***/

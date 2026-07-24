@@ -17,7 +17,7 @@ cptr sdl_depth_menu_partition_label(void)
     case LEVEL_PART_RUINED:
         return "Ruin";
     case LEVEL_PART_CAVEY:
-        return "Cave";
+        return "Caves";
     case LEVEL_PART_BIG_CAVE:
         return "Big Cave";
     case LEVEL_PART_LABYRINTH:
@@ -382,15 +382,16 @@ bool sdl_narrative_banner_overlay_enabled(void)
         && g_views[PANE_MAIN].term_ready;
 }
 
-bool sdl_narrative_banner_top_center_pane_rect(
+static bool sdl_narrative_banner_pane_rect(
     const struct pane_config* pc, SDL_FRect* out)
 {
     SDL_Rect rect;
     SDL_FRect frect;
+    bool have_rect = false;
 
     if (out)
         *out = (SDL_FRect){ 0 };
-    if (!pc || !out || !pc->enabled || pc->where != PLACE_TOP_CENTER)
+    if (!pc || !out || !pc->enabled)
         return false;
 
     switch (pc->pane) {
@@ -415,6 +416,21 @@ bool sdl_narrative_banner_top_center_pane_rect(
             return false;
         break;
 
+    case PANE_COMBAT:
+        if (!sdl_combat_overlay_pane_current_rect(&rect))
+            return false;
+        have_rect = true;
+        break;
+
+    case PANE_ROLLS:
+        if (!sdl_overlay_log_pane_current_rect(&rect))
+            return false;
+        have_rect = true;
+        break;
+
+    case PANE_OVERLAY_MENU:
+        return sdl_touch_top_panel_compute_layout(NULL, out);
+
     case PANE_DESCRIPTION:
         return false;
 
@@ -424,7 +440,8 @@ bool sdl_narrative_banner_top_center_pane_rect(
 
     if (pc->pane <= PANE_MAIN || pc->pane >= PANE_MAX)
         return false;
-    rect = g_pane_rects[pc->pane];
+    if (!have_rect)
+        rect = g_pane_rects[pc->pane];
     if (!sdl_rect_has_area(&rect))
         return false;
 
@@ -441,16 +458,39 @@ bool sdl_narrative_banner_top_center_pane_rect(
     return true;
 }
 
+bool sdl_narrative_banner_top_center_pane_rect(
+    const struct pane_config* pc, SDL_FRect* out)
+{
+    if (out)
+        *out = (SDL_FRect){ 0 };
+    if (!pc || !out || pc->where != PLACE_TOP_CENTER)
+        return false;
+
+    return sdl_narrative_banner_pane_rect(pc, out);
+}
+
 int sdl_narrative_banner_top_center_panes_bottom(void)
 {
     float bottom = 0.0f;
+    SDL_FRect menu_button;
 
     for (int i = 0; i < pane_config_count; i++) {
         SDL_FRect pane_rect;
         float pane_bottom;
+        enum pane_placement where = pane_config[i].where;
 
-        if (!sdl_narrative_banner_top_center_pane_rect(&pane_config[i],
-                &pane_rect))
+        /*
+         * Both orientations may place persistent HUD panes across the top of
+         * the map.  Clear every live top stack vertically; trying to reserve a
+         * wide top-right log horizontally can collapse the banner on a narrow
+         * screen, and still lets a landscape banner cover the other panes.
+         */
+        if (where != PLACE_TOP_LEFT && where != PLACE_TOP_CENTER
+            && where != PLACE_TOP_RIGHT)
+        {
+            continue;
+        }
+        if (!sdl_narrative_banner_pane_rect(&pane_config[i], &pane_rect))
         {
             continue;
         }
@@ -458,6 +498,14 @@ int sdl_narrative_banner_top_center_panes_bottom(void)
         pane_bottom = pane_rect.y + pane_rect.h;
         if (pane_bottom > bottom)
             bottom = pane_bottom;
+    }
+
+    /* The fixed Menu button is not part of pane_config. */
+    if (sdl_main_menu_pane_button_rect(&menu_button)) {
+        float menu_bottom = menu_button.y + menu_button.h;
+
+        if (menu_bottom > bottom)
+            bottom = menu_bottom;
     }
 
     return (int)(bottom + 0.5f);
@@ -479,6 +527,8 @@ void sdl_narrative_banner_apply_top_center_avoidance(SDL_Rect* rect,
         return;
 
     rect_bottom = rect->y + rect->h;
+    if (pane_bottom > rect_bottom - min_h)
+        pane_bottom = rect_bottom - min_h;
     rect->y = pane_bottom;
     rect->h = rect_bottom - rect->y;
     if (rect->h < min_h)
@@ -515,13 +565,22 @@ int sdl_narrative_banner_overlay_log_left(void)
 
 void sdl_narrative_banner_apply_overlay_log_avoidance(SDL_Rect* rect)
 {
+    SDL_Rect log_rect;
     int log_left;
     int right_reserve;
 
-    if (!rect || rect->w <= 0)
+    if (!rect || rect->w <= 0 || rect->h <= 0)
         return;
+    if (!sdl_overlay_log_pane_current_rect(&log_rect))
+        return;
+    if (sdl_mobile_portrait_layout_active()
+        && (log_rect.y + log_rect.h <= rect->y
+            || log_rect.y >= rect->y + rect->h))
+    {
+        return;
+    }
 
-    log_left = sdl_narrative_banner_overlay_log_left();
+    log_left = log_rect.x;
     if (log_left <= rect->x || log_left >= rect->x + rect->w)
         return;
 

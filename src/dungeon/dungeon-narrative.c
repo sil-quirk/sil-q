@@ -548,7 +548,7 @@ void handle_partition_entry(bool force_message, int narrative_mode)
                 display_partition_narrative(last_narrated_style_idx, sidx, kind);
 
             if (is_small_cave_partition_kind(kind))
-                msg_print("Here torch and lamp drink their fuel twice as fast.");
+                msg_print("In the natural caves here, torch and lamp drink their fuel twice as fast.");
 
             partition_narrated_mask |= bit;
             last_narrated_style_idx = sidx;

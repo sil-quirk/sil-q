@@ -339,8 +339,11 @@ char inkey(void)
     if (!inkey_scan
         && (text_cursor_requested
             || (!suppress_special_cursor && !hide_cursor
-                && (!inkey_flag || hilite_player
-                    || (hilite_target && target_sighted())))))
+                && (!inkey_flag
+                    || (hilite_player && panel_contains(p_ptr->py, p_ptr->px))
+                    || (hilite_target && target_sighted()
+                        && panel_contains(
+                            p_ptr->target_row, p_ptr->target_col))))))
     {
         /* Show the cursor */
         (void)Term_set_cursor(true);

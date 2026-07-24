@@ -1336,11 +1336,11 @@ static bool hint_quest_handle_tab_navigation(char ch, bool* tabs_focus,
     return false;
 }
 
-static void do_cmd_hint_quest_menu(bool* out_pending_look, int* out_look_y,
-    int* out_look_x, bool* out_pending_map, int* out_map_y,
-    int* out_map_x)
+static void do_cmd_hint_quest_menu(hint_quest_page initial_page,
+    bool* out_pending_look, int* out_look_y, int* out_look_x,
+    bool* out_pending_map, int* out_map_y, int* out_map_x)
 {
-    hint_quest_page page = HINT_QUEST_PAGE_HINTS;
+    hint_quest_page page = initial_page;
     bool pending_look = false;
     int look_y = -1;
     int look_x = -1;
@@ -1519,9 +1519,9 @@ static bool do_cmd_main_menu_execute_choice_impl(int actiontype,
     }
     case MAIN_MENU_HINTS_QUESTS: // Hints & Quests (t)
     {
-        do_cmd_hint_quest_menu(pending_hint_look, pending_hint_look_y,
-            pending_hint_look_x, pending_hint_map, pending_hint_map_y,
-            pending_hint_map_x);
+        do_cmd_hint_quest_menu(HINT_QUEST_PAGE_HINTS, pending_hint_look,
+            pending_hint_look_y, pending_hint_look_x, pending_hint_map,
+            pending_hint_map_y, pending_hint_map_x);
         return true;
     }
     case MAIN_MENU_HALLS_OF_MANDOS: // Halls of Mandos (d)
@@ -1697,7 +1697,10 @@ static bool hint_message_has_source(const hint_message_meta* meta)
 typedef enum hint_message_action {
     HINT_MESSAGE_ACTION_NONE = 0,
     HINT_MESSAGE_ACTION_LOOK,
-    HINT_MESSAGE_ACTION_MAP
+    HINT_MESSAGE_ACTION_MAP,
+    HINT_MESSAGE_ACTION_OPEN_HINTS,
+    HINT_MESSAGE_ACTION_OPEN_QUESTS,
+    HINT_MESSAGE_ACTION_OPEN_THRALLS
 } hint_message_action;
 
 enum {
@@ -1708,6 +1711,36 @@ enum {
     HINT_MESSAGE_CLICK_CONTINUE = -5,
     HINT_MESSAGE_CLICK_ENTRY_BASE = 1000
 };
+
+static hint_message_action hint_message_tab_action(int choice)
+{
+    switch (choice)
+    {
+    case HINT_QUEST_CLICK_HINTS_TAB:
+        return HINT_MESSAGE_ACTION_OPEN_HINTS;
+    case HINT_QUEST_CLICK_QUESTS_TAB:
+        return HINT_MESSAGE_ACTION_OPEN_QUESTS;
+    case HINT_QUEST_CLICK_THRALLS_TAB:
+        return HINT_MESSAGE_ACTION_OPEN_THRALLS;
+    default:
+        return HINT_MESSAGE_ACTION_NONE;
+    }
+}
+
+static hint_quest_page hint_message_action_page(hint_message_action action)
+{
+    switch (action)
+    {
+    case HINT_MESSAGE_ACTION_OPEN_HINTS:
+        return HINT_QUEST_PAGE_HINTS;
+    case HINT_MESSAGE_ACTION_OPEN_QUESTS:
+        return HINT_QUEST_PAGE_QUESTS;
+    case HINT_MESSAGE_ACTION_OPEN_THRALLS:
+        return HINT_QUEST_PAGE_THRALLS;
+    default:
+        return HINT_QUEST_PAGE_EXIT;
+    }
+}
 
 static void hint_message_open_map_at(int y, int x)
 {
@@ -1732,6 +1765,7 @@ static void hint_message_body_text(int index, char* out, size_t out_sz)
 {
     byte line_count = hint_messages_message_line_count(index);
     bool skipped_title = false;
+    char platform_text[1024];
 
     if (!out || out_sz == 0)
         return;
@@ -1763,6 +1797,9 @@ static void hint_message_body_text(int index, char* out, size_t out_sz)
             SDL_strlcat(out, " ", out_sz);
         SDL_strlcat(out, line, out_sz);
     }
+
+    hint_text_for_current_platform(out, platform_text, sizeof(platform_text));
+    SDL_strlcpy(out, platform_text, out_sz);
 }
 
 static int skeleton_tip_template_count(void)
@@ -1817,6 +1854,7 @@ static bool skeleton_tip_text_by_index(int index, char* buf, size_t buf_sz)
     const skeleton_note_template* tip = skeleton_tip_template_by_index(index);
     const char* main_text;
     const char* extra_text = NULL;
+    char canonical_text[1024];
 
     if (!buf || buf_sz == 0)
         return false;
@@ -1832,23 +1870,26 @@ static bool skeleton_tip_text_by_index(int index, char* buf, size_t buf_sz)
 
     if (extra_text && extra_text[0])
     {
-        strnfmt(buf, buf_sz, "%s %s", main_text, extra_text);
+        strnfmt(canonical_text, sizeof(canonical_text), "%s %s", main_text,
+            extra_text);
     }
     else
     {
-        strnfmt(buf, buf_sz, "%s", main_text);
+        strnfmt(canonical_text, sizeof(canonical_text), "%s", main_text);
     }
 
+    hint_text_for_current_platform(canonical_text, buf, buf_sz);
     return (buf[0] != '\0');
 }
 
-static void skeleton_tip_show(int index)
+static hint_message_action skeleton_tip_show(int index)
 {
     char tip_text[512];
     char ch;
+    hint_message_action action = HINT_MESSAGE_ACTION_NONE;
 
     if (!skeleton_tip_text_by_index(index, tip_text, sizeof(tip_text)))
-        return;
+        return HINT_MESSAGE_ACTION_NONE;
 
     while (1)
     {
@@ -1878,18 +1919,25 @@ static void skeleton_tip_show(int index)
                 if (click_action == UI_MENU_CLICK_HOVER)
                     continue;
 
-                (void)clicked_choice;
+                action = hint_message_tab_action(clicked_choice);
                 break;
             }
             if (ch == UI_MENU_CLICK_WAKE_KEY)
                 continue;
         }
         ch = (char)steamdeck_menu_key(ch, 0, 0);
+        if (hint_quest_tab_key(ch))
+            action = HINT_MESSAGE_ACTION_OPEN_QUESTS;
         break;
     }
 
     ui_menu_click_clear();
-    sdl_hint_quest_menu_prepare_leaf_turn(HINT_QUEST_PAGE_HINTS, -1);
+    if (action == HINT_MESSAGE_ACTION_NONE
+        || action == HINT_MESSAGE_ACTION_OPEN_HINTS)
+    {
+        sdl_hint_quest_menu_prepare_leaf_turn(HINT_QUEST_PAGE_HINTS, -1);
+    }
+    return action;
 }
 
 static hint_message_action hint_message_show_internal(int index, int* source_y, int* source_x,
@@ -1949,6 +1997,10 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
                 if (click_action == UI_MENU_CLICK_HOVER)
                     continue;
 
+                action = hint_message_tab_action(clicked_choice);
+                if (action != HINT_MESSAGE_ACTION_NONE)
+                    break;
+
                 if (clicked_choice == HINT_MESSAGE_CLICK_LOOK
                     && hint_message_has_source(&meta))
                 {
@@ -1977,6 +2029,12 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
                 continue;
         }
         ch = (char)steamdeck_menu_key(ch, 0, 0);
+
+        if (hint_quest_tab_key(ch))
+        {
+            action = HINT_MESSAGE_ACTION_OPEN_QUESTS;
+            break;
+        }
 
         if (steamdeck && ch == steamdeck_back_key())
             break;
@@ -2008,10 +2066,16 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
     }
 
     ui_menu_click_clear();
-    if (standalone || action != HINT_MESSAGE_ACTION_NONE)
+    if (standalone || action == HINT_MESSAGE_ACTION_LOOK
+        || action == HINT_MESSAGE_ACTION_MAP)
+    {
         sdl_hint_quest_menu_hide();
-    else
+    }
+    else if (action == HINT_MESSAGE_ACTION_NONE
+        || action == HINT_MESSAGE_ACTION_OPEN_HINTS)
+    {
         sdl_hint_quest_menu_prepare_leaf_turn(HINT_QUEST_PAGE_HINTS, -1);
+    }
     if (standalone)
         screen_load();
 
@@ -2023,8 +2087,39 @@ void show_hint_message_screen(int index)
     int look_y = -1;
     int look_x = -1;
     hint_message_action action;
+    hint_quest_page page;
 
     action = hint_message_show_internal(index, &look_y, &look_x, true);
+    page = hint_message_action_page(action);
+    if (page != HINT_QUEST_PAGE_EXIT)
+    {
+        bool pending_look = false;
+        bool pending_map = false;
+        int pending_y = -1;
+        int pending_x = -1;
+        int pending_map_y = -1;
+        int pending_map_x = -1;
+
+        do_cmd_hint_quest_menu(page, &pending_look, &pending_y, &pending_x,
+            &pending_map, &pending_map_y, &pending_map_x);
+        if (pending_map)
+        {
+            action = HINT_MESSAGE_ACTION_MAP;
+            look_y = pending_map_y;
+            look_x = pending_map_x;
+        }
+        else if (pending_look)
+        {
+            action = HINT_MESSAGE_ACTION_LOOK;
+            look_y = pending_y;
+            look_x = pending_x;
+        }
+        else
+        {
+            action = HINT_MESSAGE_ACTION_NONE;
+        }
+    }
+
     if (action == HINT_MESSAGE_ACTION_LOOK)
     {
         do_cmd_redraw();
@@ -2339,13 +2434,14 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
             int selected_look_y = -1;
             int selected_look_x = -1;
             hint_message_action action = HINT_MESSAGE_ACTION_NONE;
+            hint_quest_page selected_page;
 
             sdl_hint_quest_menu_prepare_leaf_turn(
                 HINT_QUEST_PAGE_HINTS, 1);
 
             if (show_all_tips)
             {
-                skeleton_tip_show(sel);
+                action = skeleton_tip_show(sel);
             }
             else
             {
@@ -2365,6 +2461,14 @@ static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
                     map_x = selected_look_x;
                     break;
                 }
+            }
+
+            selected_page = hint_message_action_page(action);
+            if (selected_page != HINT_QUEST_PAGE_EXIT
+                && selected_page != HINT_QUEST_PAGE_HINTS)
+            {
+                next_page = selected_page;
+                break;
             }
             continue;
         }
@@ -2562,6 +2666,11 @@ static hint_message_action thrall_quest_show_internal(int m_idx,
             {
                 if (click_action == UI_MENU_CLICK_HOVER)
                     continue;
+
+                action = hint_message_tab_action(clicked_choice);
+                if (action != HINT_MESSAGE_ACTION_NONE)
+                    break;
+
                 if (clicked_choice == HINT_MESSAGE_CLICK_LOOK)
                     action = HINT_MESSAGE_ACTION_LOOK;
                 else if (clicked_choice == HINT_MESSAGE_CLICK_MAP)
@@ -2573,6 +2682,11 @@ static hint_message_action thrall_quest_show_internal(int m_idx,
         }
 
         ch = (char)steamdeck_menu_key(ch, 0, 0);
+        if (hint_quest_tab_key(ch))
+        {
+            action = HINT_MESSAGE_ACTION_OPEN_HINTS;
+            break;
+        }
         if (steamdeck && ch == steamdeck_back_key())
             break;
         if (ch == 'l' || ch == 'L'
@@ -2589,7 +2703,8 @@ static hint_message_action thrall_quest_show_internal(int m_idx,
         break;
     }
 
-    if (action != HINT_MESSAGE_ACTION_NONE)
+    if (action == HINT_MESSAGE_ACTION_LOOK
+        || action == HINT_MESSAGE_ACTION_MAP)
     {
         if (source_y)
             *source_y = m_ptr->fy;
@@ -2598,10 +2713,16 @@ static hint_message_action thrall_quest_show_internal(int m_idx,
     }
 
     ui_menu_click_clear();
-    if (action != HINT_MESSAGE_ACTION_NONE)
+    if (action == HINT_MESSAGE_ACTION_LOOK
+        || action == HINT_MESSAGE_ACTION_MAP)
+    {
         sdl_hint_quest_menu_hide();
-    else
+    }
+    else if (action == HINT_MESSAGE_ACTION_NONE
+        || action == HINT_MESSAGE_ACTION_OPEN_THRALLS)
+    {
         sdl_hint_quest_menu_prepare_leaf_turn(HINT_QUEST_PAGE_THRALLS, -1);
+    }
     return action;
 }
 
@@ -2784,6 +2905,7 @@ static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
             int y = -1;
             int x = -1;
             hint_message_action action;
+            hint_quest_page selected_page;
 
             sdl_hint_quest_menu_prepare_leaf_turn(
                 HINT_QUEST_PAGE_THRALLS, 1);
@@ -2801,6 +2923,14 @@ static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
                 pending_map = true;
                 map_y = y;
                 map_x = x;
+                break;
+            }
+
+            selected_page = hint_message_action_page(action);
+            if (selected_page != HINT_QUEST_PAGE_EXIT
+                && selected_page != HINT_QUEST_PAGE_THRALLS)
+            {
+                next_page = selected_page;
                 break;
             }
             continue;

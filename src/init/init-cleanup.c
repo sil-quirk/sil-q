@@ -46,6 +46,7 @@ void cleanup_angband(void)
     mem_free_null(cave_m_idx);
     mem_free_null(cave_feat);
     mem_free_null(cave_color);
+    mem_free_null(cave_natural);
     mem_free_null(cave_rewired);
     mem_free_null(cave_info);
     mem_free_null(cave_light);

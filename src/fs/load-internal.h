@@ -30,6 +30,7 @@ extern bool savefile_has_partition_meta;
 extern bool savefile_has_partition_meta_types;
 extern bool savefile_has_cave_info_hi;
 extern bool savefile_has_cave_rewired;
+extern bool savefile_has_cave_natural;
 extern bool savefile_has_hint_messages;
 extern bool savefile_has_hint_message_meta;
 extern bool savefile_has_thrall_quest;

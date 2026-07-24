@@ -609,7 +609,7 @@ static const char* partition_abbrev_for_point(int y, int x)
     case LEVEL_PART_RUINED:
         return "Ruin";
     case LEVEL_PART_CAVEY:
-        return "Cave";
+        return "Caves";
     case LEVEL_PART_BIG_CAVE:
         return "BigCa";
     case LEVEL_PART_LABYRINTH:
@@ -942,7 +942,7 @@ static const char* status_partition_short(const char* long_label)
         return "Rm";
     if (!strcmp(long_label, "Ruin"))
         return "Ru";
-    if (!strcmp(long_label, "Cave"))
+    if (!strcmp(long_label, "Caves"))
         return "Cv";
     if (!strcmp(long_label, "BigCa"))
         return "BC";

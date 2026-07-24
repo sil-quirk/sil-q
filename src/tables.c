@@ -713,8 +713,8 @@ const bool option_norm[OPT_MAX] = {
     false, /* reserved legacy slot */
     false, /* reserved legacy slot: compress_savefile */
     false, /* OPT_hilite_player */
-    true, /* OPT_hilite_target */
-    true, /* OPT_hilite_unwary */
+    false, /* OPT_hilite_target */
+    false, /* OPT_hilite_unwary */
     true, /* OPT_solid_walls */
     false, /* OPT_hybrid_walls */
     false, /* reserved legacy slot: easy_open */

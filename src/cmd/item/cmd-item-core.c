@@ -364,8 +364,8 @@ static bool use_floor_interaction_by_index(int item)
  * current situation:
  *
  *   Confirm: in an open description -> pick up ('g'/space) the shown item;
- *          otherwise on stairs -> interact-here with confirmation, standing
- *          on an item -> pick up ('g'), else -> confirm.
+ *          otherwise on stairs -> interact-here with confirmation, on a forge
+ *          -> smith, standing on an item -> pick up ('g'), else -> confirm.
  *   '<'/'>' : on the matching staircase -> interact-here with confirmation.
  *   'u'  : names the floor item's real action (Wield, Quaff, Eat, etc.); in an
  *          open description it submits that popup's 'x' action.
@@ -401,6 +401,10 @@ bool touch_shortcut_context_action(int binding, bool description_open,
             /* Space runs interact-here, which asks before changing levels. */
             key = ' ';
             name = "Go Up";
+        } else if (cave_forge_bold(p_ptr->py, p_ptr->px)) {
+            /* Space runs interact-here, which opens the smithing screen. */
+            key = ' ';
+            name = "Smith";
         } else if ((floor_interaction =
                 first_floor_interaction_under_player()) != 0)
         {

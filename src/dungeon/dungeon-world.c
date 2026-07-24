@@ -391,9 +391,10 @@ void process_world(void)
             /* Decrease life-span */
             int fuel = 1;
             if (fuelable_light_p(o_ptr)
-                && (level_partition_kind_for_point(p_ptr->py, p_ptr->px) == LEVEL_PART_CAVEY))
+                && (level_partition_kind_for_point(p_ptr->py, p_ptr->px) == LEVEL_PART_CAVEY)
+                && cave_natural[p_ptr->py][p_ptr->px])
             {
-                /* Small-cave air makes fuelable lights burn twice as fast. */
+                /* Natural cave pockets make fuelable lights burn twice as fast. */
                 fuel = 2;
             }
 

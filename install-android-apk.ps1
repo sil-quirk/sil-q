@@ -183,52 +183,6 @@ function Get-InstalledPackageInfo {
     }
 }
 
-function Test-UpdateIncompatibleInstallFailure {
-    param([string]$AdbOutput)
-
-    return -not [string]::IsNullOrWhiteSpace($AdbOutput) -and
-        $AdbOutput -match 'INSTALL_FAILED_UPDATE_INCOMPATIBLE'
-}
-
-function Read-UninstallRetryConfirmation {
-    param(
-        [string]$PackageName,
-        [string]$TargetSerial,
-        [object]$InstalledPackageInfo
-    )
-
-    Write-Warning "Android rejected the update because the installed copy of $PackageName is signed with a different key."
-    if ($InstalledPackageInfo -and $InstalledPackageInfo.InstallerPackageName -eq 'com.android.vending') {
-        Write-Warning 'The installed copy came from Google Play. A local APK signed with the upload key cannot update it directly.'
-    }
-    Write-Warning "Uninstalling $PackageName from $TargetSerial will remove the installed app and its local app data."
-
-    $answer = Read-Host "Uninstall $PackageName and install this APK as a new copy? Type yes to continue"
-    return $answer -match '^(?i:y|yes)$'
-}
-
-function Invoke-AdbUninstallPackage {
-    param(
-        [string]$Adb,
-        [string]$Serial,
-        [string]$PackageName
-    )
-
-    Write-Host "Uninstalling $PackageName from $Serial..." -ForegroundColor Yellow
-    $uninstallResult = Invoke-ExternalCommand -FilePath $Adb -Arguments @('-s', $Serial, 'uninstall', $PackageName)
-    if ($uninstallResult.ExitCode -ne 0) {
-        $details = $uninstallResult.Output
-        if ($details) {
-            throw "adb uninstall failed with exit code $($uninstallResult.ExitCode)`n`n$details"
-        }
-        throw "adb uninstall failed with exit code $($uninstallResult.ExitCode)"
-    }
-
-    if ($uninstallResult.Output) {
-        Write-Host $uninstallResult.Output
-    }
-}
-
 function New-AdbInstallFailureMessage {
     param(
         [int]$ExitCode,
@@ -265,15 +219,15 @@ function New-AdbInstallFailureMessage {
         if ($InstalledPackageInfo -and $InstalledPackageInfo.InstallerPackageName -eq 'com.android.vending') {
             $lines += "Cause: the installed copy of $packageName came from Google Play and is signed with Google Play's app signing key."
             $lines += 'This local APK is signed with the upload key, which is correct for AAB upload but does not match a Play-installed app.'
-            $lines += 'Fix: install the update through a Play track/internal app sharing, or uninstall the Play-installed copy before sideloading this local APK.'
+            $lines += 'Fix: install the update through a Play track/internal app sharing. This script will not uninstall an existing app because that would delete its local data.'
         } else {
             $lines += "Cause: an installed copy of $packageName is signed with a different key."
-            $lines += "Fix: uninstall $packageName from the device before installing this APK, or rebuild/sign it with the same key as the installed app."
+            $lines += "Fix: rebuild/sign the APK with the same key as the installed app. This script will not uninstall the existing app because that would delete its local data."
         }
     }
     elseif ($trimmedOutput -match 'INSTALL_FAILED_VERSION_DOWNGRADE') {
         $lines += 'Cause: the device already has a newer versionCode installed.'
-        $lines += 'Fix: re-run with -AllowDowngrade, or uninstall the newer app build first.'
+        $lines += 'Fix: re-run with -AllowDowngrade, or build an APK with a versionCode at least as new as the installed app. This script will not uninstall the existing app because that would delete its local data.'
     }
     elseif ($trimmedOutput -match 'INSTALL_FAILED_NO_MATCHING_ABIS') {
         $lines += 'Cause: the APK does not contain native libraries for this device ABI.'
@@ -313,6 +267,10 @@ if (-not (Test-Path $apk)) {
 }
 
 $apkMetadata = Get-ApkMetadata -ApkPath $apk
+if (-not $apkMetadata -or [string]::IsNullOrWhiteSpace($apkMetadata.ApplicationId)) {
+    throw 'Could not determine the APK applicationId from output-metadata.json. Refusing to install because the target package identity cannot be verified.'
+}
+
 $connected = Get-ConnectedDevices -Adb $adb
 $targetSerial = Resolve-TargetDeviceSerial -RequestedSerial $Serial -ConnectedDevices $connected
 $installedPackageInfo = Get-InstalledPackageInfo -Adb $adb -Serial $targetSerial -PackageName $apkMetadata.ApplicationId
@@ -330,32 +288,10 @@ $packageLabel = if ($apkMetadata -and $apkMetadata.ApplicationId) {
 }
 
 Write-Host "Installing $packageLabel to $targetSerial..." -ForegroundColor Cyan
+Write-Host 'Install mode: in-place replacement (-r); existing app data will be preserved.' -ForegroundColor DarkGray
 
 $installResult = Invoke-ExternalCommand -FilePath $adb -Arguments $installArgs
 if ($installResult.ExitCode -ne 0) {
-    if ((Test-UpdateIncompatibleInstallFailure -AdbOutput $installResult.Output) -and
-        $apkMetadata -and
-        -not [string]::IsNullOrWhiteSpace($apkMetadata.ApplicationId)) {
-        $shouldUninstallAndRetry = Read-UninstallRetryConfirmation `
-            -PackageName $apkMetadata.ApplicationId `
-            -TargetSerial $targetSerial `
-            -InstalledPackageInfo $installedPackageInfo
-
-        if ($shouldUninstallAndRetry) {
-            Invoke-AdbUninstallPackage -Adb $adb -Serial $targetSerial -PackageName $apkMetadata.ApplicationId
-            Write-Host "Retrying install of $packageLabel to $targetSerial..." -ForegroundColor Cyan
-
-            $installResult = Invoke-ExternalCommand -FilePath $adb -Arguments $installArgs
-            if ($installResult.ExitCode -eq 0) {
-                if ($installResult.Output) {
-                    Write-Host $installResult.Output
-                }
-                Write-Host "Installed APK: $apk" -ForegroundColor Green
-                return
-            }
-        }
-    }
-
     throw (New-AdbInstallFailureMessage -ExitCode $installResult.ExitCode -AdbOutput $installResult.Output -ApkMetadata $apkMetadata -TargetSerial $targetSerial -InstalledPackageInfo $installedPackageInfo)
 }
 

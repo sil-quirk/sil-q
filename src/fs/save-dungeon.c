@@ -264,6 +264,45 @@ void wr_dungeon(void)
     }
     log_trace("[save:%06u] === END CAVE_REWIRED RLE ===", (unsigned)save_byte_offset);
 
+    /*** Run-Length-Encoding of the natural CA-cave footprint ***/
+    /* New in 0.9.7.4; read on load only when savefile_has_cave_natural. */
+    log_trace("[save:%06u] === BEGIN CAVE_NATURAL RLE ===", (unsigned)save_byte_offset);
+    {
+        const u16b CAVE_NATURAL_MAGIC = 0xC3F0;
+
+        wr_u16b(CAVE_NATURAL_MAGIC);
+
+        count = 0;
+        prev_char = 0;
+
+        for (y = 0; y < p_ptr->cur_map_hgt; y++)
+        {
+            for (x = 0; x < p_ptr->cur_map_wid; x++)
+            {
+                tmp8u = cave_natural[y][x] ? 1 : 0;
+
+                if ((tmp8u != prev_char) || (count == MAX_UCHAR))
+                {
+                    wr_byte((byte)count);
+                    wr_byte((byte)prev_char);
+                    prev_char = tmp8u;
+                    count = 1;
+                }
+                else
+                {
+                    count++;
+                }
+            }
+        }
+
+        if (count)
+        {
+            wr_byte((byte)count);
+            wr_byte((byte)prev_char);
+        }
+    }
+    log_trace("[save:%06u] === END CAVE_NATURAL RLE ===", (unsigned)save_byte_offset);
+
     /*** Compact ***/
 
     log_trace("[save:%06u] Compacting objects and monsters", (unsigned)save_byte_offset);

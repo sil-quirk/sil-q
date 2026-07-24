@@ -1,6 +1,12 @@
 #include "angband.h"
 #include "sdl/main-sdl-private.h"
 
+enum {
+    SDL_TOUCH_TUTORIAL_PANEL_ALPHA = 242,
+    SDL_TOUCH_TUTORIAL_PANEL_SHADOW_ALPHA = 190,
+    SDL_TOUCH_TUTORIAL_FOOTER_ALPHA = 220
+};
+
 static int sdl_touch_tutorial_text_px(float px, float min_px, float max_px)
 {
     const float scale = 1.14f;
@@ -587,20 +593,55 @@ float sdl_touch_tutorial_top_reserved_height(const SDL_Rect* screen)
     float reserved = 0.0f;
     SDL_FRect main_menu_rect;
     SDL_FRect depth_rect;
+    SDL_FRect status_depth_rect;
+    SDL_FRect terminal_header_rect;
 
     if (!screen)
         return 0.0f;
 
-    if (sdl_main_menu_pane_current_rect(&main_menu_rect)
-        && main_menu_rect.h > reserved)
-    {
-        reserved = main_menu_rect.h;
-    }
+    /*
+     * Reserve the actual bottom edge of every top-attached text region.  The
+     * old height-only check missed multi-row status/depth panels and assumed
+     * every rectangle began at screen y=0.
+     */
+#define RESERVE_TOP_RECT(rect_) \
+    do { \
+        const SDL_FRect* r_ = &(rect_); \
+        float screen_top_ = (float)screen->y; \
+        float screen_bottom_ = (float)(screen->y + screen->h); \
+        float top_limit_ = screen_top_ + (float)screen->h * 0.30f; \
+        float bottom_; \
+        if (r_->w > 1.0f && r_->h > 1.0f \
+            && r_->x + r_->w > (float)screen->x \
+            && r_->x < (float)(screen->x + screen->w) \
+            && r_->y < top_limit_ && r_->y + r_->h > screen_top_) \
+        { \
+            bottom_ = MIN(r_->y + r_->h, screen_bottom_) - screen_top_; \
+            if (bottom_ > reserved) \
+                reserved = bottom_; \
+        } \
+    } while (0)
+
+    if (sdl_main_menu_pane_current_rect(&main_menu_rect))
+        RESERVE_TOP_RECT(main_menu_rect);
     if (sdl_depth_menu_pane_current_rect(&depth_rect))
+        RESERVE_TOP_RECT(depth_rect);
+    if (sdl_status_depth_pane_current_rect(&status_depth_rect))
+        RESERVE_TOP_RECT(status_depth_rect);
+
+    /*
+     * ROW_MAP is the first dungeon row.  Everything above it is the live
+     * health/voice/status header seen behind the tutorial in portrait mode.
+     */
+    if (Term && ROW_MAP > 0
+        && sdl_touch_tutorial_cell_rect(0, 0, Term->wid, ROW_MAP,
+            &terminal_header_rect))
     {
-        if (depth_rect.h > reserved)
-            reserved = depth_rect.h;
+        RESERVE_TOP_RECT(terminal_header_rect);
     }
+
+#undef RESERVE_TOP_RECT
+
     if (reserved > 0.0f) {
         return reserved + sdl_touch_pane_clampf(
             (float)screen->h * 0.010f, 6.0f, 12.0f);
@@ -632,41 +673,153 @@ float sdl_touch_tutorial_default_header_y(const SDL_Rect* screen)
         + sdl_touch_tutorial_top_reserved_height(screen);
 }
 
+typedef struct sdl_touch_tutorial_header_layout {
+    SDL_FRect panel;
+    float center_x;
+    float text_y;
+    float title_max_w;
+    float body_max_w;
+    float title_h;
+    float body_y;
+    float body_h;
+    float page_x;
+    int title_px;
+    int body_px;
+    char page_buf[32];
+} sdl_touch_tutorial_header_layout;
+
+static bool sdl_touch_tutorial_header_compute(const SDL_Rect* screen,
+    cptr title, cptr body, int page, int page_count, float y,
+    sdl_touch_tutorial_header_layout* out)
+{
+    TTF_Font* title_font;
+    TTF_Font* body_font;
+    float margin;
+    float pad;
+    float panel_w;
+    float page_reserve = 0.0f;
+    int title_w = 0;
+    int title_h = 0;
+    int page_w = 0;
+
+    if (!screen || !out)
+        return false;
+
+    memset(out, 0, sizeof(*out));
+    margin = sdl_touch_pane_clampf((float)screen->w * 0.035f,
+        10.0f, 34.0f);
+    pad = sdl_touch_pane_clampf((float)screen->h * 0.012f,
+        8.0f, 15.0f);
+    panel_w = (float)screen->w - margin * 2.0f;
+    if (panel_w > 1180.0f)
+        panel_w = 1180.0f;
+    if (panel_w <= pad * 2.0f + 80.0f)
+        return false;
+
+    out->title_px = sdl_touch_tutorial_text_px((float)screen->h * 0.052f,
+        30.0f, 50.0f);
+    out->body_px = sdl_touch_tutorial_text_px((float)screen->h * 0.032f,
+        22.0f, 34.0f);
+    title_font = sdl_touch_tutorial_font_for_height(out->title_px);
+    body_font = sdl_touch_tutorial_font_for_height(out->body_px);
+    if (!title_font || !body_font)
+        return false;
+
+    if (page_count > 0) {
+        strnfmt(out->page_buf, sizeof(out->page_buf), "%d/%d",
+            page + 1, page_count);
+        page_w = sdl_touch_tutorial_story_width_n(body_font, out->page_buf,
+            (int)strlen(out->page_buf));
+        page_reserve = (float)page_w
+            + sdl_touch_pane_clampf((float)screen->w * 0.018f,
+                10.0f, 22.0f);
+    }
+
+    if (!TTF_GetStringSize(title_font, title ? title : "", 0, &title_w,
+            &title_h))
+    {
+        title_h = out->title_px;
+    }
+
+    out->panel = (SDL_FRect){
+        .x = (float)screen->x + ((float)screen->w - panel_w) * 0.5f,
+        .y = y - pad,
+        .w = panel_w,
+        .h = 0.0f,
+    };
+    out->center_x = out->panel.x + out->panel.w * 0.5f;
+    out->text_y = y;
+    out->title_max_w = out->panel.w - pad * 2.0f
+        - page_reserve * 2.0f;
+    if (out->title_max_w < out->panel.w * 0.52f)
+        out->title_max_w = out->panel.w * 0.52f;
+    out->body_max_w = out->panel.w - pad * 2.0f;
+    out->title_h = (float)MAX(title_h, 1);
+    out->body_y = out->text_y + out->title_h + 5.0f;
+    out->body_h = sdl_touch_tutorial_rich_draw_or_measure(body,
+        out->center_x, out->body_y, out->body_max_w, out->body_px,
+        g_state.palette[TERM_L_WHITE], true, false);
+    out->panel.h = out->body_y + out->body_h + pad - out->panel.y;
+    out->page_x = out->panel.x + out->panel.w - pad - (float)page_w;
+
+    return true;
+}
+
+static float sdl_touch_tutorial_header_bottom(const SDL_Rect* screen,
+    cptr title, cptr body, int page, int page_count)
+{
+    sdl_touch_tutorial_header_layout layout;
+
+    if (!screen
+        || !sdl_touch_tutorial_header_compute(screen, title, body, page,
+            page_count, sdl_touch_tutorial_default_header_y(screen), &layout))
+    {
+        return screen ? sdl_touch_tutorial_default_header_y(screen) : 0.0f;
+    }
+
+    return layout.panel.y + layout.panel.h;
+}
+
 float sdl_touch_tutorial_draw_header_at(const SDL_Rect* screen,
     cptr title, cptr body, int page, int page_count, float y)
 {
     SDL_Color title_color = g_state.palette[TERM_YELLOW];
     SDL_Color text_color = g_state.palette[TERM_L_WHITE];
-    float x;
-    float max_w;
-    int title_px;
-    int body_px;
-    char page_buf[32];
+    sdl_touch_tutorial_header_layout layout;
+    SDL_FRect shadow;
 
-    if (!screen)
+    if (!sdl_touch_tutorial_header_compute(screen, title, body, page,
+            page_count, y, &layout))
+    {
         return 0.0f;
+    }
 
-    x = (float)screen->x + (float)screen->w * 0.5f;
-    max_w = (float)screen->w * 0.82f;
-    title_px = sdl_touch_tutorial_text_px((float)screen->h * 0.052f,
-        30.0f, 50.0f);
-    body_px = sdl_touch_tutorial_text_px((float)screen->h * 0.032f,
-        22.0f, 34.0f);
+    shadow = layout.panel;
+    shadow.x += 3.0f;
+    shadow.y += 3.0f;
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0,
+        SDL_TOUCH_TUTORIAL_PANEL_SHADOW_ALPHA);
+    SDL_RenderFillRect(g_state.renderer, &shadow);
+    SDL_SetRenderDrawColor(g_state.renderer, 3, 5, 7,
+        SDL_TOUCH_TUTORIAL_PANEL_ALPHA);
+    SDL_RenderFillRect(g_state.renderer, &layout.panel);
+    SDL_SetRenderDrawColor(g_state.renderer, title_color.r, title_color.g,
+        title_color.b, 230);
+    SDL_RenderRect(g_state.renderer, &layout.panel);
 
-    y += sdl_touch_tutorial_draw_text_line(title, x, y, max_w, title_px,
-        title_color, true);
-    y += 5.0f;
-    y += sdl_touch_tutorial_draw_rich_centered(body, x, y, max_w, body_px,
-        text_color);
+    (void)sdl_touch_tutorial_draw_text_line(title, layout.center_x,
+        layout.text_y, layout.title_max_w, layout.title_px, title_color, true);
+    (void)sdl_touch_tutorial_draw_rich_centered(body, layout.center_x,
+        layout.body_y, layout.body_max_w, layout.body_px, text_color);
 
-    strnfmt(page_buf, sizeof(page_buf), "%d/%d", page + 1, page_count);
-    (void)sdl_touch_tutorial_draw_text_line(page_buf,
-        (float)(screen->x + screen->w) - 18.0f,
-        (float)screen->y + 10.0f
-            + sdl_touch_tutorial_top_reserved_height(screen),
-        80.0f, body_px, text_color, false);
+    if (page_count > 0) {
+        (void)sdl_touch_tutorial_draw_text_line(layout.page_buf,
+            layout.page_x, layout.text_y,
+            layout.panel.w * 0.16f, layout.body_px, text_color, false);
+    }
 
-    return y;
+    return layout.panel.y + layout.panel.h;
 }
 
 float sdl_touch_tutorial_draw_header(const SDL_Rect* screen, cptr title,
@@ -707,7 +860,8 @@ void sdl_touch_tutorial_draw_footer(const SDL_Rect* screen, bool mouse,
         - sdl_touch_pane_clampf((float)screen->h * 0.090f, 54.0f, 78.0f);
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 185);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0,
+        SDL_TOUCH_TUTORIAL_FOOTER_ALPHA);
     SDL_RenderFillRect(g_state.renderer, &(SDL_FRect){
         .x = (float)screen->x,
         .y = y - 8.0f,
@@ -737,6 +891,17 @@ void sdl_touch_tutorial_draw_footer(const SDL_Rect* screen, bool mouse,
         strnfmt(page_text, sizeof(page_text),
             "<y>%s/%s</y> changes page   <y>%s</y> <a>closes</a>",
             prev_label, next_label, back_label);
+    }
+    else if (!mouse && sdl_touch_tutorial_device_available())
+    {
+        SDL_strlcpy(advance_text,
+            single_page ? "<a>Tap</a> to <a>close</a>"
+                        : "<a>Tap</a> for the <a>next page</a>",
+            sizeof(advance_text));
+        SDL_strlcpy(page_text,
+            single_page ? "<t>Touch guide</t>"
+                        : "<t>Touch each page in order; the last tap closes</t>",
+            sizeof(page_text));
     }
     else
     {
@@ -905,7 +1070,12 @@ void sdl_touch_tutorial_draw_compact_zone_label(
 {
     SDL_Color text = g_state.palette[TERM_YELLOW];
     SDL_Color border = g_state.palette[TERM_L_WHITE];
+    TTF_Font* font;
+    SDL_FRect badge;
+    float badge_pad_x;
+    float badge_pad_y;
     int font_px;
+    int label_w;
     float text_y;
     float max_w;
 
@@ -915,7 +1085,7 @@ void sdl_touch_tutorial_draw_compact_zone_label(
         return;
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(g_state.renderer, 18, 96, 156, 96);
+    SDL_SetRenderDrawColor(g_state.renderer, 18, 96, 156, 72);
     SDL_RenderFillRect(g_state.renderer, zone);
     SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g, border.b,
         228);
@@ -928,20 +1098,36 @@ void sdl_touch_tutorial_draw_compact_zone_label(
         font_px = sdl_touch_tutorial_text_px((float)screen->h * 0.032f,
             18.0f, 28.0f);
     }
-    text_y = zone->y + zone->h * 0.5f - (float)font_px * 0.60f;
-    if (text_y < zone->y + 1.0f)
-        text_y = zone->y + 1.0f;
-    if (text_y + (float)font_px * 1.2f > zone->y + zone->h)
-        text_y = zone->y + zone->h - (float)font_px * 1.2f;
-    if (text_y < (float)screen->y)
-        text_y = (float)screen->y;
+    font = sdl_touch_tutorial_font_for_height(font_px);
+    if (!font)
+        return;
+    label_w = sdl_touch_tutorial_story_width_n(font, label,
+        (int)strlen(label));
+    badge_pad_x = sdl_touch_pane_clampf((float)font_px * 0.36f,
+        5.0f, 10.0f);
+    badge_pad_y = sdl_touch_pane_clampf((float)font_px * 0.16f,
+        3.0f, 6.0f);
+    badge.w = MIN(zone->w - 4.0f, (float)label_w + badge_pad_x * 2.0f);
+    badge.h = MIN(zone->h - 4.0f,
+        (float)font_px * 1.20f + badge_pad_y * 2.0f);
+    if (badge.w <= 8.0f || badge.h <= 8.0f)
+        return;
+    badge.x = zone->x + (zone->w - badge.w) * 0.5f;
+    badge.y = zone->y + (zone->h - badge.h) * 0.5f;
 
-    max_w = zone->w - 8.0f;
-    if (max_w < 24.0f)
-        max_w = zone->w;
+    SDL_SetRenderDrawColor(g_state.renderer, 3, 8, 12,
+        SDL_TOUCH_TUTORIAL_PANEL_ALPHA);
+    SDL_RenderFillRect(g_state.renderer, &badge);
+    SDL_SetRenderDrawColor(g_state.renderer, text.r, text.g, text.b, 238);
+    SDL_RenderRect(g_state.renderer, &badge);
+
+    text_y = badge.y + (badge.h - (float)font_px * 1.20f) * 0.5f;
+    if (text_y < badge.y + 1.0f)
+        text_y = badge.y + 1.0f;
+    max_w = badge.w - badge_pad_x * 2.0f;
 
     (void)sdl_touch_tutorial_draw_text_line(label,
-        zone->x + zone->w * 0.5f, text_y, max_w, font_px, text, true);
+        badge.x + badge.w * 0.5f, text_y, max_w, font_px, text, true);
 }
 
 void sdl_touch_tutorial_draw_compact_zone_legend(
@@ -973,7 +1159,7 @@ void sdl_touch_tutorial_draw_compact_zone_legend(
         - 10.0f;
     available_h = footer_top - min_y - 8.0f;
     if (available_h < 56.0f)
-        available_h = (float)screen->h * 0.48f;
+        return;
 
     font_px = mobile_section
         ? sdl_touch_tutorial_text_px((float)screen->h * 0.036f, 22.0f, 30.0f)
@@ -991,7 +1177,7 @@ void sdl_touch_tutorial_draw_compact_zone_legend(
         return;
     text_w = w - pad * 2.0f;
 
-    min_font_px = mobile_section ? 20 : 14;
+    min_font_px = mobile_section ? 16 : 14;
     {
         int low_px = min_font_px;
         int high_px = MAX(font_px, min_font_px);
@@ -1030,6 +1216,8 @@ void sdl_touch_tutorial_draw_compact_zone_legend(
             font_px, text_w));
     h = pad * 2.0f + title_h + 4.0f
         + line_h * (float)body_lines;
+    if (h > available_h)
+        return;
 
     box = (SDL_FRect){
         .x = (float)screen->x + ((float)screen->w - w) * 0.5f,
@@ -1037,8 +1225,6 @@ void sdl_touch_tutorial_draw_compact_zone_legend(
         .w = w,
         .h = h,
     };
-    if (box.y + box.h > footer_top)
-        box.y = footer_top - box.h;
     sdl_touch_tutorial_clamp_box_to_screen(&box, screen, pad);
 
     shadow = box;
@@ -1046,9 +1232,11 @@ void sdl_touch_tutorial_draw_compact_zone_legend(
     shadow.y += 3.0f;
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 168);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0,
+        SDL_TOUCH_TUTORIAL_PANEL_SHADOW_ALPHA);
     SDL_RenderFillRect(g_state.renderer, &shadow);
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 224);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0,
+        SDL_TOUCH_TUTORIAL_PANEL_ALPHA);
     SDL_RenderFillRect(g_state.renderer, &box);
     SDL_SetRenderDrawColor(g_state.renderer, title_color.r, title_color.g,
         title_color.b, 236);
@@ -1178,9 +1366,11 @@ void sdl_touch_tutorial_draw_zone_prompt(const SDL_Rect* screen,
     shadow.y += 3.0f;
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 168);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0,
+        SDL_TOUCH_TUTORIAL_PANEL_SHADOW_ALPHA);
     SDL_RenderFillRect(g_state.renderer, &shadow);
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 222);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0,
+        SDL_TOUCH_TUTORIAL_PANEL_ALPHA);
     SDL_RenderFillRect(g_state.renderer, &box);
     SDL_SetRenderDrawColor(g_state.renderer, title_color.r, title_color.g,
         title_color.b, 242);
@@ -1204,6 +1394,7 @@ void sdl_touch_tutorial_draw_info_panel(const SDL_Rect* screen,
     SDL_Color text_color = g_state.palette[TERM_L_WHITE];
     SDL_FRect box;
     SDL_FRect shadow;
+    float footer_top;
     float pad;
     float text_w;
     float h;
@@ -1229,15 +1420,22 @@ void sdl_touch_tutorial_draw_info_panel(const SDL_Rect* screen,
         h += (float)title_px * 1.35f + 5.0f;
 
     box = (SDL_FRect){ .x = x, .y = y, .w = w, .h = h };
+    footer_top = (float)(screen->y + screen->h)
+        - sdl_touch_pane_clampf((float)screen->h * 0.090f,
+            54.0f, 78.0f) - pad;
+    if (box.y + box.h > footer_top)
+        box.y = footer_top - box.h;
     sdl_touch_tutorial_clamp_box_to_screen(&box, screen, pad);
     shadow = box;
     shadow.x += 3.0f;
     shadow.y += 3.0f;
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 174);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0,
+        SDL_TOUCH_TUTORIAL_PANEL_SHADOW_ALPHA);
     SDL_RenderFillRect(g_state.renderer, &shadow);
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 224);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0,
+        SDL_TOUCH_TUTORIAL_PANEL_ALPHA);
     SDL_RenderFillRect(g_state.renderer, &box);
     SDL_SetRenderDrawColor(g_state.renderer, title_color.r, title_color.g,
         title_color.b, 235);
@@ -1284,7 +1482,7 @@ void sdl_touch_tutorial_draw_main_screen_zones_compact(
         sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Depth");
         legend_lines[legend_n++] = mouse
             ? "<t>Depth:</t> <a>click</a> for the <t>map</t>; use <y>+/-</y> for <n>temporary zoom</n>."
-            : "<t>Depth:</t> <a>tap</a> for the <t>map</t>; use <y>+/-</y> for <n>temporary zoom</n>.";
+            : "<t>Depth:</t> <a>tap</a> for the <t>map</t>; <a>pinch</a> the main map for <n>temporary zoom</n>.";
     }
 
     panel_rows = term_h - ROW_MAP;
@@ -1409,7 +1607,7 @@ void sdl_touch_tutorial_draw_main_screen_zones(
             "Depth pane",
             mouse
                 ? "<a>Click depth:</a> open the <t>map</t>.\n<a>+/-:</a> change <n>temporary zoom</n>."
-                : "<a>Tap depth:</a> open the <t>map</t>.\n<a>+/-:</a> change <n>temporary zoom</n>.");
+                : "<a>Tap depth:</a> open the <t>map</t>.\n<a>Pinch the main map:</a> change <n>temporary zoom</n>.");
     }
     if (sdl_status_depth_pane_current_rect(&rect)) {
         sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
@@ -1441,7 +1639,7 @@ void sdl_touch_tutorial_draw_main_screen_zones(
             "Map / player",
             mouse
                 ? "<a>Left-click:</a> path to an explored or open square, or select a <t>target</t>.\n<a>Right-click:</a> open <t>contextual actions</t>, look, or special movement choices.\n<t>Mouse Movement:</t> choose On, Off, or Right click only in <t>Mouse Input</t>."
-                : "<a>Tap:</a> path to an explored or open square, or select a <t>target</t>.\n<a>Hold/right-click:</a> open <t>contextual actions</t>, look, or special movement choices.\n<t>Player square:</t> action wheel; <a>Use/Desc</a> act on the floor item, <a>hold/right-click</a> them for full item menus.");
+                : "<a>Tap:</a> path to an explored or open square, or select a <t>target</t>.\n<a>Hold:</a> open <t>contextual actions</t>, look, or special movement choices.\n<t>Player square:</t> action wheel; <a>Use/Desc</a> act on the floor item, <a>hold</a> them for full item menus.");
     }
 
     if (sdl_combat_overlay_pane_current_rect(&pane_rect)) {
@@ -1511,7 +1709,6 @@ void sdl_touch_tutorial_draw_zones_page(const SDL_Rect* screen,
     int page, int page_count, bool mouse)
 {
     bool mobile_sections = !mouse && sdl_touch_only_mobile_device_active();
-    bool compact = mobile_sections || sdl_touch_tutorial_compact_layout(screen);
     float header_bottom;
     cptr title;
     cptr body;
@@ -1525,25 +1722,25 @@ void sdl_touch_tutorial_draw_zones_page(const SDL_Rect* screen,
     } else {
         title = mouse ? "Main Screen Mouse Controls" : "Default Touch Layout";
         body = mouse
-            ? (compact
-                ? "<a>Click</a> highlighted regions to open views and menus. <a>Left-click</a> the <t>map</t> to move; <a>right-click</a> for actions."
-                : "<a>Click</a> highlighted regions to open views and menus. <a>Left-click</a> the <t>map</t> to move; <a>right-click</a> for actions. <t>Mouse Movement</t> can be changed any time in Options > Input Options > <t>Mouse Input</t>.")
-            : (compact
-                ? "<a>Tap</a> highlighted regions to open views. The fixed overlays use the placements shown here."
-                : "<a>Tap</a> highlighted regions to open views. Combat is <n>lower left</n>, quick access <n>bottom center</n>, status <n>lower right</n>, and depth/rolls <n>upper right</n>.");
+            ? "<a>Click</a> highlighted regions to open views and menus. <a>Left-click</a> the <t>map</t> to move; <a>right-click</a> for actions."
+            : "<a>Tap</a> highlighted regions to open views. The fixed overlays use the placements shown here.";
     }
 
     sdl_touch_tutorial_draw_screen_dim(screen, 112);
-    header_bottom = sdl_touch_tutorial_draw_header(screen, title, body,
+    header_bottom = sdl_touch_tutorial_header_bottom(screen, title, body,
         page, page_count);
 
-    if (compact)
-        sdl_touch_tutorial_draw_main_screen_zones_compact(screen,
-            header_bottom, mouse, mobile_sections ? page : -1);
-    else
-        sdl_touch_tutorial_draw_main_screen_zones(screen, mouse,
-            header_bottom + sdl_touch_pane_clampf((float)screen->h * 0.018f,
-                10.0f, 20.0f));
+    /*
+     * Keep explanations in one measured legend instead of painting up to
+     * eight large prompt boxes over one another on roomy desktop layouts.
+     * The compact target badges still identify every live rectangle.
+     */
+    sdl_touch_tutorial_draw_main_screen_zones_compact(screen,
+        header_bottom, mouse, mobile_sections ? page : -1);
+
+    /* Target highlights may extend through the header area; paint it last. */
+    (void)sdl_touch_tutorial_draw_header(screen, title, body,
+        page, page_count);
 
     sdl_touch_tutorial_draw_footer(screen, mouse, page_count == 1);
 }
@@ -1574,12 +1771,14 @@ void sdl_touch_tutorial_draw_pane_page(const SDL_Rect* screen, int page,
     SDL_Color text = g_state.palette[TERM_YELLOW];
     SDL_Color border = g_state.palette[TERM_L_WHITE];
     bool have_pane = false;
+    float header_bottom;
+    cptr header_title = "Preset: Touch pane + touch screen";
+    cptr header_body =
+        "Visible command pad. <a>Tap</a> buttons for actions; <a>hold</a> for alternates. Change presets any time in <t>Touch Settings</t>.";
 
     sdl_touch_tutorial_draw_screen_dim(screen, 128);
-    sdl_touch_tutorial_draw_header(screen,
-        "Preset: Touch pane + touch screen",
-        "Visible command pad. <a>Tap</a> buttons for actions; <a>hold</a> for alternates. Change presets any time in <t>Touch Settings</t>.",
-        page, page_count);
+    header_bottom = sdl_touch_tutorial_header_bottom(screen, header_title,
+        header_body, page, page_count);
 
     have_pane = sdl_touch_pane_current_rect(&pane)
         && sdl_touch_pane_compute_layout(&pane, slot_rects);
@@ -1634,7 +1833,7 @@ void sdl_touch_tutorial_draw_pane_page(const SDL_Rect* screen, int page,
             float margin = sdl_touch_pane_clampf((float)screen->w * 0.025f,
                 18.0f, 36.0f);
             cptr body =
-                "<a>Tap:</a> use the command printed on the button. <a>Tap</a> <t>2nd Panel</t> to swap panes, then <a>tap</a> it again to return.\n<t>Second panel:</t> <y>Esc -> Ctrl</y>, <y>Stealth -> Exchange</y>, <y>Inv -> Equip</y>, <y>Supply -> Fletch</y>, <y>View -> Map</y>, <y>Sing -> Smith</y>, <y>Char -> Ability</y>, <y>Desc -> Quaff</y>.\n<t>Char</t> opens character details. <t>Supply</t> opens supplies. <t>Shoot</t> fires with the <y>f</y> key.\n<t>Confirm (pick):</t> confirms prompts, picks up, enters, or waits depending on context.\n<t>Direction buttons:</t> step in one of eight directions; <a>long-touch</a> movement uses the active profile's <n>alternate movement</n> behavior.\n<n>Presets:</n> change this layout any time in Options > Input Options > <t>Touch Settings</t>.";
+                "<a>Tap:</a> use the command printed on the button. <a>Tap</a> <t>2nd Panel</t> to swap panes, then <a>tap</a> it again to return.\n<t>Second panel adds:</t> <y>interaction</y>, <y>Exchange</y>, <y>Equip</y>, <y>Fletch</y>, <y>Map</y>, <y>Smith</y>, <y>Ability</y>, and <y>Quaff</y>.\n<t>Char</t> opens character details. <t>Supply</t> opens supplies. <t>Shoot</t> fires your selected quiver.\n<t>Confirm (pick):</t> confirms prompts, picks up, enters, or waits depending on context.\n<t>Direction buttons:</t> step in one of eight directions; <a>long-touch</a> movement uses the active profile's <n>alternate movement</n> behavior.\n<n>Presets:</n> change this layout any time in Options > Input Options > <t>Touch Settings</t>.";
 
             if (pane.x < screen->x + screen->w / 2) {
                 panel_x = (float)(pane.x + pane.w) + margin;
@@ -1649,43 +1848,44 @@ void sdl_touch_tutorial_draw_pane_page(const SDL_Rect* screen, int page,
             }
 
             sdl_touch_tutorial_draw_info_panel(screen, panel_x,
-                (float)screen->y + (float)screen->h * 0.28f, panel_w,
+                MAX((float)screen->y + (float)screen->h * 0.28f,
+                    header_bottom + 12.0f), panel_w,
                 "Touch pane buttons", body);
         }
     } else {
-        SDL_Color body = g_state.palette[TERM_L_WHITE];
         float max_w = (float)screen->w * 0.70f;
         float x = (float)screen->x + (float)screen->w * 0.15f;
-        float y = (float)screen->y + (float)screen->h * 0.38f;
-        int font_px = sdl_touch_tutorial_text_px(
-            (float)screen->h * 0.038f, 22.0f, 32.0f);
+        float y = MAX((float)screen->y + (float)screen->h * 0.38f,
+            header_bottom + 12.0f);
 
-        (void)sdl_touch_tutorial_draw_rich(
-            "The <t>touch pane</t> is currently <n>hidden or disabled</n>. Choose the <t>Touch pane + touch screen</t> profile to show it by default.",
-            x, y, max_w, font_px, body);
+        sdl_touch_tutorial_draw_info_panel(screen, x, y, max_w,
+            "Touch pane unavailable",
+            "The <t>touch pane</t> is currently <n>hidden or disabled</n>. Choose the <t>Touch pane + touch screen</t> profile to show it by default.");
     }
 
+    (void)sdl_touch_tutorial_draw_header(screen, header_title, header_body,
+        page, page_count);
     sdl_touch_tutorial_draw_footer(screen, false, page_count == 1);
 }
 
 void sdl_touch_tutorial_draw_movement_page(const SDL_Rect* screen,
     int page, int page_count)
 {
-    SDL_Color text = g_state.palette[TERM_L_WHITE];
     SDL_Color zone_text = g_state.palette[TERM_YELLOW];
     SDL_Color border = g_state.palette[TERM_L_WHITE];
     SDL_FRect zone_rects[TOUCH_ZONE_COUNT];
     float x;
     float y;
     float max_w;
-    int font_px;
+    float header_bottom;
+    cptr header_title = "Preset: Corners + quick access";
+    cptr header_body =
+        "Pane hidden. <t>Side corner zones</t> handle movement and fast commands. Change presets any time in <t>Touch Settings</t>.";
 
     sdl_touch_tutorial_draw_screen_dim(screen, 142);
     sdl_touch_tutorial_draw_overlay_menu(screen);
-    sdl_touch_tutorial_draw_header(screen,
-        "Preset: Corners + quick access",
-        "Pane hidden. <t>Side corner zones</t> handle movement and fast commands. Change presets any time in <t>Touch Settings</t>.",
-        page, page_count);
+    header_bottom = sdl_touch_tutorial_header_bottom(screen, header_title,
+        header_body, page, page_count);
 
     if (sdl_touch_zone_compute_layout_for_screen(screen, zone_rects)) {
         for (int i = 0; i < TOUCH_ZONE_COUNT; i++) {
@@ -1705,21 +1905,23 @@ void sdl_touch_tutorial_draw_movement_page(const SDL_Rect* screen,
         }
         sdl_touch_tutorial_draw_info_panel(screen,
             (float)screen->x + (float)screen->w * 0.27f,
-            (float)screen->y + (float)screen->h * 0.56f,
+            MAX((float)screen->y + (float)screen->h * 0.56f,
+                header_bottom + 12.0f),
             (float)screen->w * 0.46f, "Corners preset",
             "<a>Tap arrows:</a> step in the shown direction.\nThe top and bottom non-arrow buttons use <t>configurable commands</t>.\n<a>Hold</a> center blocks or command buttons for <n>alternate bindings</n>.\n<a>Swipe edge:</a> reveal or hide touch controls.\nChange <t>preset</t> and corner side in <t>Touch Settings</t>.");
     } else {
         x = (float)screen->x + (float)screen->w * 0.14f;
-        y = (float)screen->y + (float)screen->h * 0.34f;
+        y = MAX((float)screen->y + (float)screen->h * 0.34f,
+            header_bottom + 12.0f);
         max_w = (float)screen->w * 0.72f;
-        font_px = sdl_touch_tutorial_text_px((float)screen->h * 0.038f,
-            22.0f, 32.0f);
 
-        (void)sdl_touch_tutorial_draw_rich(
-            "<a>Tap</a> the <t>side corner arrows</t> to move. The non-arrow top and bottom buttons are <t>configurable commands</t>.",
-            x, y, max_w, font_px, text);
+        sdl_touch_tutorial_draw_info_panel(screen, x, y, max_w,
+            "Corners preset unavailable",
+            "<a>Tap</a> the <t>side corner arrows</t> to move. The non-arrow top and bottom buttons are <t>configurable commands</t>.");
     }
 
+    (void)sdl_touch_tutorial_draw_header(screen, header_title, header_body,
+        page, page_count);
     sdl_touch_tutorial_draw_footer(screen, false, page_count == 1);
 }
 
@@ -1738,13 +1940,14 @@ void sdl_touch_tutorial_draw_buttonwheel_page(const SDL_Rect* screen,
     float panel_w;
     float panel_y;
     bool have_wheel;
+    cptr header_title = "Button Wheel + Quick Access";
+    cptr header_body =
+        "The <t>wheel</t> uses the open right-side lane between the upper and lower overlays. <t>Quick access</t> stays at <n>bottom center</n>.";
 
     sdl_touch_tutorial_draw_screen_dim(screen, 150);
     sdl_touch_tutorial_draw_overlay_menu(screen);
-    header_bottom = sdl_touch_tutorial_draw_header(screen,
-        "Button Wheel + Quick Access",
-        "The <t>wheel</t> uses the open right-side lane between the upper and lower overlays. <t>Quick access</t> stays at <n>bottom center</n>.",
-        page, page_count);
+    header_bottom = sdl_touch_tutorial_header_bottom(screen, header_title,
+        header_body, page, page_count);
 
     have_wheel = sdl_touch_round_compute_layout(&cx, &cy, &radius,
         &inner_radius, NULL);
@@ -1810,6 +2013,8 @@ void sdl_touch_tutorial_draw_buttonwheel_page(const SDL_Rect* screen,
         panel_x, panel_y, panel_w, "Button wheel controls",
         "<t>Outer arrows:</t> <a>tap</a> a direction to step.\n<t>Inner wheel:</t> <a>press and drag</a> toward a direction, then release. Drag 1.3x the centre-to-arrow distance until <g>Run</g> appears to run on release.\n<t>Center:</t> <a>tap</a> to repeat the last direction.\n<a>Swipe edge:</a> reveal or hide the touch pane.\n<t>Quick access:</t> <a>tap</a> a button for its command; <a>hold</a> it to edit that button.\n<t>Status changes:</t> the wheel re-centres and shrinks inside the open lane as the condition panel grows.\nDescription cards open above the bottom-center quick-access overlay.");
 
+    (void)sdl_touch_tutorial_draw_header(screen, header_title, header_body,
+        page, page_count);
     sdl_touch_tutorial_draw_footer(screen, false, page_count == 1);
 }
 
@@ -2531,9 +2736,11 @@ static void birth_coach_draw_callout(const SDL_Rect* screen,
     shadow.y += 3.0f;
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 170);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0,
+        SDL_TOUCH_TUTORIAL_PANEL_SHADOW_ALPHA);
     SDL_RenderFillRect(g_state.renderer, &shadow);
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 230);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0,
+        SDL_TOUCH_TUTORIAL_PANEL_ALPHA);
     SDL_RenderFillRect(g_state.renderer, &box);
     SDL_SetRenderDrawColor(g_state.renderer, title_color.r, title_color.g,
         title_color.b, 242);
@@ -2833,12 +3040,14 @@ void sdl_touch_tutorial_draw_choice_card(const SDL_FRect* rect,
     shadow.y += 3.0f;
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 150);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0,
+        SDL_TOUCH_TUTORIAL_PANEL_SHADOW_ALPHA);
     SDL_RenderFillRect(g_state.renderer, &shadow);
     if (highlighted)
-        SDL_SetRenderDrawColor(g_state.renderer, 24, 84, 138, 218);
+        SDL_SetRenderDrawColor(g_state.renderer, 24, 84, 138, 236);
     else
-        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 222);
+        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0,
+            SDL_TOUCH_TUTORIAL_PANEL_ALPHA);
     SDL_RenderFillRect(g_state.renderer, rect);
     SDL_SetRenderDrawColor(g_state.renderer, border_color.r, border_color.g,
         border_color.b, 238);
@@ -2869,16 +3078,11 @@ bool sdl_touch_tutorial_draw_profile_choice_screen(int highlighted,
     SDL_FRect choice_rects[SDL_TOUCH_TUTORIAL_CHOICE_COUNT])
 {
     SDL_Rect screen = sdl_get_layout_screen_rect();
-    SDL_Color title_color = g_state.palette[TERM_YELLOW];
     SDL_Color text_color = g_state.palette[TERM_L_WHITE];
     sdl_view* d = sdl_view_from_term(Term);
     bool old_suppress_top_panel;
     bool rendered;
-    float x;
     float y;
-    float max_w;
-    int title_px;
-    int body_px;
     int footer_px;
     int current_index;
 
@@ -2893,22 +3097,8 @@ bool sdl_touch_tutorial_draw_profile_choice_screen(int highlighted,
         return false;
 
     sdl_touch_tutorial_draw_screen_dim(&screen, 172);
-    x = (float)screen.x + (float)screen.w * 0.5f;
-    y = sdl_touch_tutorial_default_header_y(&screen);
-    max_w = (float)screen.w * 0.86f;
-    title_px = sdl_touch_tutorial_text_px((float)screen.h * 0.050f,
-        28.0f, 46.0f);
-    body_px = sdl_touch_tutorial_text_px((float)screen.h * 0.030f,
-        18.0f, 28.0f);
     footer_px = sdl_touch_tutorial_text_px((float)screen.h * 0.028f,
         16.0f, 24.0f);
-
-    y += sdl_touch_tutorial_draw_text_line("Choose Touch Preset", x, y,
-        max_w, title_px, title_color, true);
-    y += 5.0f;
-    (void)sdl_touch_tutorial_draw_rich_centered(
-        "Pick the <t>control layout</t> to use now, or <a>replay the tutorial</a> before choosing.",
-        x, y, max_w, body_px, text_color);
 
     sdl_touch_tutorial_choice_layout(&screen, choice_rects);
     current_index = sdl_touch_tutorial_current_choice_index();
@@ -2918,10 +3108,15 @@ bool sdl_touch_tutorial_draw_profile_choice_screen(int highlighted,
             current_index == i);
     }
 
+    (void)sdl_touch_tutorial_draw_header(&screen, "Choose Touch Preset",
+        "Pick the <t>control layout</t> to use now, or <a>replay the tutorial</a> before choosing.",
+        0, 0);
+
     y = (float)(screen.y + screen.h)
         - sdl_touch_pane_clampf((float)screen.h * 0.076f, 42.0f, 62.0f);
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 185);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0,
+        SDL_TOUCH_TUTORIAL_FOOTER_ALPHA);
     SDL_RenderFillRect(g_state.renderer, &(SDL_FRect){
         .x = (float)screen.x,
         .y = y - 8.0f,
@@ -2929,8 +3124,11 @@ bool sdl_touch_tutorial_draw_profile_choice_screen(int highlighted,
         .h = (float)(screen.y + screen.h) - y + 8.0f,
     });
     (void)sdl_touch_tutorial_draw_text_line(
-        "Tap/click a choice   Up/Down selects   Enter applies   Esc keeps current",
-        x, y, (float)screen.w * 0.92f, footer_px, text_color, true);
+        sdl_touch_tutorial_device_available()
+            ? "Tap a choice to apply it   Back keeps the current preset"
+            : "Click a choice   Up/Down selects   Enter applies   Esc keeps current",
+        (float)screen.x + (float)screen.w * 0.5f, y,
+        (float)screen.w * 0.92f, footer_px, text_color, true);
 
     SDL_RenderPresent(g_state.renderer);
     sdl_restore_render_target(d);

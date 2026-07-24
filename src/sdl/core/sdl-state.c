@@ -54,7 +54,7 @@ const struct pane_config default_pane_config[] = {
 #endif
         .rect.rows = 1, .rect.cols = 24},
 #if SIL_SDL_MOBILE_BUILD
-    {.pane = PANE_STATUS_DEPTH, .where = PLACE_BOTTOM_CENTER, .enabled = true,
+    {.pane = PANE_STATUS_DEPTH, .where = PLACE_BOTTOM_RIGHT, .enabled = true,
 #else
     {.pane = PANE_STATUS_DEPTH, .where = PLACE_BOTTOM_RIGHT, .enabled = false,
 #endif
@@ -617,11 +617,30 @@ void sdl_refresh_platform_max_main_view_scales_for_current_layout(
 void sdl_reset_config_to_resolution_defaults(int screen_width,
     int screen_height)
 {
+    int default_main_scales[SDL_MIN_TERMINAL_MODE_COUNT];
+
+#if SIL_SDL_MOBILE_BUILD
+    /* A phone's current window can be portrait, but main view scale is a
+     * shared display setting across orientations.  Derive defaults from the
+     * device's landscape-sized bounds so resetting in portrait does not pick
+     * a smaller scale. */
+    if (screen_width < screen_height) {
+        int tmp = screen_width;
+
+        screen_width = screen_height;
+        screen_height = tmp;
+    }
+#endif
+    for (int mode = 0; mode < SDL_MIN_TERMINAL_MODE_COUNT; mode++) {
+        default_main_scales[mode] =
+            sdl_default_main_scale_for_screen_size(screen_width,
+                screen_height, mode);
+    }
+
     (void)sdl_config_set_defaults_for_resolution(&config, pane_config,
         &pane_config_count, MAX_PANE_CONFIGS, screen_width, screen_height);
 
-    config.main_view_scale = sdl_default_main_scale_for_screen_size(screen_width,
-        screen_height, config.min_terminal_mode);
+    config.main_view_scale = default_main_scales[config.min_terminal_mode];
     config.aux_view_font_size = 0;
     config.enable_right_panes = false;
 #if SIL_SDL_MOBILE_BUILD
@@ -633,12 +652,26 @@ void sdl_reset_config_to_resolution_defaults(int screen_width,
     (void)sdl_normalize_unified_log_pane_config(pane_config,
         &pane_config_count, true);
     sdl_seed_all_pane_profiles_from_active();
+    for (int mode = 0; mode < SDL_MIN_TERMINAL_MODE_COUNT; mode++) {
+        int landscape = SDL_PANE_PROFILE_INDEX(
+            SDL_PANE_ORIENTATION_LANDSCAPE, mode);
+        int portrait = SDL_PANE_PROFILE_INDEX(
+            SDL_PANE_ORIENTATION_PORTRAIT, mode);
+
+        g_pane_profiles[landscape].main_view_scale =
+            default_main_scales[mode];
+        g_pane_profiles[landscape].touch_top_panel_size =
+            (float)default_main_scales[mode];
+        g_pane_profiles[portrait].main_view_scale =
+            default_main_scales[mode];
+    }
     sdl_log_pane_sync_display_filter_from_config();
 
-    log_info("Default main view scale: %d for %dx%d minimum terminal (%s), selected without side panes; default log pane rows=%d",
+    log_info("Default main view scales: normal=%d compact=%d for %dx%d; active=%d (%s), selected without side panes; default log pane rows=%d",
+        default_main_scales[SDL_MIN_TERMINAL_NORMAL],
+        default_main_scales[SDL_MIN_TERMINAL_COMPACT],
+        screen_width, screen_height,
         config.main_view_scale,
-        (config.min_terminal_mode == SDL_MIN_TERMINAL_COMPACT) ? 50 : 80,
-        (config.min_terminal_mode == SDL_MIN_TERMINAL_COMPACT) ? 18 : 24,
         (config.min_terminal_mode == SDL_MIN_TERMINAL_COMPACT) ? "compact" : "normal",
         SDL_LOG_PANE_DEFAULT_ROWS);
 }

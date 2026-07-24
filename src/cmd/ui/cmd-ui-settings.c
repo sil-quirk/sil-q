@@ -3297,7 +3297,7 @@ void do_cmd_pane_settings(void)
                         set_sdl_min_terminal_mode(def.min_terminal_mode);
                         break;
                     case PANE_SETTING_MAIN_VIEW_SCALE:
-                        set_sdl_main_view_scale(def.main_view_scale);
+                        set_sdl_main_view_scale(get_sdl_max_scale());
                         break;
                     case PANE_SETTING_TERMINAL_MENU_SCALE_OFFSET:
                         set_sdl_terminal_menu_scale_offset(

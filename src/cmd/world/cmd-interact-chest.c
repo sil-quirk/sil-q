@@ -1315,6 +1315,126 @@ const char* hint_messages_message_line(int index, int line)
     return g_hint_message_state.lines[index][line];
 }
 
+typedef struct hint_platform_text_rule {
+    const char* keyboard;
+    const char* controller;
+    const char* touch;
+} hint_platform_text_rule;
+
+/*
+ * Skeleton-note text is stored in a platform-neutral save format: the
+ * keyboard wording remains the canonical source text, then this presentation
+ * helper adapts control instructions to the active UI.  That also updates
+ * hints restored from older saves rather than leaving archived Alt-key text
+ * visible on mobile.
+ */
+static const hint_platform_text_rule hint_platform_text_rules[] = {
+    {
+        "You can move more quietly using stealth mode with capital 'S'.",
+        "Open the character action wheel and choose Stealth to move more "
+            "quietly.",
+        "Tap your character to open the action wheel, then tap Stealth to "
+            "move more quietly."
+    },
+    {
+        "You can reassign controls in the options.",
+        "You can reassign controller controls in Options > Input Options > "
+            "Controller Settings.",
+        "You can reassign touch controls in Options > Input Options > Touch "
+            "Settings."
+    },
+    {
+        "You can zoom the main map by Alt+'+' or Alt+'-'.",
+        "You can change the main-map zoom in Options > Window Options.",
+        "Pinch the main map with two fingers to zoom in or out."
+    },
+    {
+        "You can hide or unhide the right panel by Alt+'i'.",
+        "You can show or hide side panes in Options > Window Options.",
+        "Tap a Quick Access button to use it; hold the button to change its "
+            "command."
+    },
+    {
+        "You can hide or unhide the bottom panel by Alt+'l'.",
+        "You can show or hide bottom panes in Options > Window Options.",
+        "Tap the combat, status, depth, or rolls regions to open their "
+            "overlays."
+    }
+};
+
+static void hint_text_replace_all(const char* src, const char* from,
+    const char* to, char* out, size_t out_sz)
+{
+    const char* cursor;
+    const char* match;
+    size_t from_len;
+    size_t used = 0;
+
+    if (!out || out_sz == 0)
+        return;
+    out[0] = '\0';
+    if (!src || !from || !from[0] || !to)
+        return;
+
+    cursor = src;
+    from_len = strlen(from);
+    while ((match = strstr(cursor, from)) != NULL)
+    {
+        size_t prefix_len = (size_t)(match - cursor);
+        size_t available = out_sz - used - 1;
+        size_t copy_len = MIN(prefix_len, available);
+
+        if (copy_len > 0)
+        {
+            memcpy(out + used, cursor, copy_len);
+            used += copy_len;
+            out[used] = '\0';
+        }
+        if (copy_len < prefix_len)
+            return;
+
+        SDL_strlcat(out, to, out_sz);
+        used = strlen(out);
+        if (used >= out_sz - 1)
+            return;
+        cursor = match + from_len;
+    }
+
+    if (used < out_sz - 1)
+        SDL_strlcat(out, cursor, out_sz);
+}
+
+void hint_text_for_current_platform(const char* src, char* out,
+    size_t out_sz)
+{
+    char current[2048];
+    char replaced[2048];
+    bool touch = sdl_touch_tutorial_device_available();
+    bool controller = !touch && steamdeck_controls_active();
+
+    if (!out || out_sz == 0)
+        return;
+
+    SDL_strlcpy(current, src ? src : "", sizeof(current));
+    if (!touch && !controller)
+    {
+        SDL_strlcpy(out, current, out_sz);
+        return;
+    }
+
+    for (int i = 0; i < (int)N_ELEMENTS(hint_platform_text_rules); ++i)
+    {
+        const hint_platform_text_rule* rule = &hint_platform_text_rules[i];
+        const char* replacement = touch ? rule->touch : rule->controller;
+
+        hint_text_replace_all(current, rule->keyboard, replacement, replaced,
+            sizeof(replaced));
+        SDL_strlcpy(current, replaced, sizeof(current));
+    }
+
+    SDL_strlcpy(out, current, out_sz);
+}
+
 void hint_messages_message_meta(int index, hint_message_meta* out)
 {
     if (!out)
@@ -1540,6 +1660,7 @@ bool hint_messages_short_tip(int index, char* out, size_t out_sz)
     hint_message_meta meta;
     char title[96];
     char cues[128];
+    char platform_text[512];
 
     if (!out || out_sz == 0)
         return false;
@@ -1576,6 +1697,8 @@ bool hint_messages_short_tip(int index, char* out, size_t out_sz)
     else
         strnfmt(out, out_sz, "%s", cues);
 
+    hint_text_for_current_platform(out, platform_text, sizeof(platform_text));
+    SDL_strlcpy(out, platform_text, out_sz);
     return out[0] != '\0';
 }
 

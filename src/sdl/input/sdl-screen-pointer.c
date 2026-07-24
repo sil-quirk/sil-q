@@ -358,7 +358,7 @@ bool sdl_status_line_partition_label_at_col(int row, int col)
         short_label = "Ru";
         break;
     case LEVEL_PART_CAVEY:
-        long_label = "Cave";
+        long_label = "Caves";
         short_label = "Cv";
         break;
     case LEVEL_PART_BIG_CAVE:

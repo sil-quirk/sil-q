@@ -417,7 +417,8 @@ void process_player(void)
         /* Place the cursor on the player or target */
         if (hilite_player)
             move_cursor_relative(p_ptr->py, p_ptr->px);
-        if (hilite_target && target_sighted())
+        if (hilite_target && target_sighted()
+            && panel_contains(p_ptr->target_row, p_ptr->target_col))
             move_cursor_relative(p_ptr->target_row, p_ptr->target_col);
 
         if (cheat_noise)
@@ -673,7 +674,8 @@ void process_player(void)
                 /* Place the cursor on the player or target */
                 if (hilite_player)
                     move_cursor_relative(p_ptr->py, p_ptr->px);
-                if (hilite_target && target_sighted())
+                if (hilite_target && target_sighted()
+                    && panel_contains(p_ptr->target_row, p_ptr->target_col))
                     move_cursor_relative(p_ptr->target_row, p_ptr->target_col);
 
                 /* We are certainly no longer in the process of restoring a game

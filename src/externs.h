@@ -237,6 +237,7 @@ extern byte* temp_x;
 extern u16b (*cave_info)[256];
 extern byte (*cave_feat)[MAX_DUNGEON_WID];
 extern byte (*cave_color)[MAX_DUNGEON_WID];
+extern byte (*cave_natural)[MAX_DUNGEON_WID];
 extern byte (*cave_rewired)[MAX_DUNGEON_WID];
 extern s16b (*cave_light)[MAX_DUNGEON_WID];
 extern s16b (*cave_o_idx)[MAX_DUNGEON_WID];
@@ -1034,6 +1035,8 @@ extern s16b hint_messages_map_hgt_for_save(void);
 extern byte hint_messages_message_line_count(int index);
 extern const char* hint_messages_message_line(int index, int line);
 extern void hint_messages_message_meta(int index, hint_message_meta* out);
+extern void hint_text_for_current_platform(const char* src, char* out,
+    size_t out_sz);
 extern bool hint_messages_short_tip(int index, char* out, size_t out_sz);
 extern bool hint_messages_short_tip_for_source(int y, int x, char* out,
     size_t out_sz);
@@ -1701,6 +1704,8 @@ extern void sdl_character_sheet_screen_set_select_detail_size_hint(
 extern void sdl_character_sheet_screen_set_select_ability_rows(int rows);
 extern void sdl_character_sheet_screen_set_select_title_detail(cptr title,
     cptr suffix, int suffix_attr);
+extern void sdl_character_sheet_screen_add_select_title_candidate(cptr title,
+    cptr suffix);
 extern void sdl_character_sheet_screen_begin_select_rating_summary(cptr title);
 extern void sdl_character_sheet_screen_add_select_rating(cptr group,
     cptr stars, int count, int attr, cptr desc);

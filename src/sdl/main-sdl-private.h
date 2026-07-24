@@ -514,6 +514,11 @@ typedef struct sdl_character_sheet_select_rating {
     char desc[256];
 } sdl_character_sheet_select_rating;
 
+typedef struct sdl_character_sheet_title_candidate {
+    char title[128];
+    char suffix[64];
+} sdl_character_sheet_title_candidate;
+
 typedef struct menu_scroll_drag_state {
     bool active;
     bool dragged;
@@ -561,6 +566,11 @@ typedef struct sdl_character_sheet_screen_state {
     char select_focus_title[96];
     char select_title_suffix[64];
     byte select_title_suffix_attr;
+    sdl_character_sheet_title_candidate select_title_candidates[96];
+    int select_title_candidate_count;
+    int select_title_power_px;
+    int select_title_power_for_title_px;
+    int select_title_power_for_width;
     char select_intro[2048];   /* book mode: chronicle text (white) */
     char select_frame_top[768];    /* book mode: framing line above (accent) */
     char select_frame_bottom[768]; /* book mode: framing/charge below (accent) */
@@ -2121,6 +2131,8 @@ int sdl_character_sheet_screen_select_page_count(void);
 bool sdl_character_sheet_screen_page_turning(void);
 void sdl_character_sheet_screen_set_select_frame(cptr top, cptr bottom);
 void sdl_character_sheet_screen_set_select_title_detail(cptr title, cptr suffix, int suffix_attr);
+void sdl_character_sheet_screen_add_select_title_candidate(cptr title,
+    cptr suffix);
 void sdl_character_sheet_screen_begin_select_rating_summary(cptr title);
 void sdl_character_sheet_screen_add_select_rating(cptr group, cptr stars, int count, int attr, cptr desc);
 void sdl_character_sheet_screen_add_select_detail(cptr text, int attr, cptr desc);

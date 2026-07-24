@@ -239,6 +239,68 @@ static void birth_count_alive_character_powers(int power_counts[4])
 }
 #endif /* !__ANDROID__ && !SIL_IOS (only used by the desktop power summary) */
 
+/*
+ * Give the portrait carousel every title/power pair in the current race.
+ * Its renderer uses the complete group to keep the power text no larger than
+ * the smallest fitted hero name, rather than letting the focused hero alone
+ * determine the balance.
+ */
+static void birth_add_character_title_candidates(void)
+{
+    int character;
+
+    if (!z_info || !c_info || !c_name)
+        return;
+
+    for (character = 0; character < z_info->c_max; character++)
+    {
+        char pretty_name[128];
+        char display_name[128];
+        char power_text[64];
+        byte star_attr;
+#if defined(__ANDROID__) || defined(SIL_IOS)
+        char stars[16];
+        cptr power_label = NULL;
+#endif
+
+        if (!birth_character_is_set(character))
+            continue;
+
+        strnfmt(pretty_name, sizeof(pretty_name), "%s%s",
+            c_name + c_info[character].name,
+            c_name + c_info[character].alt_name);
+        SDL_strlcpy(display_name, pretty_name, sizeof(display_name));
+
+#if defined(__ANDROID__) || defined(SIL_IOS)
+        birth_format_character_power(c_info[character].power, true,
+            stars, sizeof(stars), &star_attr, &power_label);
+        if (power_label && power_label[0])
+        {
+            char power_word[16];
+
+            SDL_strlcpy(power_word, power_label, sizeof(power_word));
+            power_word[0] = (char)tolower((unsigned char)power_word[0]);
+            strnfmt(power_text, sizeof(power_text), "%s %s", stars,
+                power_word);
+        }
+        else
+        {
+            SDL_strlcpy(power_text, stars, sizeof(power_text));
+        }
+
+        if (birth_character_is_dead(character))
+            strnfmt(display_name, sizeof(display_name), "%s %s",
+                BIRTH_FALLEN_MARK, pretty_name);
+#else
+        birth_format_character_power(c_info[character].power, true,
+            power_text, sizeof(power_text), &star_attr, NULL);
+#endif
+
+        sdl_character_sheet_screen_add_select_title_candidate(display_name,
+            power_text);
+    }
+}
+
 static void birth_select_emit_detail(int race, int character, bool affinities_vary)
 {
     char line[128];
@@ -352,6 +414,8 @@ static void birth_select_emit_detail(int race, int character, bool affinities_va
             sdl_character_sheet_screen_set_select_title_detail(pretty_name,
                 title_stars, star_attr);
         }
+
+        birth_add_character_title_candidates();
     }
 
     if (affinities_vary)

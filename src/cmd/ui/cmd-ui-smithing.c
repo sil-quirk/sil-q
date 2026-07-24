@@ -844,28 +844,57 @@ static void smith_ui_put_cost_line(int index0, byte attr, cptr text)
 
 static int smith_ui_column_width(int col);
 
-static void smith_ui_put_menu_label(int col, int row, byte attr, cptr label)
+static void smith_ui_put_menu_row(int choice, int col, int row,
+    byte base_attr, cptr label, bool selected)
 {
-    if (!indexed_menu_letters_enabled())
-        smith_ui_put_fitted(indexed_menu_prefix_col(col), row, 2, attr, "  ");
-
-    smith_ui_put_fitted(col, row, smith_ui_column_width(col), attr, label);
-}
-
-static void smith_ui_register_menu_row(int choice, int col, int row, cptr label)
-{
+    char prefix[8];
     int start_col = indexed_menu_prefix_col(col);
     int width = smith_ui_menu_row_width(col);
-
-    (void)label;
+    int label_width = width - (col - start_col);
+    byte attr = selected ? smith_ui_selected_attr(base_attr) : base_attr;
 
     if (row < 0 || row > smith_ui_content_bottom_row())
         return;
 
     if (width < 1)
         width = 1;
+    if (label_width < 1)
+        label_width = 1;
 
+    Term_erase(start_col, row, width);
+    if (selected)
+        smith_ui_fill_row(start_col, row, width, attr);
+
+    if (!indexed_menu_letters_enabled())
+    {
+        if (selected)
+            indexed_menu_focus_prefix(prefix, sizeof(prefix), choice - 1);
+        else
+            indexed_menu_normal_prefix(prefix, sizeof(prefix), choice - 1);
+        smith_ui_draw_fitted(start_col, row, 2, attr, prefix, false);
+    }
+
+    smith_ui_draw_fitted(col, row, label_width, attr, label, false);
     ui_menu_click_add(choice, start_col, row, width);
+}
+
+/*
+ * Match the abilities menu's pointer contract: pointing/first tapping moves
+ * the highlight, while activating an already-highlighted row confirms it.
+ * Keyboard and controller confirmations do not pass through this helper.
+ */
+static bool smith_ui_pointer_choice_confirms(
+    int choice, int action, int* highlight)
+{
+    bool same_choice;
+
+    if (!highlight)
+        return false;
+
+    same_choice = (*highlight == choice);
+    *highlight = choice;
+
+    return action != UI_MENU_CLICK_HOVER && same_choice;
 }
 
 static void smith_ui_add_back_click_target(int col, int row, cptr text)
@@ -876,17 +905,20 @@ static void smith_ui_add_back_click_target(int col, int row, cptr text)
     ui_menu_click_add_text_token(SMITH_CLICK_BACK, col, row, text, "return");
 }
 
-static void smith_ui_begin_touch_scroll_area(void)
+static void smith_ui_begin_touch_scroll_area(bool root_menu)
 {
     int bottom_row = smith_ui_content_bottom_row();
 
     if (bottom_row < 1)
         bottom_row = 1;
 
-    /* Every smithing menu calls this right after ui_menu_click_begin(), so it
-     * is the single chokepoint that enables the floating touch Exit button for
-     * all of them (root screen exits smithing; sub-screens go back a level). */
-    ui_menu_click_set_touch_exit_button(true);
+    /* Keep the floating navigation control contextual: the root leaves
+     * Smithing, while every nested screen returns by its normal Back action. */
+    if (root_menu)
+        ui_menu_click_set_touch_exit_button(true);
+    else
+        ui_menu_click_add_touch_button(
+            SMITH_CLICK_BACK, "Back", TERM_DARK);
 
     ui_scroll_area_begin(1, bottom_row, SDL_TOUCH_MENU_CATEGORY_OTHER);
     ui_scroll_area_set_keys('8', '2', '6', '4');
@@ -1009,22 +1041,6 @@ static void smith_ui_put_section_header(int col, int row, cptr label)
 {
     smith_ui_put_header(col, row, label);
     smith_ui_add_back_click_target(COL_SMT1, 1, SMITH_ROOT_BACK_LABEL);
-}
-
-static void smith_ui_put_menu_prefix(
-    int col, int row, int index, byte attr, bool focused)
-{
-    char buf[80];
-
-    if (row < 0 || row > smith_ui_content_bottom_row())
-        return;
-
-    if (focused)
-        indexed_menu_focus_prefix(buf, sizeof(buf), index);
-    else
-        indexed_menu_normal_prefix(buf, sizeof(buf), index);
-
-    Term_putstr(indexed_menu_prefix_col(col), row, -1, attr, buf);
 }
 
 /*
@@ -4253,7 +4269,7 @@ int create_sval_menu_aux(int tval, int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
-    smith_ui_begin_touch_scroll_area();
+    smith_ui_begin_touch_scroll_area(false);
 
     // clear the right of the screen
     smith_ui_wipe_active_panel(indexed_menu_prefix_col(list_col));
@@ -4367,9 +4383,11 @@ int create_sval_menu_aux(int tval, int* highlight)
             }
             else if (clicked_choice >= 1 && clicked_choice <= num)
             {
-                *highlight = clicked_choice;
-                if (click_action == UI_MENU_CLICK_HOVER)
+                if (!smith_ui_pointer_choice_confirms(
+                        clicked_choice, click_action, highlight))
+                {
                     return 0;
+                }
                 ch = '\r';
             }
         }
@@ -4379,16 +4397,15 @@ int create_sval_menu_aux(int tval, int* highlight)
         && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
         *highlight = (int)ch - 'a' + 1;
-
-        // make a simple version of the object
-        create_base_object(tval, sval[*highlight - 1]);
-
-        return (*highlight);
+        ch = '\r';
     }
 
-    /* Choose current  */
+    /* Materialize the selected row on every confirmation path.  A direct
+     * pointer activation can change the highlight after the preview above was
+     * built, while keyboard/controller navigation redraws before confirming. */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
+        create_base_object(tval, sval[*highlight - 1]);
         return (*highlight);
     }
 
@@ -4469,7 +4486,9 @@ int create_tval_menu_aux(int* highlight)
     char ch;
     int i;
     bool valid[MAX_SMITHING_TVALS];
-    byte valid_attr = TERM_WHITE; // default to soothe compilation warnings
+    bool has_icon[MAX_SMITHING_TVALS];
+    byte row_attr[MAX_SMITHING_TVALS];
+    object_type icons[MAX_SMITHING_TVALS];
     int title_row = MAX(0, smith_ui_dense_row0() - 1);
     int first_row = smith_ui_dense_row0();
     int last_row = smith_ui_list_bottom_row(first_row, false);
@@ -4478,7 +4497,7 @@ int create_tval_menu_aux(int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
-    smith_ui_begin_touch_scroll_area();
+    smith_ui_begin_touch_scroll_area(false);
 
     // clear the right of the screen
     smith_ui_wipe_active_panel(indexed_menu_prefix_col(COL_SMT2));
@@ -4500,9 +4519,9 @@ int create_tval_menu_aux(int* highlight)
 
     for (i = 0; i < MAX_SMITHING_TVALS; i++)
     {
-        object_type icon;
-        bool has_icon = smith_tval_icon(smithing_tvals[i].tval, &icon);
+        byte valid_attr = TERM_WHITE;
 
+        has_icon[i] = smith_tval_icon(smithing_tvals[i].tval, &icons[i]);
         valid[i] = false;
 
         if (smithing_tvals[i].category == CAT_WEAPON)
@@ -4525,14 +4544,15 @@ int create_tval_menu_aux(int* highlight)
             valid_attr = p_ptr->active_ability[S_SMT][SMT_JEWELLER] ? TERM_WHITE
                                                                     : TERM_RED;
         }
+        row_attr[i] = valid[i] ? valid_attr : TERM_L_DARK;
 
         if (i >= top && i < top + (last_row - first_row + 1))
         {
             int row = first_row + i - top;
 
             smith_ui_put_icon_menu_row(i + 1, COL_SMT2, row,
-                valid[i] ? valid_attr : TERM_L_DARK, smithing_tvals[i].desc,
-                has_icon ? &icon : NULL, *highlight == i + 1);
+                row_attr[i], smithing_tvals[i].desc,
+                has_icon[i] ? &icons[i] : NULL, *highlight == i + 1);
         }
     }
 
@@ -4563,9 +4583,11 @@ int create_tval_menu_aux(int* highlight)
             }
             else if (clicked_choice >= 1 && clicked_choice <= MAX_SMITHING_TVALS)
             {
-                *highlight = clicked_choice;
-                if (click_action == UI_MENU_CLICK_HOVER)
+                if (!smith_ui_pointer_choice_confirms(
+                        clicked_choice, click_action, highlight))
+                {
                     return 0;
+                }
                 ch = '\r';
             }
         }
@@ -4587,7 +4609,24 @@ int create_tval_menu_aux(int* highlight)
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
         if (valid[*highlight - 1])
+        {
+            /* The Type panel remains visible behind Subtype.  Repaint it with
+             * the activated row so a direct click/tap does not leave the old
+             * first-row highlight frozen in the parent screen. */
+            for (i = top;
+                 i < MAX_SMITHING_TVALS
+                     && i < top + (last_row - first_row + 1);
+                 i++)
+            {
+                int row = first_row + i - top;
+
+                smith_ui_put_icon_menu_row(i + 1, COL_SMT2, row,
+                    row_attr[i], smithing_tvals[i].desc,
+                    has_icon[i] ? &icons[i] : NULL, *highlight == i + 1);
+            }
+            Term_fresh();
             return (*highlight);
+        }
         else
             bell("Invalid choice.");
     }
@@ -4873,7 +4912,7 @@ int numbers_menu_aux(int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
-    smith_ui_begin_touch_scroll_area();
+    smith_ui_begin_touch_scroll_area(false);
 
     // clear the right of the screen
     smith_ui_wipe_active_panel(indexed_menu_prefix_col(COL_SMT2));
@@ -4987,8 +5026,8 @@ int numbers_menu_aux(int* highlight)
                 continue;
             row = first_row + i - top;
             indexed_menu_entry_label(buf, sizeof(buf), i, number_menu_labels[i]);
-            smith_ui_put_menu_label(COL_SMT2, row, attr[i], buf);
-            smith_ui_register_menu_row(i + 1, COL_SMT2, row, buf);
+            smith_ui_put_menu_row(i + 1, COL_SMT2, row, attr[i], buf,
+                *highlight == i + 1);
         }
     }
     if (alloy_applicable)
@@ -5019,11 +5058,6 @@ int numbers_menu_aux(int* highlight)
             smith_ui_column_width(COL_SMT2), 2, TERM_L_DARK,
             "Alloy requires Alloy mastery.");
     }
-
-    // highlight the label
-    smith_ui_put_menu_prefix(COL_SMT2,
-        smith_ui_visible_highlight_row(*highlight, top, first_row, last_row),
-        *highlight - 1, TERM_L_BLUE, true);
 
     // display the object difficulty
     prt_object_difficulty();
@@ -5058,9 +5092,11 @@ int numbers_menu_aux(int* highlight)
             }
             else if (clicked_choice >= 1 && clicked_choice <= SMT_NUM_MENU_MAX)
             {
-                *highlight = clicked_choice;
-                if (click_action == UI_MENU_CLICK_HOVER)
+                if (!smith_ui_pointer_choice_confirms(
+                        clicked_choice, click_action, highlight))
+                {
                     return 0;
+                }
                 ch = '\r';
             }
         }
@@ -5375,7 +5411,7 @@ static int smith_bonus_menu_aux(int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
-    smith_ui_begin_touch_scroll_area();
+    smith_ui_begin_touch_scroll_area(false);
 
     smith_ui_wipe_active_panel(indexed_menu_prefix_col(COL_SMT2));
 
@@ -5458,15 +5494,13 @@ static int smith_bonus_menu_aux(int* highlight)
             strnfmt(action_label, sizeof(action_label), "%s %-12s (%+d)",
                 verb, name, value);
             indexed_menu_entry_label(buf, sizeof(buf), i, action_label);
-            smith_ui_put_menu_label(COL_SMT2, row, attr[i], buf);
-            smith_ui_register_menu_row(entry_idx, COL_SMT2, row, buf);
+            smith_ui_put_menu_row(entry_idx, COL_SMT2, row, attr[i], buf,
+                *highlight == entry_idx);
         }
     }
 
     int hl_row = smith_ui_visible_highlight_row(
         *highlight, top - 1, first_row, max_row);
-    smith_ui_put_menu_prefix(COL_SMT2, hl_row, *highlight - 1,
-        TERM_L_BLUE, true);
 
     prt_object_difficulty();
     prt_object_description();
@@ -5493,9 +5527,11 @@ static int smith_bonus_menu_aux(int* highlight)
             }
             else if (clicked_choice >= 1 && clicked_choice <= num)
             {
-                *highlight = clicked_choice;
-                if (click_action == UI_MENU_CLICK_HOVER)
+                if (!smith_ui_pointer_choice_confirms(
+                        clicked_choice, click_action, highlight))
+                {
                     return 0;
+                }
                 ch = '\r';
             }
         }
@@ -5862,7 +5898,7 @@ static int reforge_prefix_menu(const object_type* source)
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_outside_cancel_enabled(true);
-        smith_ui_begin_touch_scroll_area();
+        smith_ui_begin_touch_scroll_area(false);
 
         smith_ui_wipe_active_panel(indexed_menu_prefix_col(COL_SMT2));
         smith_ui_put_section_header(COL_SMT2, 1, "Prefix");
@@ -5916,19 +5952,14 @@ static int reforge_prefix_menu(const object_type* source)
                 ego_name_for_enchant_menu(choice[i], ego_label,
                     sizeof(ego_label));
                 indexed_menu_entry_label(buf, sizeof(buf), i, ego_label);
-                smith_ui_put_menu_label(COL_SMT2, row,
+                smith_ui_put_menu_row(i + 1, COL_SMT2, row,
                     valid[i] ? TERM_WHITE
                              : (reforge_preview_primary_blocker(&previews[i])
                                     ? TERM_RED
                                     : TERM_L_DARK),
-                    buf);
-                smith_ui_register_menu_row(i + 1, COL_SMT2, row, buf);
+                    buf, highlight == i + 1);
             }
 
-            smith_ui_put_menu_prefix(COL_SMT2,
-                smith_ui_visible_highlight_row(
-                    highlight, top, first_row, last_row),
-                highlight - 1, TERM_L_BLUE, true);
             Term_gotoxy(14,
                 first_row + MAX(0,
                     MIN(last_row - first_row, highlight - 1 - top)));
@@ -5959,9 +5990,11 @@ static int reforge_prefix_menu(const object_type* source)
                 }
                 else if (clicked_choice >= 1 && clicked_choice <= entry_count)
                 {
-                    highlight = clicked_choice;
-                    if (click_action == UI_MENU_CLICK_HOVER)
+                    if (!smith_ui_pointer_choice_confirms(
+                            clicked_choice, click_action, &highlight))
+                    {
                         continue;
+                    }
                     ch = '\r';
                 }
             }
@@ -6102,7 +6135,7 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
-    smith_ui_begin_touch_scroll_area();
+    smith_ui_begin_touch_scroll_area(false);
 
     // clear the right of the screen
     smith_ui_wipe_active_panel(indexed_menu_prefix_col(COL_SMT2));
@@ -6163,9 +6196,9 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
         else
             ego_name_for_enchant_menu(choice[i], ego_label, sizeof(ego_label));
         indexed_menu_entry_label(buf, sizeof(buf), i, ego_label);
-        smith_ui_put_menu_label(COL_SMT2, row,
-            valid[i] ? TERM_WHITE : TERM_SLATE, buf);
-        smith_ui_register_menu_row(i + 1, COL_SMT2, row, buf);
+        smith_ui_put_menu_row(i + 1, COL_SMT2, row,
+            valid[i] ? TERM_WHITE : TERM_SLATE, buf,
+            *highlight == i + 1);
     }
     if (no_prefix_allowed)
     {
@@ -6173,11 +6206,6 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
             smith_ui_column_width(COL_SMT2), 2, TERM_SLATE,
             "No prefix is allowed with this suffix.");
     }
-
-    // highlight the label
-    smith_ui_put_menu_prefix(COL_SMT2,
-        smith_ui_visible_highlight_row(*highlight, top, first_row, last_row),
-        *highlight - 1, TERM_L_BLUE, true);
 
     /* Make a preview 'special' version of the object */
     if (selecting_prefix)
@@ -6218,9 +6246,11 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
             }
             else if (clicked_choice >= 1 && clicked_choice <= entry_count)
             {
-                *highlight = clicked_choice;
-                if (click_action == UI_MENU_CLICK_HOVER)
+                if (!smith_ui_pointer_choice_confirms(
+                        clicked_choice, click_action, highlight))
+                {
                     return 0;
+                }
                 ch = '\r';
             }
         }
@@ -6231,23 +6261,22 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
         && (ch >= 'a') && (ch <= (char)'a' + entry_count - 1))
     {
         *highlight = (int)ch - 'a' + 1;
-
-        /* Make a preview 'special' version of the object */
-        if (selecting_prefix)
-            create_special(choice[*highlight - 1], fixed_suffix);
-        else
-            create_special(fixed_prefix, choice[*highlight - 1]);
-
-        return (*highlight);
+        ch = '\r';
     }
 
-    /* Choose current  */
+    /* Rebuild from the selected logical row for every input source.  Pointer
+     * activation can update the highlight after the old preview was made. */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
 #ifdef ARROW_RIGHT
         || (ch == ARROW_RIGHT)
 #endif
         )
     {
+        if (selecting_prefix)
+            create_special(choice[*highlight - 1], fixed_suffix);
+        else
+            create_special(fixed_prefix, choice[*highlight - 1]);
+
         return (*highlight);
     }
 
@@ -6640,7 +6669,7 @@ int artefact_flag_menu_aux(int category, int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
-    smith_ui_begin_touch_scroll_area();
+    smith_ui_begin_touch_scroll_area(false);
 
     // clear the right of the screen
     smith_ui_wipe_active_panel(indexed_menu_prefix_col(COL_SMT3));
@@ -6731,14 +6760,9 @@ int artefact_flag_menu_aux(int category, int* highlight)
         int row = first_row + i - top;
 
         indexed_menu_entry_label(buf, sizeof(buf), i, flag_desc[i]);
-        smith_ui_put_menu_label(COL_SMT3, row, flag_attr[i], buf);
-        smith_ui_register_menu_row(i + 1, COL_SMT3, row, buf);
+        smith_ui_put_menu_row(i + 1, COL_SMT3, row, flag_attr[i], buf,
+            *highlight == i + 1);
     }
-
-    // highlight the label
-    smith_ui_put_menu_prefix(COL_SMT3,
-        smith_ui_visible_highlight_row(*highlight, top, first_row, last_row),
-        *highlight - 1, TERM_L_BLUE, true);
 
     // add this flag to the dummy artefact under construction
     add_artefact_flag(flag[*highlight - 1], flagset[*highlight - 1]);
@@ -6776,9 +6800,11 @@ int artefact_flag_menu_aux(int category, int* highlight)
             }
             else if (clicked_choice >= 1 && clicked_choice <= num)
             {
-                *highlight = clicked_choice;
-                if (click_action == UI_MENU_CLICK_HOVER)
+                if (!smith_ui_pointer_choice_confirms(
+                        clicked_choice, click_action, highlight))
+                {
                     return 0;
+                }
                 ch = '\r';
             }
         }
@@ -6788,56 +6814,22 @@ int artefact_flag_menu_aux(int category, int* highlight)
     if (sdl_menu_letters_enabled()
         && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
-        int new_highlight = (int)ch - 'a' + 1;
-
-        if (flag_valid[new_highlight - 1])
-        {
-            if (new_highlight == *highlight)
-            {
-                // remove a flag if it already existed
-                if (flag_present[*highlight - 1])
-                    remove_artefact_flag(
-                        flag[*highlight - 1], flagset[*highlight - 1]);
-            }
-            else
-            {
-                // restore the artefact from backup
-                artefact_copy(smith_a_ptr, smith2_a_ptr);
-
-                *highlight = new_highlight;
-
-                // remove a flag if it already existed
-                if (flag_present[*highlight - 1])
-                    remove_artefact_flag(
-                        flag[*highlight - 1], flagset[*highlight - 1]);
-
-                // otherwise add it
-                else
-                    add_artefact_flag(
-                        flag[*highlight - 1], flagset[*highlight - 1]);
-            }
-
-            // backup the new artefact
-            artefact_copy(smith2_a_ptr, smith_a_ptr);
-            object_copy(smith2_o_ptr, smith_o_ptr);
-            smith2_alloy = smith_alloy;
-
-            return (*highlight);
-        }
-        else
-        {
-            bell("Invalid choice.");
-        }
+        *highlight = (int)ch - 'a' + 1;
+        ch = '\r';
     }
 
-    /* Choose current  */
+    /* Toggle the selected logical row from the saved baseline.  add/remove
+     * prepare that baseline themselves, so this is correct even when a click
+     * changed the highlight after another row was previewed. */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
         if (flag_valid[*highlight - 1])
         {
-            // remove a flag if it already existed
             if (flag_present[*highlight - 1])
                 remove_artefact_flag(
+                    flag[*highlight - 1], flagset[*highlight - 1]);
+            else
+                add_artefact_flag(
                     flag[*highlight - 1], flagset[*highlight - 1]);
 
             // backup the new artefact
@@ -7118,7 +7110,7 @@ int artefact_ability_menu_aux(int skill, int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
-    smith_ui_begin_touch_scroll_area();
+    smith_ui_begin_touch_scroll_area(false);
 
     // clear the right of the screen
     smith_ui_wipe_active_panel(indexed_menu_prefix_col(COL_SMT3));
@@ -7227,14 +7219,9 @@ int artefact_ability_menu_aux(int skill, int* highlight)
             }
         }
         indexed_menu_entry_label(buf, sizeof(buf), i, name);
-        smith_ui_put_menu_label(COL_SMT3, row, attr, buf);
-        smith_ui_register_menu_row(i + 1, COL_SMT3, row, buf);
+        smith_ui_put_menu_row(i + 1, COL_SMT3, row, attr, buf,
+            *highlight == i + 1);
     }
-
-    // highlight the label
-    smith_ui_put_menu_prefix(COL_SMT3,
-        smith_ui_visible_highlight_row(*highlight, top, first_row, last_row),
-        *highlight - 1, TERM_L_BLUE, true);
 
     // add this ability to the dummy artefact under construction (use actual ability number)
     add_artefact_ability(skill, ability_nums[*highlight - 1]);
@@ -7278,8 +7265,8 @@ int artefact_ability_menu_aux(int skill, int* highlight)
             }
             else if (clicked_choice >= 1 && clicked_choice <= num)
             {
-                *highlight = clicked_choice;
-                if (click_action == UI_MENU_CLICK_HOVER)
+                if (!smith_ui_pointer_choice_confirms(
+                        clicked_choice, click_action, highlight))
                 {
                     mem_free(ability_present);
                     mem_free(ability_valid);
@@ -7296,55 +7283,20 @@ int artefact_ability_menu_aux(int skill, int* highlight)
     if (sdl_menu_letters_enabled()
         && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
-        int new_highlight = (int)ch - 'a' + 1;
-
-        if (ability_valid[new_highlight - 1])
-        {
-            if (new_highlight == *highlight)
-            {
-                // remove an ability if it already existed
-                if (ability_present[*highlight - 1])
-                    remove_artefact_ability(skill, ability_nums[*highlight - 1]);
-            }
-            else
-            {
-                // restore the artefact from backup
-                artefact_copy(smith_a_ptr, smith2_a_ptr);
-
-                *highlight = new_highlight;
-
-                // remove an ability if it already existed
-                if (ability_present[*highlight - 1])
-                    remove_artefact_ability(skill, ability_nums[*highlight - 1]);
-
-                // otherwise add it
-                else
-                    add_artefact_ability(skill, ability_nums[*highlight - 1]);
-            }
-
-            // backup the new artefact
-            artefact_copy(smith2_a_ptr, smith_a_ptr);
-
-            mem_free(ability_present);
-            mem_free(ability_valid);
-            mem_free(ability_affordable);
-            mem_free(ability_nums);
-            return (*highlight);
-        }
-        else
-        {
-            bell("Invalid choice.");
-        }
+        *highlight = (int)ch - 'a' + 1;
+        ch = '\r';
     }
 
-    /* Choose current  */
+    /* Toggle the selected logical row from the saved baseline.  This avoids
+     * committing the old preview after a one-step pointer activation. */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
         if (ability_valid[*highlight - 1])
         {
-            // remove an ability if it already existed
             if (ability_present[*highlight - 1])
                 remove_artefact_ability(skill, ability_nums[*highlight - 1]);
+            else
+                add_artefact_ability(skill, ability_nums[*highlight - 1]);
 
             // backup the new artefact
             artefact_copy(smith2_a_ptr, smith_a_ptr);
@@ -7515,7 +7467,7 @@ int artefact_menu_aux(int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
-    smith_ui_begin_touch_scroll_area();
+    smith_ui_begin_touch_scroll_area(false);
 
     // clear the right of the screen
     smith_ui_wipe_active_panel(indexed_menu_prefix_col(COL_SMT2));
@@ -7539,8 +7491,8 @@ int artefact_menu_aux(int* highlight)
             continue;
         row = first_row + i - top;
         indexed_menu_entry_label(buf, sizeof(buf), i, smithing_flag_cats[i].desc);
-        smith_ui_put_menu_label(COL_SMT2, row, TERM_WHITE, buf);
-        smith_ui_register_menu_row(i + 1, COL_SMT2, row, buf);
+        smith_ui_put_menu_row(i + 1, COL_SMT2, row, TERM_WHITE, buf,
+            *highlight == i + 1);
     }
 
     // display the categories for abilities (skip Special abilities - S_SPC)
@@ -7559,8 +7511,8 @@ int artefact_menu_aux(int* highlight)
             row = first_row + logical_idx - top;
             indexed_menu_entry_label(buf, sizeof(buf), logical_idx,
                 skill_names_full[i]);
-            smith_ui_put_menu_label(COL_SMT2, row, TERM_WHITE, buf);
-            smith_ui_register_menu_row(logical_idx + 1, COL_SMT2, row, buf);
+            smith_ui_put_menu_row(logical_idx + 1, COL_SMT2, row, TERM_WHITE,
+                buf, *highlight == logical_idx + 1);
         }
         display_idx++;
     }
@@ -7572,14 +7524,9 @@ int artefact_menu_aux(int* highlight)
         int row = first_row + num - 1 - top;
 
         indexed_menu_entry_label(buf, sizeof(buf), num - 1, "Name Artefact");
-        smith_ui_put_menu_label(COL_SMT2, row, TERM_WHITE, buf);
-        smith_ui_register_menu_row(num, COL_SMT2, row, buf);
+        smith_ui_put_menu_row(num, COL_SMT2, row, TERM_WHITE, buf,
+            *highlight == num);
     }
-
-    // highlight the label
-    smith_ui_put_menu_prefix(COL_SMT2,
-        smith_ui_visible_highlight_row(*highlight, top, first_row, last_row),
-        *highlight - 1, TERM_L_BLUE, true);
 
     // display the object difficulty
     prt_object_difficulty();
@@ -7614,9 +7561,11 @@ int artefact_menu_aux(int* highlight)
             }
             else if (clicked_choice >= 1 && clicked_choice <= num)
             {
-                *highlight = clicked_choice;
-                if (click_action == UI_MENU_CLICK_HOVER)
+                if (!smith_ui_pointer_choice_confirms(
+                        clicked_choice, click_action, highlight))
+                {
                     return 0;
+                }
                 ch = '\r';
             }
         }
@@ -7771,7 +7720,7 @@ int melt_menu_aux(int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
-    smith_ui_begin_touch_scroll_area();
+    smith_ui_begin_touch_scroll_area(false);
 
     // clear the right of the screen
     smith_ui_wipe_active_panel(indexed_menu_prefix_col(COL_SMT2));
@@ -7830,25 +7779,23 @@ int melt_menu_aux(int* highlight)
             row = first_row + num - top;
             object_desc(desc, 80, o_ptr, false, 2);
             indexed_menu_entry_label(buf, sizeof(buf), num, desc);
-            smith_ui_put_menu_label(COL_SMT2, row, TERM_WHITE, buf);
-            smith_ui_register_menu_row(num + 1, COL_SMT2, row, buf);
+            smith_ui_put_menu_row(num + 1, COL_SMT2, row, TERM_WHITE, buf,
+                *highlight == num + 1);
 
             if (smith_ui_weight_col() > 0)
             {
                 strnfmt(buf, 80, "%2d.%d lb", o_ptr->weight / 10,
                     o_ptr->weight % 10);
                 smith_ui_put_fitted(smith_ui_weight_col(), row,
-                    smith_ui_line_width(smith_ui_weight_col()), TERM_WHITE,
+                    smith_ui_line_width(smith_ui_weight_col()),
+                    (*highlight == num + 1)
+                        ? smith_ui_selected_attr(TERM_WHITE)
+                        : TERM_WHITE,
                     buf);
             }
         }
         num++;
     }
-
-    // highlight the label
-    smith_ui_put_menu_prefix(COL_SMT2,
-        smith_ui_visible_highlight_row(*highlight, top, first_row, last_row),
-        *highlight - 1, TERM_L_BLUE, true);
 
     /* Flush the prompt */
     Term_fresh();
@@ -7877,9 +7824,11 @@ int melt_menu_aux(int* highlight)
             }
             else if (clicked_choice >= 1 && clicked_choice <= num)
             {
-                *highlight = clicked_choice;
-                if (click_action == UI_MENU_CLICK_HOVER)
+                if (!smith_ui_pointer_choice_confirms(
+                        clicked_choice, click_action, highlight))
+                {
                     return 0;
+                }
                 ch = '\r';
             }
         }
@@ -8408,7 +8357,7 @@ static void smithing_redraw_root_after_item_picker(void)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
-    smith_ui_begin_touch_scroll_area();
+    smith_ui_begin_touch_scroll_area(true);
 
     smith_root_build_entries(valid, menu_attr, labels);
     smith_root_draw(highlight, valid, menu_attr, labels);
@@ -8578,7 +8527,7 @@ int smithing_menu_aux(int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
-    smith_ui_begin_touch_scroll_area();
+    smith_ui_begin_touch_scroll_area(true);
 
     smith_root_build_entries(valid, menu_attr, labels);
     action_row = smith_root_draw(*highlight, valid, menu_attr, labels);
@@ -8616,9 +8565,11 @@ int smithing_menu_aux(int* highlight)
             }
             else if (clicked_choice >= 1 && clicked_choice <= SMT_MENU_MAX)
             {
-                *highlight = clicked_choice;
-                if (click_action == UI_MENU_CLICK_HOVER)
+                if (!smith_ui_pointer_choice_confirms(
+                        clicked_choice, click_action, highlight))
+                {
                     return 0;
+                }
                 ch = '\r';
             }
         }

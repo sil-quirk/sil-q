@@ -261,7 +261,7 @@ To build, install, and launch a release-signed APK in one step:
 
 For a debug-signed local build, pass `-Config Debug`. Pass `-Delivery Play` only if you intentionally want an APK with the Play package ID; that debug variant is also suffixed with `.debug`.
 
-If Android reports a signature mismatch with an older installed copy, uninstall the existing app first or reinstall with the same signing key. If the device has a newer local build installed, `.\install-android-apk.ps1 -Config Debug -AllowDowngrade` can be used for personal testing.
+If Android reports a signature mismatch, do not uninstall the existing app if you need its saves. Rebuild and sign the APK with the same key as the installed copy. If the device has a newer local build installed, `.\install-android-apk.ps1 -Config Debug -AllowDowngrade` can be used for personal testing. The install and deploy helpers update in place with `adb install -r`; they never uninstall the package or clear its app data.
 
 ### Command-line Native Build
 This builds only the native library through CMake and does not create an installable APK. Use it when debugging the native Android build:

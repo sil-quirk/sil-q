@@ -80,6 +80,8 @@ Or use repo helper scripts from root:
 
 The APK helpers default to the `Sideload` delivery flavor. Release APKs use package ID `com.silmore.myapp.sideload`; debug APKs use `com.silmore.myapp.sideload.debug`, so the debug app can coexist with both the release sideload APK and the Google Play/internal-testing app (`com.silmore.myapp`). Pass `-Delivery Play` only when you intentionally want an APK with the Play package ID.
 
+All repo install and deploy helpers update the selected package in place with `adb install -r`. They never uninstall a package or clear its app data. If an update cannot preserve data, such as when the signing key does not match, the helper stops with an error. Existing saves are visible only when the package ID matches the installed copy; debug, sideload release, and Play builds intentionally use separate app-private storage.
+
 For a one-step debug build, install, and optional launch:
 
 `./deploy-android-debug.ps1 -LaunchApp`

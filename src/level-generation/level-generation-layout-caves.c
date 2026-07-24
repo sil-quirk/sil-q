@@ -162,6 +162,7 @@ bool carve_ca_blob_anchor(void)
             int gx = x1 + x;
             cave_set_feat(gy, gx, FEAT_FLOOR);
             cave_info[gy][gx] |= CAVE_ROOM;
+            cave_natural[gy][gx] = 1;
             floor_count++;
             if (gy < min_y)
                 min_y = gy;
@@ -196,6 +197,7 @@ bool carve_ca_blob_anchor(void)
                 {
                     cave_set_feat(gy, gx, FEAT_FLOOR);
                     cave_info[gy][gx] |= CAVE_ROOM;
+                    cave_natural[gy][gx] = 1;
                     floor_count++;
                     if (gy < min_y)
                         min_y = gy;
@@ -235,6 +237,7 @@ bool carve_ca_blob_anchor(void)
                 {
                     cave_set_feat(ny, nx, FEAT_FLOOR);
                     cave_info[ny][nx] |= CAVE_ROOM;
+                    cave_natural[ny][nx] = 1;
                     floor_count++;
                     if (ny < min_y)
                         min_y = ny;
@@ -395,6 +398,7 @@ bool carve_ca_blob_anchor_bounds(int y_min, int y_max, int x_min, int x_max, int
             int gx = x1 + x;
             cave_set_feat_style(gy, gx, FEAT_FLOOR, style_idx);
             cave_info[gy][gx] |= CAVE_ROOM;
+            cave_natural[gy][gx] = 1;
             floor_count++;
             if (gy < min_y) min_y = gy;
             if (gy > max_y) max_y = gy;
@@ -427,6 +431,7 @@ bool carve_ca_blob_anchor_bounds(int y_min, int y_max, int x_min, int x_max, int
                 {
                     cave_set_feat_style(gy, gx, FEAT_FLOOR, style_idx);
                     cave_info[gy][gx] |= CAVE_ROOM;
+                    cave_natural[gy][gx] = 1;
                     floor_count++;
                     if (gy < min_y)
                         min_y = gy;
@@ -466,6 +471,7 @@ bool carve_ca_blob_anchor_bounds(int y_min, int y_max, int x_min, int x_max, int
                 {
                     cave_set_feat_style(ny, nx, FEAT_FLOOR, style_idx);
                     cave_info[ny][nx] |= CAVE_ROOM;
+                    cave_natural[ny][nx] = 1;
                     floor_count++;
                     if (ny < min_y)
                         min_y = ny;

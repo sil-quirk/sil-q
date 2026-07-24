@@ -402,7 +402,8 @@ void dungeon(void)
         /* Place the cursor on the player or target */
         if (hilite_player)
             move_cursor_relative(p_ptr->py, p_ptr->px);
-        if (hilite_target && target_sighted())
+        if (hilite_target && target_sighted()
+            && panel_contains(p_ptr->target_row, p_ptr->target_col))
             move_cursor_relative(p_ptr->target_row, p_ptr->target_col);
 
         /* Optional fresh */
@@ -439,7 +440,8 @@ void dungeon(void)
         /* Place the cursor on the player or target */
         if (hilite_player)
             move_cursor_relative(p_ptr->py, p_ptr->px);
-        if (hilite_target && target_sighted())
+        if (hilite_target && target_sighted()
+            && panel_contains(p_ptr->target_row, p_ptr->target_col))
             move_cursor_relative(p_ptr->target_row, p_ptr->target_col);
 
         /* Optional fresh */
@@ -472,7 +474,8 @@ void dungeon(void)
         /* Place the cursor on the player or target */
         if (hilite_player)
             move_cursor_relative(p_ptr->py, p_ptr->px);
-        if (hilite_target && target_sighted())
+        if (hilite_target && target_sighted()
+            && panel_contains(p_ptr->target_row, p_ptr->target_col))
             move_cursor_relative(p_ptr->target_row, p_ptr->target_col);
 
         /* Optional fresh */
