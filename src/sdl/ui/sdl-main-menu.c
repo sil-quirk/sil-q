@@ -1380,12 +1380,10 @@ static bool sdl_quick_access_profile_insert_binding(
     return true;
 }
 
-void sdl_quick_access_suggest_skill_shortcut(int skill)
+static void sdl_quick_access_suggest_unlocked_shortcut(cptr unlock_name,
+    cptr action_name, int binding, bool character_wheel_available)
 {
     ui_question_option options[2];
-    const char* skill_name;
-    const char* action_name;
-    int binding;
     int count;
     bool has_room = false;
     char desc[320];
@@ -1393,17 +1391,8 @@ void sdl_quick_access_suggest_skill_shortcut(int skill)
 
     if (!g_state.window || death_spectator_active())
         return;
-    if (skill == S_SNG) {
-        skill_name = "Song";
-        action_name = "Sing";
-        binding = 's';
-    } else if (skill == S_SMT) {
-        skill_name = "Smithing";
-        action_name = "Smithing";
-        binding = '0';
-    } else {
+    if (!unlock_name || !unlock_name[0] || !action_name || !action_name[0])
         return;
-    }
     if (sdl_quick_access_has_binding(binding))
         return;
 
@@ -1418,9 +1407,16 @@ void sdl_quick_access_suggest_skill_shortcut(int skill)
     if (!has_room)
         return;
 
-    strnfmt(desc, sizeof(desc),
-        "You acquired %s for the first time. Add %s to Quick Access?",
-        skill_name, action_name);
+    if (character_wheel_available) {
+        strnfmt(desc, sizeof(desc),
+            "You acquired %s. Add %s to Quick Access? You can also use it "
+            "through the character wheel.",
+            unlock_name, action_name);
+    } else {
+        strnfmt(desc, sizeof(desc),
+            "You acquired %s. Add %s to Quick Access?",
+            unlock_name, action_name);
+    }
     options[0] = (ui_question_option){ 'y', "Add to Quick Access",
         TERM_L_GREEN };
     options[1] = (ui_question_option){ 'n', "Not now", TERM_SLATE };
@@ -1439,8 +1435,46 @@ void sdl_quick_access_suggest_skill_shortcut(int skill)
     sdl_apply_stored_pane_profile(config.min_terminal_mode);
     sdl_apply_config();
     (void)save_pane_config_to_json();
-    log_info("Added %s to Quick Access after first skill purchase",
-        action_name);
+    log_info("Added %s to Quick Access after acquiring %s", action_name,
+        unlock_name);
+}
+
+void sdl_quick_access_suggest_skill_shortcut(int skill)
+{
+    if (skill == S_SNG) {
+        sdl_quick_access_suggest_unlocked_shortcut("Song", "Sing", 's',
+            false);
+    } else if (skill == S_SMT) {
+        sdl_quick_access_suggest_unlocked_shortcut("Smithing", "Smithing",
+            '0', false);
+    }
+}
+
+void sdl_quick_access_suggest_ability_shortcut(int skill, int ability)
+{
+    if (skill == S_ARC && ability == ARC_FLETCHERY) {
+        sdl_quick_access_suggest_unlocked_shortcut("Fletchery", "Fletch",
+            '-', true);
+    } else if (skill == S_STL && ability == STL_EXCHANGE_PLACES) {
+        sdl_quick_access_suggest_unlocked_shortcut("Exchange Places",
+            "Exchange Places", 'X', true);
+    }
+}
+
+void sdl_quick_access_suggest_starting_shortcuts(void)
+{
+    if (!p_ptr)
+        return;
+
+    if (p_ptr->skill_base[S_SNG] > 0)
+        sdl_quick_access_suggest_skill_shortcut(S_SNG);
+    if (p_ptr->skill_base[S_SMT] > 0)
+        sdl_quick_access_suggest_skill_shortcut(S_SMT);
+    if (p_ptr->innate_ability[S_ARC][ARC_FLETCHERY])
+        sdl_quick_access_suggest_ability_shortcut(S_ARC, ARC_FLETCHERY);
+    if (p_ptr->innate_ability[S_STL][STL_EXCHANGE_PLACES])
+        sdl_quick_access_suggest_ability_shortcut(S_STL,
+            STL_EXCHANGE_PLACES);
 }
 
 static bool sdl_main_menu_button_run_pending_disable_prompt(void)

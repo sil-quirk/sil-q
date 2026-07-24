@@ -473,6 +473,11 @@ NavResult player_birth()
      * not sourced from the metarun or savefile. */
     sdl_config_load_app_options(get_sdl_config_path());
 
+    /* Initial skill allocation and Blitz auto-allocation happen before the
+     * character is generated.  Offer each newly relevant Quick Access action
+     * here so starting abilities and every fresh run use the same rule. */
+    sdl_quick_access_suggest_starting_shortcuts();
+
     log_info("Character creation completed: %s the %s", op_ptr->full_name, p_name + rp_ptr->name);
 
     return NAV_OK;

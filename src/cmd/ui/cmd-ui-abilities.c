@@ -3085,6 +3085,7 @@ static void ability_browser_build_summary(int skilltype, char* summary,
 static bool ability_browser_train_skill(int skilltype)
 {
     int cost;
+    int old_base;
     char prompt[120];
 
     if (skilltype < 0 || skilltype >= S_MAX || skilltype == S_SPC)
@@ -3105,6 +3106,7 @@ static bool ability_browser_train_skill(int skilltype)
         return false;
     }
 
+    old_base = p_ptr->skill_base[skilltype];
     cost = ability_browser_next_skill_cost(skilltype);
     if (cost > p_ptr->new_exp)
     {
@@ -3126,6 +3128,8 @@ static bool ability_browser_train_skill(int skilltype)
 
     msg_format("%s increased to %d.", skill_names_full[skilltype],
         p_ptr->skill_base[skilltype]);
+    if (old_base == 0)
+        sdl_quick_access_suggest_skill_shortcut(skilltype);
     return true;
 }
 
@@ -4870,6 +4874,7 @@ static bool ability_browser_activate_choice(int skilltype, int abilitynum)
         }
 
         msg_print("Ability gained.");
+        sdl_quick_access_suggest_ability_shortcut(skilltype, abilitynum);
     }
     else
     {

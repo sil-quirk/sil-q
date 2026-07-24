@@ -247,12 +247,12 @@ extern NavResult gain_skills(void)
 
     /* Offer newly relevant shortcuts only after the allocation is committed;
      * backing out of this screen must never mutate the SDL layout. */
-    if (result == NAV_OK && old_base[S_SNG] == 0
+    if (result == NAV_OK && character_generated && old_base[S_SNG] == 0
         && p_ptr->skill_base[S_SNG] > 0)
     {
         sdl_quick_access_suggest_skill_shortcut(S_SNG);
     }
-    if (result == NAV_OK && old_base[S_SMT] == 0
+    if (result == NAV_OK && character_generated && old_base[S_SMT] == 0
         && p_ptr->skill_base[S_SMT] > 0)
     {
         sdl_quick_access_suggest_skill_shortcut(S_SMT);

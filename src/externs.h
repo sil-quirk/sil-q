@@ -860,6 +860,8 @@ extern int main_menu_choice_from_key(int key);
 extern bool main_menu_choice_is_disabled(int choice);
 extern bool do_cmd_main_menu_execute_choice(int choice);
 extern void sdl_quick_access_suggest_skill_shortcut(int skill);
+extern void sdl_quick_access_suggest_ability_shortcut(int skill, int ability);
+extern void sdl_quick_access_suggest_starting_shortcuts(void);
 extern void do_cmd_main_menu(void);
 extern void do_cmd_messages(void);
 extern void do_cmd_messages_with_filter(int initial_filter);
