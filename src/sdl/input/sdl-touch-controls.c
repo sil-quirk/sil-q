@@ -1105,6 +1105,7 @@ static bool sdl_touch_thumb_compute_runtime_rects(
             float button_w;
             float button_h;
             float preferred_w;
+            float four_column_w;
             int columns;
             int rows;
 
@@ -1122,6 +1123,11 @@ static bool sdl_touch_thumb_compute_runtime_rects(
                 columns = 1;
             if (columns > set.count)
                 columns = set.count;
+            /* Description actions may use the combined portrait control width.
+             * Prefer four across when every target remains comfortably sized. */
+            four_column_w = (grid_w - gap * 3.0f) / 4.0f;
+            if (set.count >= 4 && four_column_w >= 48.0f)
+                columns = 4;
             rows = (set.count + columns - 1) / columns;
             button_w = (grid_w - gap * (float)(columns - 1))
                 / (float)columns;
@@ -1431,6 +1437,7 @@ static void sdl_touch_thumb_render_button(const SDL_FRect* rect, int index,
     int tap_binding = sdl_touch_thumb_button_binding(index, false);
     int long_binding = sdl_touch_thumb_button_binding(index, true);
     char label[32];
+    char* detail;
 
     /* Translucent body + border, in the style of the movement button-wheel. */
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, pressed ? 200 : 150);
@@ -1442,6 +1449,7 @@ static void sdl_touch_thumb_render_button(const SDL_FRect* rect, int index,
 
     text.a = pressed ? 255 : 245;
     sdl_touch_context_label_for_binding(tap_binding, label, sizeof(label));
+    detail = sdl_touch_thumb_description_open() ? strstr(label, " (") : NULL;
 
     if (long_binding != GAMEPAD_BIND_NONE) {
         SDL_FRect main_rect = *rect;
@@ -1461,6 +1469,22 @@ static void sdl_touch_thumb_render_button(const SDL_FRect* rect, int index,
             0.40f, 0.60f);
         sdl_touch_pane_draw_button_text_scaled(&long_rect, NULL, long_label,
             hint, 0.36f, 0.52f);
+    } else if (detail) {
+        SDL_FRect main_rect = *rect;
+        SDL_FRect detail_rect = *rect;
+        SDL_Color hint = g_state.palette[TERM_L_WHITE];
+
+        *detail = '\0';
+        detail++;
+        main_rect.h = rect->h * 0.60f;
+        detail_rect.y = rect->y + rect->h * 0.56f;
+        detail_rect.h = rect->h * 0.44f;
+        hint.a = pressed ? 240 : 215;
+
+        sdl_touch_pane_draw_button_text_scaled(&main_rect, NULL, label, text,
+            0.40f, 0.60f);
+        sdl_touch_pane_draw_button_text_scaled(&detail_rect, NULL, detail,
+            hint, 0.34f, 0.52f);
     } else {
         sdl_touch_pane_draw_button_text_scaled(rect, NULL, label, text,
             0.40f, 0.64f);
@@ -1559,6 +1583,17 @@ static void sdl_touch_thumb_fire(int index, bool long_press)
         binding = sdl_touch_thumb_button_binding(index, !long_press);
     if (binding == GAMEPAD_BIND_NONE)
         return;
+
+    /* Description buttons are registered action keys, not configurable
+     * gameplay shortcuts.  Send them straight to the overlay's inkey() loop so
+     * keys such as 'i' cannot be intercepted as pane-opening commands. */
+    if (sdl_touch_thumb_description_open()) {
+        Term_keypress(binding);
+        g_touch_thumb_flash_button = index;
+        g_touch_thumb_flash_until = SDL_GetTicksNS() + 150000000ULL;
+        g_state.need_present = true;
+        return;
+    }
 
     if (sdl_touch_thumb_send_internal_binding(binding)) {
         g_touch_thumb_flash_button = index;

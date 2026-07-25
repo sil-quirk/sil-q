@@ -862,6 +862,7 @@ extern bool do_cmd_main_menu_execute_choice(int choice);
 extern void sdl_quick_access_suggest_skill_shortcut(int skill);
 extern void sdl_quick_access_suggest_ability_shortcut(int skill, int ability);
 extern void sdl_quick_access_suggest_starting_shortcuts(void);
+extern void sdl_quick_access_suggest_equipped_item(int tval);
 extern void do_cmd_main_menu(void);
 extern void do_cmd_messages(void);
 extern void do_cmd_messages_with_filter(int initial_filter);
@@ -901,6 +902,10 @@ extern void display_koff(int k_idx);
 extern void do_cmd_eat_food(object_type* default_o_ptr, int default_item);
 extern void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item);
 extern void do_cmd_use_gem(object_type* default_o_ptr, int default_item);
+extern int understanding_gem_count_for_item_description(
+    const object_type* viewed_o_ptr);
+extern bool do_cmd_use_understanding_gem_on_item(
+    const object_type* viewed_o_ptr);
 extern void self_knowledge_defer_display_push(void);
 extern void self_knowledge_defer_display_pop(void);
 extern bool self_knowledge_display_pending(void);

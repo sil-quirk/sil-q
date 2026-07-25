@@ -2448,6 +2448,8 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         /* Ensure the newly-identified item (and any resulting bonuses) display immediately. */
         handle_stuff();
     }
+
+    sdl_quick_access_suggest_equipped_item(o_ptr->tval);
 }
 
 void do_cmd_wield_to_slot(

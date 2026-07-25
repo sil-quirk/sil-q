@@ -1107,6 +1107,7 @@ struct player_type
     s32b descent_exp; /* Total experience from descending to new levels */
     s32b ident_exp; /* Total experience from identifying objects */
     byte discovery_lore_flags; /* Run-wide discovery XP awards already claimed */
+    byte quick_access_prompt_flags; /* Run-wide item shortcut offers already made */
 
     s16b mhp; /* Max hit pts */
     s16b chp; /* Cur hit pts */

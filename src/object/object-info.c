@@ -14,6 +14,8 @@ static bool new_paragraph = false;
 #define OBJECT_INFO_CAPTURE_MAX_ROWS 2048
 #define OBJECT_INFO_CAPTURE_ROWS_PER_OBJECT 64
 #define OBJECT_INFO_CAPTURE_STORY_COLS 200
+#define OBJECT_INFO_MAX_ACTIONS 8
+#define OBJECT_INFO_UNDERSTANDING_KEY 'i'
 
 typedef struct object_info_screen_capture
 {
@@ -2745,6 +2747,41 @@ static bool object_info_screen_key_is_action(int key,
     return false;
 }
 
+static bool object_info_screen_action_key_available(int key,
+    const object_info_screen_action* actions, int action_count)
+{
+    if (!actions || action_count <= 0)
+        return true;
+
+    for (int i = 0; i < action_count; i++)
+    {
+        if (actions[i].key == key)
+            return false;
+    }
+
+    return true;
+}
+
+static void object_info_understanding_action_token(char* buf, size_t buflen,
+    int count)
+{
+    if (!buf || buflen == 0)
+        return;
+
+    if (count == 1)
+    {
+        strnfmt(buf, buflen, "i Identify (1 gem)");
+    }
+    else if (count > 999)
+    {
+        strnfmt(buf, buflen, "i Identify (999+ gems)");
+    }
+    else
+    {
+        strnfmt(buf, buflen, "i Identify (%d gems)", count);
+    }
+}
+
 static void object_info_configure_footer(cptr footer,
     const object_info_screen_action* actions, int action_count)
 {
@@ -2862,8 +2899,14 @@ char object_info_screen_multi_with_actions(const object_type** objects,
     const object_info_screen_action* actions, int action_count)
 {
     object_info_screen_capture capture;
+    object_info_screen_action effective_actions[OBJECT_INFO_MAX_ACTIONS];
+    char effective_footer[160];
+    char understanding_token[32];
     bool have_capture = false;
+    bool use_understanding = false;
     char result = 0;
+    int effective_action_count = 0;
+    int understanding_count = 0;
     bool use_story_font;
 
     if (count <= 0 || objects == NULL)
@@ -2875,6 +2918,41 @@ char object_info_screen_multi_with_actions(const object_type** objects,
     SDL_memset(&capture, 0, sizeof(capture));
     use_story_font = story_object_desc_enabled();
 
+    if (actions && action_count > 0)
+    {
+        effective_action_count = MIN(action_count, OBJECT_INFO_MAX_ACTIONS);
+        for (int i = 0; i < effective_action_count; i++)
+            effective_actions[i] = actions[i];
+    }
+
+    understanding_count =
+        understanding_gem_count_for_item_description(objects[0]);
+    if (understanding_count > 0
+        && effective_action_count < OBJECT_INFO_MAX_ACTIONS
+        && object_info_screen_action_key_available(
+            OBJECT_INFO_UNDERSTANDING_KEY, effective_actions,
+            effective_action_count))
+    {
+        object_info_understanding_action_token(understanding_token,
+            sizeof(understanding_token), understanding_count);
+        effective_actions[effective_action_count].key =
+            OBJECT_INFO_UNDERSTANDING_KEY;
+        effective_actions[effective_action_count].token = understanding_token;
+        effective_action_count++;
+
+        if (footer && footer[0])
+        {
+            strnfmt(effective_footer, sizeof(effective_footer), "%s  %s",
+                understanding_token, footer);
+        }
+        else
+        {
+            strnfmt(effective_footer, sizeof(effective_footer), "%s",
+                understanding_token);
+        }
+        footer = effective_footer;
+    }
+
     character_icky++;
 
     have_capture =
@@ -2883,8 +2961,9 @@ char object_info_screen_multi_with_actions(const object_type** objects,
             use_story_font, true);
     if (have_capture)
     {
-        result = object_info_screen_capture_view(&capture, footer, actions,
-            action_count);
+        result = object_info_screen_capture_view(&capture, footer,
+            effective_action_count ? effective_actions : NULL,
+            effective_action_count);
         object_info_screen_capture_free(&capture);
     }
     else
@@ -2899,10 +2978,14 @@ char object_info_screen_multi_with_actions(const object_type** objects,
     text_out_indent = 0;
     new_paragraph = false;
 
+    use_understanding = (result == OBJECT_INFO_UNDERSTANDING_KEY
+        && understanding_count > 0);
+    if (use_understanding)
+    {
+        (void)do_cmd_use_understanding_gem_on_item(objects[0]);
+        return 0;
+    }
+
     return result;
 }
-
-
-
-
 

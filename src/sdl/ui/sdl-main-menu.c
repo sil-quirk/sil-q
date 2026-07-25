@@ -1381,7 +1381,8 @@ static bool sdl_quick_access_profile_insert_binding(
 }
 
 static void sdl_quick_access_suggest_unlocked_shortcut(cptr unlock_name,
-    cptr action_name, int binding, bool character_wheel_available)
+    cptr action_name, int binding, bool character_wheel_available,
+    cptr custom_desc)
 {
     ui_question_option options[2];
     int count;
@@ -1407,7 +1408,9 @@ static void sdl_quick_access_suggest_unlocked_shortcut(cptr unlock_name,
     if (!has_room)
         return;
 
-    if (character_wheel_available) {
+    if (custom_desc && custom_desc[0]) {
+        SDL_strlcpy(desc, custom_desc, sizeof(desc));
+    } else if (character_wheel_available) {
         strnfmt(desc, sizeof(desc),
             "You acquired %s. Add %s to Quick Access? You can also use it "
             "through the character wheel.",
@@ -1436,18 +1439,18 @@ static void sdl_quick_access_suggest_unlocked_shortcut(cptr unlock_name,
     sdl_apply_stored_pane_profile(config.min_terminal_mode);
     sdl_apply_config();
     (void)save_pane_config_to_json();
-    log_info("Added %s to Quick Access after acquiring %s", action_name,
-        unlock_name);
+    log_info("Added %s to Quick Access after %s %s", action_name,
+        custom_desc ? "equipping" : "acquiring", unlock_name);
 }
 
 void sdl_quick_access_suggest_skill_shortcut(int skill)
 {
     if (skill == S_SNG) {
         sdl_quick_access_suggest_unlocked_shortcut("Song", "Sing", 's',
-            false);
+            false, NULL);
     } else if (skill == S_SMT) {
         sdl_quick_access_suggest_unlocked_shortcut("Smithing", "Smithing",
-            '0', false);
+            '0', false, NULL);
     }
 }
 
@@ -1455,11 +1458,52 @@ void sdl_quick_access_suggest_ability_shortcut(int skill, int ability)
 {
     if (skill == S_ARC && ability == ARC_FLETCHERY) {
         sdl_quick_access_suggest_unlocked_shortcut("Fletchery", "Fletch",
-            '-', true);
+            '-', true, NULL);
     } else if (skill == S_STL && ability == STL_EXCHANGE_PLACES) {
         sdl_quick_access_suggest_unlocked_shortcut("Exchange Places",
-            "Exchange Places", 'X', true);
+            "Exchange Places", 'X', true, NULL);
     }
+}
+
+void sdl_quick_access_suggest_equipped_item(int tval)
+{
+    byte prompt_flag;
+    cptr item_name;
+    cptr action_name;
+    cptr wheel_verb;
+    int binding;
+    char desc[320];
+
+    if (!p_ptr)
+        return;
+
+    if (tval == TV_STAFF) {
+        prompt_flag = QUICK_ACCESS_PROMPT_STAFF;
+        item_name = "a staff";
+        action_name = "Activate staff";
+        wheel_verb = "activate";
+        binding = 'a';
+    } else if (tval == TV_HORN) {
+        prompt_flag = QUICK_ACCESS_PROMPT_HORN;
+        item_name = "a horn";
+        action_name = "Blow horn";
+        wheel_verb = "blow";
+        binding = 'p';
+    } else {
+        return;
+    }
+
+    if (p_ptr->quick_access_prompt_flags & prompt_flag)
+        return;
+
+    /* The first successful equip consumes the offer even when it is declined. */
+    p_ptr->quick_access_prompt_flags |= prompt_flag;
+    strnfmt(desc, sizeof(desc),
+        "You equipped %s for the first time this run. Add %s to Quick "
+        "Access? You can also %s it from the character wheel.",
+        item_name, action_name, wheel_verb);
+    sdl_quick_access_suggest_unlocked_shortcut(item_name, action_name,
+        binding, true, desc);
 }
 
 void sdl_quick_access_suggest_starting_shortcuts(void)

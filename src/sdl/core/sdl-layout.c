@@ -5521,7 +5521,7 @@ sdl_startup_device_class sdl_prompt_desktop_startup_input_device(
             | SDL_MESSAGEBOX_BUTTONS_LEFT_TO_RIGHT,
         .window = g_state.window,
         .title = "Choose Input",
-        .message = "A controller is connected.\n\nUse controller input or mouse + keyboard input?\n\nController is recommended for handhelds. Mouse + keyboard is recommended for everything else.",
+        .message = "A controller is connected.\n\nUse controller input or mouse + keyboard input?\n\nMouse + Keyboard is recommended. Controller support is still a work in progress.",
         .numbuttons = 2,
         .buttons = buttons,
         .colorScheme = NULL,

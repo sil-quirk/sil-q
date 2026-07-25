@@ -60,7 +60,7 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 7
-#define VERSION_EXTRA 4   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 5   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.x saves */
 
@@ -374,6 +374,14 @@
 #define DISC_LORE_BIG_CAVE_ICE  0x04
 #define DISC_LORE_BIG_CAVE_FIRE 0x08
 #define DISC_LORE_BIG_CAVE_POIS 0x10
+
+/*
+ * Run-wide Quick Access offers (player_type.quick_access_prompt_flags).
+ */
+#define QUICK_ACCESS_PROMPT_STAFF 0x01
+#define QUICK_ACCESS_PROMPT_HORN  0x02
+#define QUICK_ACCESS_PROMPT_MASK  \
+    (QUICK_ACCESS_PROMPT_STAFF | QUICK_ACCESS_PROMPT_HORN)
 
 /*
  * Maximum size of the "view" array (see "cave/cave-view.c")

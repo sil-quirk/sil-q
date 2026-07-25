@@ -223,11 +223,12 @@ errr rd_extra(void)
     rd_byte(&p_ptr->self_made_arts);
     rd_byte(&p_ptr->climbing);
 
-    // Reserved block: 7 legacy bytes, active weapon byte, 1 summons byte, 6 spare bytes.
+    // Compatibility block: persistent fields stored in 15 legacy reserved bytes.
     {
         byte morgoth_hall_entered = 0;
         byte morgoth_second_wind = 0;
         byte discovery_lore_flags = 0;
+        byte quick_access_prompt_flags = 0;
         s16b lamp_oil = 0;
         byte active_weapon_mode = PLAYER_ACTIVE_WEAPON_MELEE;
         byte morgoth_call_state = 0;
@@ -238,13 +239,16 @@ errr rd_extra(void)
         if (savefile_version_at_least(0, 9, 7, 1))
         {
             rd_byte(&active_weapon_mode);
-            strip_bytes(1);
         }
         else
         {
             active_weapon_mode = PLAYER_ACTIVE_WEAPON_MELEE;
-            strip_bytes(2);
+            strip_bytes(1);
         }
+        if (savefile_version_at_least(0, 9, 7, 5))
+            rd_byte(&quick_access_prompt_flags);
+        else
+            strip_bytes(1);
         if (savefile_has_morgoth_call_state)
         {
             rd_byte(&morgoth_call_state);
@@ -257,6 +261,8 @@ errr rd_extra(void)
         p_ptr->morgoth_hall_entered = morgoth_hall_entered ? 1 : 0;
         p_ptr->morgoth_second_wind = morgoth_second_wind ? 1 : 0;
         p_ptr->discovery_lore_flags = discovery_lore_flags;
+        p_ptr->quick_access_prompt_flags =
+            quick_access_prompt_flags & QUICK_ACCESS_PROMPT_MASK;
         p_ptr->lamp_oil = lamp_oil;
         p_ptr->active_weapon_mode = active_weapon_mode;
         if (savefile_has_morgoth_call_state)

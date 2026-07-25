@@ -152,13 +152,13 @@ void wr_extra(void)
 
     wr_byte(p_ptr->climbing);
 
-    // Reserved block: 7 legacy bytes, 1 summons byte, 7 spare bytes.
+    // Compatibility block: persistent fields stored in 15 legacy reserved bytes.
     wr_byte(p_ptr->morgoth_hall_entered ? 1 : 0);
     wr_byte(p_ptr->morgoth_second_wind ? 1 : 0);
     wr_byte(p_ptr->discovery_lore_flags);
     wr_s16b(p_ptr->lamp_oil);
     wr_byte((byte)player_active_weapon_mode());
-    wr_byte(0);
+    wr_byte(p_ptr->quick_access_prompt_flags & QUICK_ACCESS_PROMPT_MASK);
     {
         byte morgoth_call_state =
             p_ptr->morgoth_call_state

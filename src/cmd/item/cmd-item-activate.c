@@ -1,5 +1,6 @@
 #include "angband.h"
 #include "externs.h"
+#include "object/object-internal.h"
 #include "object/object-ui-select.h"
 
 static bool reject_broken_item_use(const object_type* o_ptr)
@@ -8,6 +9,188 @@ static bool reject_broken_item_use(const object_type* o_ptr)
         return false;
 
     msg_print("Broken items must be repaired before they can be used.");
+    return true;
+}
+
+typedef enum understanding_gem_source_type
+{
+    UNDERSTANDING_GEM_SOURCE_NONE,
+    UNDERSTANDING_GEM_SOURCE_PACK,
+    UNDERSTANDING_GEM_SOURCE_SUPPLIES
+} understanding_gem_source_type;
+
+typedef struct understanding_gem_source
+{
+    understanding_gem_source_type type;
+    object_type* o_ptr;
+    int index;
+} understanding_gem_source;
+
+static bool understanding_gem_matches(const object_type* o_ptr)
+{
+    return o_ptr && o_ptr->k_idx && o_ptr->number > 0
+        && o_ptr->tval == TV_GEM && o_ptr->sval == SV_GEM_UNDERSTANDING
+        && object_aware_p(o_ptr) && !object_has_broken_prefix(o_ptr);
+}
+
+static int carried_understanding_gem_count(
+    understanding_gem_source* first_source)
+{
+    int count = 0;
+
+    if (first_source)
+        *first_source = (understanding_gem_source){
+            UNDERSTANDING_GEM_SOURCE_NONE, NULL, -1
+        };
+
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+
+        if (!understanding_gem_matches(o_ptr))
+            continue;
+
+        if (first_source
+            && first_source->type == UNDERSTANDING_GEM_SOURCE_NONE)
+        {
+            first_source->type = UNDERSTANDING_GEM_SOURCE_SUPPLIES;
+            first_source->o_ptr = o_ptr;
+            first_source->index = i;
+        }
+        count += o_ptr->number;
+    }
+
+    for (int i = 0; i < INVEN_PACK; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (!understanding_gem_matches(o_ptr))
+            continue;
+
+        if (first_source
+            && first_source->type == UNDERSTANDING_GEM_SOURCE_NONE)
+        {
+            first_source->type = UNDERSTANDING_GEM_SOURCE_PACK;
+            first_source->o_ptr = o_ptr;
+            first_source->index = i;
+        }
+        count += o_ptr->number;
+    }
+
+    return count;
+}
+
+static bool understanding_gem_target(const object_type* viewed_o_ptr,
+    object_type** target_o_ptr, int* target_item)
+{
+    int floor_list[MAX_FLOOR_STACK];
+    int floor_num;
+
+    if (target_o_ptr)
+        *target_o_ptr = NULL;
+    if (target_item)
+        *target_item = 0;
+
+    if (!viewed_o_ptr || !viewed_o_ptr->k_idx
+        || !object_is_unidentified_for_display(viewed_o_ptr))
+    {
+        return false;
+    }
+
+    for (int i = 0; i < INVEN_TOTAL; i++)
+    {
+        if (viewed_o_ptr != &inventory[i])
+            continue;
+
+        if (target_o_ptr)
+            *target_o_ptr = &inventory[i];
+        if (target_item)
+            *target_item = i;
+        return true;
+    }
+
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+
+        if (viewed_o_ptr != o_ptr)
+            continue;
+
+        if (target_o_ptr)
+            *target_o_ptr = o_ptr;
+        if (target_item)
+            *target_item = SUPPLIES_INDEX + i;
+        return true;
+    }
+
+    floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py, p_ptr->px,
+        0x00);
+    for (int i = 0; i < floor_num; i++)
+    {
+        int o_idx = floor_list[i];
+
+        if (o_idx <= 0 || o_idx >= o_max || viewed_o_ptr != &o_list[o_idx])
+            continue;
+
+        if (target_o_ptr)
+            *target_o_ptr = &o_list[o_idx];
+        if (target_item)
+            *target_item = 0 - o_idx;
+        return true;
+    }
+
+    return false;
+}
+
+int understanding_gem_count_for_item_description(
+    const object_type* viewed_o_ptr)
+{
+    if (!character_dungeon || !p_ptr || !p_ptr->playing || p_ptr->is_dead)
+        return 0;
+
+    if (!understanding_gem_target(viewed_o_ptr, NULL, NULL))
+        return 0;
+
+    return carried_understanding_gem_count(NULL);
+}
+
+bool do_cmd_use_understanding_gem_on_item(const object_type* viewed_o_ptr)
+{
+    understanding_gem_source source;
+    object_type* target_o_ptr;
+    int target_item;
+
+    if (!character_dungeon || !p_ptr || !p_ptr->playing || p_ptr->is_dead)
+        return false;
+    if (!understanding_gem_target(viewed_o_ptr, &target_o_ptr, &target_item))
+        return false;
+    if (carried_understanding_gem_count(&source) <= 0 || !source.o_ptr)
+        return false;
+
+    sound(MSG_USE_GEM);
+    p_ptr->energy_use = 100;
+    p_ptr->previous_action[0] = ACTION_MISC;
+
+    do_ident_item(target_item, target_o_ptr);
+    break_truce(false);
+
+    p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+    object_tried(source.o_ptr);
+    p_ptr->window |= (PW_INVEN | PW_EQUIP);
+    source.o_ptr->xtra1++;
+
+    if (source.type == UNDERSTANDING_GEM_SOURCE_SUPPLIES)
+    {
+        supplies_consume_quantity(source.index, 1);
+        supplies_refresh_entry(source.index);
+    }
+    else if (source.type == UNDERSTANDING_GEM_SOURCE_PACK)
+    {
+        inven_item_increase(source.index, -1);
+        inven_item_describe(source.index);
+        inven_item_optimize(source.index);
+    }
+
     return true;
 }
 

@@ -80,6 +80,7 @@ void get_extra(void)
     
     p_ptr->new_exp = p_ptr->exp = get_start_xp();
     p_ptr->discovery_lore_flags = 0;
+    p_ptr->quick_access_prompt_flags = 0;
     log_debug("Set starting experience to %d", p_ptr->exp);
 
     /* Player is not singing */

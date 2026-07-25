@@ -1529,6 +1529,15 @@ cptr sdl_description_overlay_footer_text(
     return "Esc close  Space page  Dir scroll";
 }
 
+static bool sdl_description_overlay_actions_use_touch_dock(
+    const description_overlay_state* overlay)
+{
+    return overlay && overlay->active && overlay->interactive
+        && overlay->footer_action_count > 0
+        && sdl_mobile_portrait_layout_active()
+        && sdl_touch_thumb_layout_active();
+}
+
 void sdl_description_overlay_set_footer(cptr text, bool always)
 {
     bool changed;
@@ -1856,6 +1865,7 @@ bool sdl_description_overlay_layout(description_overlay_layout* out)
     int text_px;
     int visible_cols;
     int visible_rows;
+    bool actions_use_touch_dock;
     bool footer;
     bool footer_forced;
     float panel_w;
@@ -1908,10 +1918,12 @@ bool sdl_description_overlay_layout(description_overlay_layout* out)
     if (target_cols < 1)
         target_cols = 1;
 
-    if (overlay->interactive)
+    actions_use_touch_dock =
+        sdl_description_overlay_actions_use_touch_dock(overlay);
+    if (overlay->interactive && !actions_use_touch_dock)
         footer_cols = (int)strlen(sdl_description_overlay_footer_text(overlay));
 
-    footer_forced = overlay->interactive
+    footer_forced = overlay->interactive && !actions_use_touch_dock
         && (overlay->footer_always || overlay->footer_text[0]);
     footer = footer_forced
         || (overlay->interactive && overlay->height > max_rows_no_footer);
@@ -2611,7 +2623,8 @@ void sdl_description_overlay_render(void)
         TTF_Font* footer_font = sdl_story_font_for_height_slot(
             layout.cell_h, STORY_FONT_SLOT_SECONDARY);
 
-        if (overlay->interactive)
+        if (overlay->interactive
+            && !sdl_description_overlay_actions_use_touch_dock(overlay))
         {
             int len = (int)strlen(footer_text);
 
@@ -2792,6 +2805,8 @@ int sdl_description_overlay_footer_action_at(float x, float y)
     {
         return 0;
     }
+    if (sdl_description_overlay_actions_use_touch_dock(overlay))
+        return 0;
 
     if (!sdl_description_overlay_layout(&layout) || !layout.footer)
         return 0;
