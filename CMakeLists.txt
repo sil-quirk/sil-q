@@ -169,7 +169,7 @@ project(Sil
     VERSION 1.5.1.0
     LANGUAGES C
     DESCRIPTION "Sil-Q is a free, single-player dungeon infiltration game")
-set(PROJECT_VERSION_SUFFIX "-beta1")
+set(PROJECT_VERSION_SUFFIX "-beta2")
 set(PROJECT_VERSION_STRING "${PROJECT_VERSION}${PROJECT_VERSION_SUFFIX}")
 # Apple's CFBundleShortVersionString requires exactly three period-separated
 # integers (major.minor.patch), so we provide a three-component version.

@@ -48,7 +48,7 @@
  * Current version string (defined by CMake, fallback for non-CMake builds)
  */
 #ifndef VERSION_STRING
-#define VERSION_STRING "1.5.1.0-beta1"
+#define VERSION_STRING "1.5.1.0-beta2"
 #endif
 
 /*
