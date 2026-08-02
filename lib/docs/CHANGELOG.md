@@ -1,6 +1,43 @@
 # Change Log
 
-## Sil-Q 1.5.1-beta1 (unreleased)
+## Sil-Q 1.5.1-beta2 (unreleased)
+
+> NOTE: See the section `1.5.1-beta1 (2026-05-16)` below for further changes
+> since the last official release `1.5.0 (2022-01-03)`.
+
+### Thanks and appreciation
+
+We'd like to thank the following members of the Sil-Q community for their help
+in creating this release (in alphabetical order):
+
+- @shindakun
+
+See detailed information below.
+### Gameplay changes
+
+- None.
+
+### Breaking changes
+
+- None
+
+### Details
+
+Added:
+
+- None.
+
+Changed:
+
+- None.
+
+Fixed:
+
+- Subwindow from main crash (fixes #225)
+  ([#226](https://github.com/sil-quirk/sil-q/pull/226))
+  - thanks @shindakun
+
+## Sil-Q 1.5.1-beta1 (2026-05-16)
 
 ### Highlights
 
@@ -57,7 +94,7 @@
 
 ### Thanks and appreciation
 
-We’d like to thank the following members of the Sil-Q community for their help
+We'd like to thank the following members of the Sil-Q community for their help
 in creating this release (in alphabetical order):
 
 - @backwardsEric (Angband maintainer)
