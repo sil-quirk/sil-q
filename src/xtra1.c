@@ -3569,6 +3569,10 @@ void window_stuff(void)
     if (!p_ptr->window)
         return;
 
+    /* Character is not ready yet, no screen updates */
+    if (!character_generated)
+        return;
+
     /* Scan windows */
     for (j = 0; j < ANGBAND_TERM_MAX; j++)
     {
