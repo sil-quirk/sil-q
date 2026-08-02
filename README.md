@@ -28,10 +28,14 @@ the [releases](https://github.com/sil-quirk/sil-q/releases) section.
 > security feature in macOS 10.15+ may prevent you from starting the app.
 > [Follow these macOS instructions to fix this problem](lib/docs/MACOS.md).
 
-The latest Sil-Q version is **v1.5.0**, released on 2022-01-03. [Read about the
-changes](lib/docs/CHANGELOG.md#sil-q-150-2022-01-03) in this version.
+1. The current official Sil-Q version is **v1.5.0**, released on 2022-01-03.
+   [Read about the changes](lib/docs/CHANGELOG.md#sil-q-150-2022-01-03) in this
+   version.
+2. The latest beta Sil-Q version is **v1.5.1-beta1**, released on 2026-05-16.
+   [Read about the changes](lib/docs/CHANGELOG.md#sil-q-151-beta1-2026-05-16) in
+   this version, which includes fixes for all known bugs in 1.5.0.
 
-**We plan to release the next update in 2026. Stay tuned!**
+**We plan to release the next official release in 2026. Stay tuned!**
 
 ## Compiling Sil-Q from source code
 
