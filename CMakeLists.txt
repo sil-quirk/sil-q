@@ -518,6 +518,13 @@ if (SUPPORT_COCOA_FRONTEND)
             "$<TARGET_BUNDLE_CONTENT_DIR:${SIL_TARGET}>/MacOS/${SIL_EXECUTABLE}"
     )
 
+    # Entitlements used only by Debug builds. The get-task-allow entitlement
+    # lets Xcode's tracing tools (Instruments' Leaks target, for example) attach
+    # to the running app. It must never ship in a release: it makes the bundle
+    # non-distributable and weakens the process's security posture.
+    set(SIL_DEBUG_ENTITLEMENTS
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/cocoa/get-task-allow.plist")
+
     # Post-build steps
     add_custom_command(TARGET ${SIL_TARGET} POST_BUILD
         # Set bundle bit
@@ -529,8 +536,14 @@ if (SUPPORT_COCOA_FRONTEND)
         COMMAND xattr -rc "$<TARGET_BUNDLE_DIR:${SIL_TARGET}>"
         # Clean metadata
         COMMAND dot_clean -m "$<TARGET_BUNDLE_DIR:${SIL_TARGET}>"
-        # Codesign
-        COMMAND codesign --force --deep --sign - "$<TARGET_BUNDLE_DIR:${SIL_TARGET}>"
+        # Codesign. Debug also gets get-task-allow so Instruments can attach.
+        # Keep the flag and path separate: a ";" joining them would be treated
+        # as a command separator. Other configs drop both, leaving signing
+        # unchanged.
+        COMMAND codesign --force --deep
+            $<$<CONFIG:Debug>:--entitlements>
+            $<$<CONFIG:Debug>:${SIL_DEBUG_ENTITLEMENTS}>
+            --sign - "$<TARGET_BUNDLE_DIR:${SIL_TARGET}>"
         COMMENT "Signing ${SIL_NAME}.app"
     )
 

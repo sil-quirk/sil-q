@@ -106,6 +106,10 @@ This generates a universal macOS application, `Sil.app`, in the top-level
 directory of Sil-Q. You may move `Sil.app` to wherever you like, such as your
 Mac's `Applications` folder.
 
+> NOTE: Building with `-DCMAKE_BUILD_TYPE=Debug` instead signs the app with the
+> `get-task-allow` entitlement, which Xcode's Instruments needs in order to
+> attach to a running Sil-Q. Release builds are not signed with it.
+
 **Step 3**: Run Sil-Q via the `Sil.app` application.
 
 ```shell
