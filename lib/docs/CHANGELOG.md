@@ -33,6 +33,9 @@ Changed:
 
 Fixed:
 
+- macOS: allow debug build to have get-task-allow entitlements (fixes #221)
+  ([#227](https://github.com/sil-quirk/sil-q/pull/227))
+  - thanks @shindakun
 - Subwindow from main crash (fixes #225)
   ([#226](https://github.com/sil-quirk/sil-q/pull/226))
   - thanks @shindakun
