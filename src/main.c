@@ -640,6 +640,9 @@ int main(int argc, char* argv[])
         /* Handle pending events (most notably update) and flush input */
         Term_flush();
 
+        /* Reset inkey(), in case Term_flush() removed the end of a macro */
+        flush();
+
         /*
          * Play a game -- "new_game" is set by "new", "open" or the open
          * document even handler as appropriate

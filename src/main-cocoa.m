@@ -5034,6 +5034,9 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
             /* Handle pending events (most notably update) and flush input */
             Term_flush();
 
+            /* Reset inkey(), in case Term_flush() removed the end of a macro */
+            flush();
+
             /*
              * Play a game -- "new_game" is set by "new", "open" or the open
              * document event handler as appropriate

@@ -1409,11 +1409,44 @@ struct x11_selection_type
 static x11_selection_type x11_selection[1];
 
 /*
+ * The modifier bit that NumLock uses (usually Mod2Mask), or zero if there is
+ * none (e.g., if the keyboard has no NumLock key).
+ */
+static unsigned int numlock_mask = 0;
+
+/*
+ * Find the modifier bit that NumLock uses.
+ */
+static void find_numlock_mask(Display* dpy)
+{
+    numlock_mask = 0;
+
+    KeyCode nl = XKeysymToKeycode(dpy, XK_Num_Lock);
+    if (!nl)
+        return;
+
+    XModifierKeymap* map = XGetModifierMapping(dpy);
+    if (!map)
+        return;
+
+    for (int i = 0; i < 8; i++)
+    {
+        for (int j = 0; j < map->max_keypermod; j++)
+        {
+            if (map->modifiermap[i * map->max_keypermod + j] == nl)
+                numlock_mask = (1U << i);
+        }
+    }
+
+    XFreeModifiermap(map);
+}
+
+/*
  * Process a keypress event
  */
 static void react_keypress(XKeyEvent* ev)
 {
-    int i, n, mc, ms, mo, mx;
+    int i, n;
 
     uint ks1;
 
@@ -1435,11 +1468,18 @@ static void react_keypress(XKeyEvent* ev)
     /* Hack -- convert into an unsigned int */
     ks1 = (uint)(ks);
 
+    // Ignore NumLock
+    //
+    // NumLock must not count as a modifier. Otherwise, all normal keys become
+    // macro triggers while NumLock is on, which is not intended (and can break
+    // e.g. menu navigation, see https://github.com/sil-quirk/sil-q/issues/222).
+    unsigned int mod_state_no_numlock = ev->state & ~numlock_mask;
+
     /* Extract four "modifier flags" */
-    mc = (ev->state & ControlMask) ? TRUE : FALSE;
-    ms = (ev->state & ShiftMask) ? TRUE : FALSE;
-    mo = (ev->state & Mod1Mask) ? TRUE : FALSE;
-    mx = (ev->state & Mod2Mask) ? TRUE : FALSE;
+    int mc = (mod_state_no_numlock & ControlMask) ? TRUE : FALSE;
+    int ms = (mod_state_no_numlock & ShiftMask) ? TRUE : FALSE;
+    int mo = (mod_state_no_numlock & Mod1Mask) ? TRUE : FALSE;
+    int mx = (mod_state_no_numlock & Mod2Mask) ? TRUE : FALSE;
 
     /* Normal keys with no modifiers */
     if (n && !mo && !mx && !IsSpecialKey(ks))
@@ -1834,6 +1874,10 @@ static errr CheckEvent(bool wait)
     if (xev->type == MappingNotify)
     {
         XRefreshKeyboardMapping(&xev->xmapping);
+
+        /* The NumLock modifier bit can change with the keymap */
+        find_numlock_mask(Metadpy->dpy);
+
         return 0;
     }
 
@@ -2696,6 +2740,9 @@ errr init_x11(int argc, char** argv)
     /* Init the Metadpy if possible */
     if (Metadpy_init_name(dpy_name))
         return (-1);
+
+    /* Find the NumLock modifier bit */
+    find_numlock_mask(Metadpy->dpy);
 
     /* Prepare cursor color */
     MAKE(xor, infoclr);

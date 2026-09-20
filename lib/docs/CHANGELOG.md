@@ -13,13 +13,18 @@ in creating this release (in alphabetical order):
 - @shindakun
 
 See detailed information below.
+
 ### Gameplay changes
 
 - None.
 
 ### Breaking changes
 
-- None
+- _When using X11 on Linux or macOS_:
+  To fix broken menu navigation in X11 when Numlock was on, the game now ignores
+  NumLock when it reads keys (see fix for #222 below). Unfortunately, custom
+  macros that you recorded while NumLock was on/enabled no longer trigger, which
+  means you must record such macros again. Sorry for the inconvenience!
 
 ### Details
 
@@ -33,6 +38,8 @@ Changed:
 
 Fixed:
 
+- X11: keyboard input stopped working after starting a new game with NumLock on
+  (fixes #222)([#228](https://github.com/sil-quirk/sil-q/pull/228))
 - macOS: allow debug build to have get-task-allow entitlements (fixes #221)
   ([#227](https://github.com/sil-quirk/sil-q/pull/227))
   - thanks @shindakun
