@@ -39,7 +39,8 @@ Changed:
 Fixed:
 
 - X11: keyboard input stopped working after starting a new game with NumLock on
-  (fixes #222)([#228](https://github.com/sil-quirk/sil-q/pull/228))
+  (fixes #222)
+  ([#228](https://github.com/sil-quirk/sil-q/pull/228))
 - macOS: allow debug build to have get-task-allow entitlements (fixes #221)
   ([#227](https://github.com/sil-quirk/sil-q/pull/227))
   - thanks @shindakun
