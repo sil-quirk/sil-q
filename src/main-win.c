@@ -255,6 +255,9 @@ typedef struct _term_data term_data;
  * The "font_file" is uppercased, and takes the form "8X13.FON", while
  * "font_want" can be in almost any form as long as it could be construed
  * as attempting to represent the name of a font.
+ *
+ * The "font_path" is the full path given to AddFontResourceEx(). The same
+ * path must be given to RemoveFontResourceEx().
  */
 struct _term_data
 {
@@ -291,6 +294,8 @@ struct _term_data
     cptr font_want;
 
     cptr font_file;
+
+    cptr font_path;
 
     HFONT font_id;
 
@@ -1429,8 +1434,6 @@ static void term_window_resize(const term_data* td)
  */
 static errr term_force_font(term_data* td, cptr path)
 {
-    int i;
-
     int wid, hgt;
 
     char* base;
@@ -1439,32 +1442,31 @@ static errr term_force_font(term_data* td, cptr path)
 
     /* Forget the old font (if needed) */
     if (td->font_id)
+    {
         DeleteObject(td->font_id);
+        td->font_id = NULL;
+    }
+
+    /*
+     * Release our reference to the old font resource. GDI counts references,
+     * so a font shared by several windows stays loaded until the last one
+     * releases it. RemoveFontResourceEx() needs the same path and flags that
+     * were given to AddFontResourceEx().
+     */
+    if (td->font_path)
+    {
+        RemoveFontResourceEx(td->font_path, FR_PRIVATE, 0);
+
+        /* Free the old path */
+        string_free(td->font_path);
+
+        /* Forget it */
+        td->font_path = NULL;
+    }
 
     /* Forget old font */
     if (td->font_file)
     {
-        bool used = FALSE;
-
-        /* Scan windows */
-        for (i = 0; i < MAX_TERM_DATA; i++)
-        {
-            /* Don't check when closing the application */
-            if (!path)
-                break;
-
-            /* Check "screen" */
-            if ((td != &data[i]) && (data[i].font_file)
-                && (streq(data[i].font_file, td->font_file)))
-            {
-                used = TRUE;
-            }
-        }
-
-        /* Remove unused font resources */
-        if (!used)
-            RemoveFontResource(td->font_file);
-
         /* Free the old name */
         string_free(td->font_file);
 
@@ -1490,9 +1492,20 @@ static errr term_force_font(term_data* td, cptr path)
     if (!check_file(buf))
         return (1);
 
-    /* Load the new font */
-    if (!AddFontResource(buf))
+    /*
+     * Load the new font. FR_PRIVATE makes the font private to this process,
+     * so Windows unloads it (and releases the .fon file) when the process
+     * ends, even if we never get to call RemoveFontResourceEx(), e.g. after
+     * a crash. A public font would keep the file locked until the user logs
+     * out or reboots, which e.g. prevents the user from deleting the Sil-Q
+     * application folder, such as when testing a new release build (see issue
+     * https://github.com/sil-quirk/sil-q/issues/135).
+     */
+    if (!AddFontResourceEx(buf, FR_PRIVATE, 0))
         return (1);
+
+    /* Save the path, for RemoveFontResourceEx() */
+    td->font_path = string_make(buf);
 
     /* Save new font name */
     td->font_file = string_make(base);

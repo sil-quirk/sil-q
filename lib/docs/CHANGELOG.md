@@ -38,6 +38,10 @@ Changed:
 
 Fixed:
 
+- Windows: could not delete the Sil-Q folder after quitting the game until the
+  next reboot, because the game's fonts stayed locked (fixes #135)
+  ([#229](https://github.com/sil-quirk/sil-q/pull/229))
+  - thanks @shindakun
 - X11: keyboard input stopped working after starting a new game with NumLock on
   (fixes #222)
   ([#228](https://github.com/sil-quirk/sil-q/pull/228))
